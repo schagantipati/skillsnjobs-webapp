@@ -17,7 +17,10 @@ function authRequired(req, res, next) {
 
 function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user) return res.status(403).json({ error: 'Forbidden: insufficient role' });
+    // administrator is the Administrator — full access to everything
+    if (req.user.role === 'administrator') return next();
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Forbidden: insufficient role' });
     }
     next();

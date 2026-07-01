@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('candidate','employer','trainer','admin')),
+  role TEXT NOT NULL CHECK(role IN ('candidate','employer','trainer','admin','placement_agency','csr_org','administrator','state_government','central_government','training_vendor')),
   org_name TEXT,
   location TEXT,
   bio TEXT,
@@ -112,6 +112,30 @@ function seedIfEmpty() {
   insertCourse.run({ trainer_id: userIds['trainer@skillbridge.in'], title: 'SQL for Data Analysis', provider: 'Skillbridge Academy', skill_tags: JSON.stringify(['SQL','Excel']), duration_weeks: 6, level: 'Beginner', rating: 4.7 });
   insertCourse.run({ trainer_id: userIds['trainer@skillbridge.in'], title: 'Power BI Fundamentals', provider: 'Skillbridge Academy', skill_tags: JSON.stringify(['Power BI']), duration_weeks: 4, level: 'Beginner', rating: 4.6 });
   insertCourse.run({ trainer_id: userIds['trainer@skillbridge.in'], title: 'React.js for Beginners', provider: 'Skillbridge Academy', skill_tags: JSON.stringify(['React','JavaScript']), duration_weeks: 8, level: 'Intermediate', rating: 4.8 });
+}
+
+// Migrate: add new candidate profile columns if they don't exist
+const existingCols = db.pragma('table_info(users)').map(c => c.name);
+const newCols = [
+  ['category', 'TEXT'],
+  ['qualification', 'TEXT'],
+  ['year_passed', 'TEXT'],
+  ['board', 'TEXT'],
+  ['university', 'TEXT'],
+  ['percentage', 'TEXT'],
+  ['employment_status', 'TEXT'],
+  ['interests', 'TEXT'],
+  ['preferred_sector', 'TEXT'],
+  ['lang_english', 'TEXT'],
+  ['lang_hindi', 'TEXT'],
+  ['lang_regional', 'TEXT'],
+  ['certificates', 'TEXT'],
+  ['resume', 'TEXT'],
+];
+for (const [col, type] of newCols) {
+  if (!existingCols.includes(col)) {
+    db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
+  }
 }
 
 seedIfEmpty();

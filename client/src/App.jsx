@@ -36,7 +36,7 @@ export default function App() {
         <Route path="/jobs" element={<Protected><Jobs /></Protected>} />
         <Route path="/jobs/:id" element={<Protected><JobDetail /></Protected>} />
         <Route path="/my-jobs" element={<Protected roles={['employer', 'admin']}><MyJobs /></Protected>} />
-        <Route path="/applications" element={<Protected roles={['candidate']}><Applications /></Protected>} />
+        <Route path="/applications" element={<Protected roles={['candidate', 'administrator']}><Applications /></Protected>} />
         <Route path="/courses" element={<Protected><Courses /></Protected>} />
         <Route path="/candidates" element={<Protected roles={['employer', 'admin']}><Candidates /></Protected>} />
         <Route path="/profile" element={<Protected><Profile /></Protected>} />

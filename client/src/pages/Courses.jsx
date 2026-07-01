@@ -46,7 +46,7 @@ export default function Courses() {
           <h1>Courses</h1>
           <p>Skill-building courses mapped to in-demand job requirements.</p>
         </div>
-        {(user.role === 'trainer' || user.role === 'admin') && (
+        {(user.role === 'trainer' || user.role === 'admin' || user.role === 'administrator') && (
           <button className="btn btn-primary" onClick={() => setShowForm(s => !s)}>{showForm ? 'Cancel' : '+ Add course'}</button>
         )}
       </div>

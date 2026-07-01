@@ -5,12 +5,14 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  const isEmployerLike = ['employer', 'admin', 'placement_agency', 'csr_org', 'administrator', 'state_government', 'central_government'].includes(user.role);
+
   const links = [
     { to: '/dashboard', label: 'Dashboard' },
     { to: '/jobs', label: 'Jobs' },
-    user.role === 'employer' || user.role === 'admin' ? { to: '/my-jobs', label: 'My Postings' } : null,
-    user.role === 'employer' || user.role === 'admin' ? { to: '/candidates', label: 'Candidates' } : null,
-    user.role === 'candidate' ? { to: '/applications', label: 'My Applications' } : null,
+    isEmployerLike ? { to: '/my-jobs', label: 'My Postings' } : null,
+    isEmployerLike ? { to: '/candidates', label: 'Candidates' } : null,
+    (user.role === 'candidate' || user.role === 'administrator') ? { to: '/applications', label: user.role === 'administrator' ? 'All Applications' : 'My Applications' } : null,
     { to: '/courses', label: 'Courses' },
   ].filter(Boolean);
 

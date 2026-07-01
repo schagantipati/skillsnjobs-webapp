@@ -26,6 +26,8 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
 export const api = {
   register: (payload) => request('/auth/register', { method: 'POST', body: payload, auth: false }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload, auth: false }),
+  sendOtp: (type, value) => request('/auth/send-otp', { method: 'POST', body: { type, value }, auth: false }),
+  verifyOtp: (type, value, otp) => request('/auth/verify-otp', { method: 'POST', body: { type, value, otp }, auth: false }),
   me: () => request('/users/me'),
   updateMe: (payload) => request('/users/me', { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
@@ -42,8 +44,10 @@ export const api = {
 
   apply: (job_id) => request('/applications', { method: 'POST', body: { job_id } }),
   myApplications: () => request('/applications/mine'),
+  allApplications: () => request('/applications/all'),
   jobApplicants: (jobId) => request(`/applications/job/${jobId}`),
   updateApplicationStatus: (id, status) => request(`/applications/${id}/status`, { method: 'PUT', body: { status } }),
+  deleteApplication: (id) => request(`/applications/${id}`, { method: 'DELETE' }),
 
   courses: () => request('/courses'),
   createCourse: (payload) => request('/courses', { method: 'POST', body: payload }),

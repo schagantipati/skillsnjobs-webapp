@@ -14,7 +14,7 @@ export default function JobDetail() {
 
   useEffect(() => {
     api.job(id).then(setJob).catch(() => {});
-    if (user.role === 'candidate') {
+    if (user.role === 'candidate' || user.role === 'administrator') {
       api.myApplications().then(apps => setApplied(apps.some(a => a.job_id === Number(id)))).catch(() => {});
     }
   }, [id]);
@@ -59,7 +59,7 @@ export default function JobDetail() {
 
         {error && <div className="error-msg" style={{ marginTop: 18 }}>{error}</div>}
 
-        {user.role === 'candidate' && (
+        {(user.role === 'candidate' || user.role === 'administrator') && (
           <button className="btn btn-primary" style={{ marginTop: 22 }} disabled={busy || applied} onClick={apply}>
             {applied ? 'Applied ✓' : busy ? 'Submitting…' : 'Apply now'}
           </button>

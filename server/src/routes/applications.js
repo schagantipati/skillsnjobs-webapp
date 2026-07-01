@@ -5,8 +5,29 @@ const { matchScore } = require('../match');
 
 const router = express.Router();
 
+// Admin: get all applications
+router.get('/all', authRequired, requireRole('admin', 'administrator'), (req, res) => {
+  const rows = db.prepare(`SELECT a.*, j.title, j.location, j.job_type,
+    u_emp.org_name, u_emp.name as employer_name,
+    u_can.name as candidate_name, u_can.email
+    FROM applications a
+    JOIN jobs j ON j.id = a.job_id
+    JOIN users u_emp ON u_emp.id = j.employer_id
+    JOIN users u_can ON u_can.id = a.candidate_id
+    ORDER BY a.created_at DESC`).all();
+  res.json(rows.map(r => ({ ...r, employer_name: r.org_name || r.employer_name })));
+});
+
+// Admin: delete any application
+router.delete('/:id', authRequired, requireRole('admin', 'administrator'), (req, res) => {
+  const app = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  if (!app) return res.status(404).json({ error: 'Application not found' });
+  db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 // Candidate applies to a job
-router.post('/', authRequired, requireRole('candidate'), (req, res) => {
+router.post('/', authRequired, requireRole('candidate', 'administrator'), (req, res) => {
   const { job_id } = req.body;
   const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(job_id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
