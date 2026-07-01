@@ -2,6 +2,32 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 
+const MONTHS_SHORT = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+function DateDMY({ value, onChange, maxYear, minYear = 1900 }) {
+  const parts = value ? value.split('-') : ['','',''];
+  const day = parts[0] || ''; const month = parts[1] || ''; const year = parts[2] || '';
+  const currentYear = new Date().getFullYear();
+  const maxY = maxYear || currentYear;
+  function update(d, m, y) { if (d && m && y) onChange(`${String(d).padStart(2,'0')}-${m}-${y}`); }
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <select value={day} onChange={e => update(e.target.value, month, year)} style={{ flex: 1 }}>
+        <option value="">DD</option>
+        {Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0')).map(d=><option key={d}>{d}</option>)}
+      </select>
+      <select value={month} onChange={e => update(day, e.target.value, year)} style={{ flex: 1 }}>
+        <option value="">MMM</option>
+        {MONTHS_SHORT.map(m=><option key={m}>{m}</option>)}
+      </select>
+      <select value={year} onChange={e => update(day, month, e.target.value)} style={{ flex: 1.4 }}>
+        <option value="">YYYY</option>
+        {Array.from({length: maxY - minYear + 1},(_,i)=>String(maxY-i)).map(y=><option key={y}>{y}</option>)}
+      </select>
+    </div>
+  );
+}
+
 const INDIA_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
   'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
@@ -42,32 +68,43 @@ function initForm(u) {
     resume: u.resume || '',
     name: u.name || '', org_name: u.org_name || '',
     location: u.location || '', bio: u.bio || '', experience_years: u.experience_years || 0,
+    // Vendor-specific
+    registration_number: u.registration_number || '', pan: u.pan || '', gstin: u.gstin || '',
+    year_established: u.year_established || '', head_office: u.head_office || '',
+    branch_offices: u.branch_offices || '',
+    ceo_name: u.ceo_name || '', spoc_name: u.spoc_name || '', ops_head: u.ops_head || '',
+    finance_contact: u.finance_contact || '', placement_officer: u.placement_officer || '',
+    bank_account_name: u.bank_account_name || '', bank_ifsc: u.bank_ifsc || '',
+    bank_account_number: u.bank_account_number || '',
+    training_centres: u.training_centres || '[]', centre_photos: u.centre_photos || '[]',
   };
 }
 
 function SectionCard({ title, editing, onEdit, onCancel, onSave, busy, savedMsg, error, children }) {
   return (
-    <div className="card shadow" style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-3)', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+    <div className="card shadow" style={{ marginBottom: 0, padding: 0, overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#6B9EF0', padding: '7px 12px', borderBottom: '1px solid #5A8FE8' }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: '#ffffff', letterSpacing: 0.4, textTransform: 'uppercase' }}>
           {title}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {savedMsg && <span style={{ fontSize: 12, color: '#10B981', fontWeight: 600 }}>✓ Saved</span>}
           {!editing
-            ? <button type="button" className="btn btn-outline btn-sm" onClick={onEdit}>Edit</button>
+            ? <button type="button" className="btn btn-sm" style={{ background: '#fff', color: '#6B9EF0', border: '1.5px solid #fff', fontWeight: 700, borderRadius: 7 }} onClick={onEdit}>✏️ Edit</button>
             : <>
-                <button type="button" className="btn btn-outline btn-sm" onClick={onCancel} disabled={busy}>Cancel</button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={onSave} disabled={busy}>
-                  {busy ? 'Saving…' : 'Save'}
+                <button type="button" className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 7 }} onClick={onCancel} disabled={busy}>Cancel</button>
+                <button type="button" className="btn btn-sm" style={{ background: '#fff', color: '#6B9EF0', border: '1.5px solid #fff', fontWeight: 700, borderRadius: 7 }} onClick={onSave} disabled={busy}>
+                  {busy ? 'Saving…' : '✓ Save'}
                 </button>
               </>
           }
         </div>
       </div>
-      {error && <div className="error-msg" style={{ marginBottom: 10 }}>{error}</div>}
-      <div style={{ opacity: editing ? 1 : 0.85 }}>
-        {children}
+      <div style={{ padding: '8px 12px' }}>
+        {error && <div className="error-msg" style={{ marginBottom: 10 }}>{error}</div>}
+        <div style={{ opacity: editing ? 1 : 0.85 }}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -86,7 +123,179 @@ function ReadOnly({ label, value }) {
   return (
     <div className="field">
       <label style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</label>
-      <div style={{ fontSize: 14, color: 'var(--ink-1)', padding: '6px 0', minHeight: 24 }}>{value || <span style={{ color: 'var(--ink-3)' }}>—</span>}</div>
+      <div style={{ fontSize: 13, color: 'var(--ink-1)', padding: '2px 0', minHeight: 18 }}>{value || <span style={{ color: 'var(--ink-3)' }}>—</span>}</div>
+    </div>
+  );
+}
+
+const ORG_TYPES = ['Private Limited Company','Public Limited Company','Partnership Firm','Sole Proprietorship','LLP (Limited Liability Partnership)','Society / Trust / NGO','Government Institution','Autonomous Body','Other'];
+
+function VendorProfile({ f, set, ed, startEdit, cancelEdit, saveSection, busy, savedMsg, errors, certRef, photoRef, addCertificates, removeCert, readFile, parseArr }) {
+  const displayName = f.org_name || f.first_name || 'Training Vendor';
+
+  /* training centres helpers */
+  const centres = parseArr(f.training_centres);
+  function updateCentre(idx, key, val) {
+    const arr = [...centres]; arr[idx] = { ...arr[idx], [key]: val };
+    set('training_centres', JSON.stringify(arr));
+  }
+  function addCentre() {
+    const arr = [...centres, { name:'', address:'', geo:'', classrooms:'', labs:'', workshop:'', seating:'', internet:'', power_backup:'', accessibility:'', equipment:'' }];
+    set('training_centres', JSON.stringify(arr));
+  }
+  function removeCentre(idx) {
+    set('training_centres', JSON.stringify(centres.filter((_,i)=>i!==idx)));
+  }
+
+  /* centre photos helpers */
+  const cPhotos = parseArr(f.centre_photos);
+  const PHOTO_TYPES = ['Building','Labs','Classrooms','Practical Labs','Reception'];
+  function readCentrePhoto(file, label) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const arr = cPhotos.filter(p=>p.label!==label);
+      arr.push({ label, data: ev.target.result, name: file.name });
+      set('centre_photos', JSON.stringify(arr));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="page" style={{ maxWidth: 1100 }}>
+      <div className="page-header">
+        <h1>{displayName}</h1>
+        <p>Complete your organisation profile to attract candidates and partners.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, alignItems: 'stretch' }}>
+
+      {/* ── 1. ORGANISATION DETAILS ── */}
+      <SectionCard title="Organisation Details"
+        editing={ed.orgdetails} onEdit={() => startEdit('orgdetails')}
+        onCancel={() => cancelEdit('orgdetails')}
+        onSave={() => saveSection('orgdetails', { org_name: f.org_name, registration_number: f.registration_number, pan: f.pan, gstin: f.gstin, gender: f.gender, dob: f.dob, year_established: f.year_established })}
+        busy={busy.orgdetails} savedMsg={savedMsg.orgdetails} error={errors.orgdetails}>
+        {ed.orgdetails ? (
+          <>
+            <div className="grid grid-2">
+              <Field label="Legal Entity Name" required><input value={f.org_name} onChange={e=>set('org_name',e.target.value)} placeholder="Registered legal name" /></Field>
+              <Field label="Registration Number"><input value={f.registration_number||''} onChange={e=>set('registration_number',e.target.value)} placeholder="CIN / Society Reg. No." /></Field>
+            </div>
+            <div className="grid grid-3">
+              <Field label="PAN"><input value={f.pan||''} onChange={e=>set('pan',e.target.value.toUpperCase())} placeholder="AAAAA9999A" maxLength={10} /></Field>
+              <Field label="GSTIN"><input value={f.gstin||''} onChange={e=>set('gstin',e.target.value.toUpperCase())} placeholder="22AAAAA0000A1Z5" maxLength={15} /></Field>
+              <Field label="Organisation Type">
+                <select value={f.gender||''} onChange={e=>set('gender',e.target.value)}>
+                  <option value="">Select type</option>
+                  {ORG_TYPES.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-2">
+              <Field label="Date of Incorporation">
+                <DateDMY value={f.dob} onChange={v=>set('dob',v)} maxYear={new Date().getFullYear()} />
+              </Field>
+              <Field label="Year of Establishment"><input value={f.year_established||''} onChange={e=>set('year_established',e.target.value)} placeholder="e.g. 2010" maxLength={4} /></Field>
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-2">
+            <ReadOnly label="Legal Entity Name" value={f.org_name} />
+            <ReadOnly label="Registration Number" value={f.registration_number} />
+            <ReadOnly label="PAN" value={f.pan} />
+            <ReadOnly label="GSTIN" value={f.gstin} />
+            <ReadOnly label="Organisation Type" value={f.gender} />
+            <ReadOnly label="Date of Incorporation" value={f.dob} />
+            <ReadOnly label="Year of Establishment" value={f.year_established} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 2. CONTACT DETAILS ── */}
+      <SectionCard title="Contact Details"
+        editing={ed.vendorcontact} onEdit={() => startEdit('vendorcontact')}
+        onCancel={() => cancelEdit('vendorcontact')}
+        onSave={() => saveSection('vendorcontact', { phone: f.phone, address_line1: f.address_line1, address_line2: f.address_line2, head_office: f.head_office, branch_offices: f.branch_offices, city: f.city, state_name: f.state_name, pincode: f.pincode })}
+        busy={busy.vendorcontact} savedMsg={savedMsg.vendorcontact} error={errors.vendorcontact}>
+        {ed.vendorcontact ? (
+          <>
+            <Field label="Phone"><input value={f.phone||''} onChange={e=>set('phone',e.target.value)} placeholder="+91 XXXXXXXXXX" /></Field>
+            <Field label="Registered Address (Line 1)"><input value={f.address_line1||''} onChange={e=>set('address_line1',e.target.value)} placeholder="Building No., Street, Area" /></Field>
+            <Field label="Registered Address (Line 2)"><input value={f.address_line2||''} onChange={e=>set('address_line2',e.target.value)} placeholder="Landmark (optional)" /></Field>
+            <Field label="Head Office Address"><input value={f.head_office||''} onChange={e=>set('head_office',e.target.value)} placeholder="If different from registered address" /></Field>
+            <Field label="Branch Offices"><textarea value={f.branch_offices||''} onChange={e=>set('branch_offices',e.target.value)} placeholder="List branch office locations, one per line" style={{ minHeight: 70 }} /></Field>
+            <div className="grid grid-3">
+              <Field label="State">
+                <select value={f.state_name||''} onChange={e=>set('state_name',e.target.value)}>
+                  <option value="">Select state</option>
+                  {INDIA_STATES.map(s=><option key={s}>{s}</option>)}
+                </select>
+              </Field>
+              <Field label="District / City"><input value={f.city||''} onChange={e=>set('city',e.target.value)} placeholder="City / District" /></Field>
+              <Field label="PIN Code"><input value={f.pincode||''} onChange={e=>set('pincode',e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit PIN" /></Field>
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-2">
+            <ReadOnly label="Phone" value={f.phone} />
+            <ReadOnly label="Registered Address" value={[f.address_line1,f.address_line2].filter(Boolean).join(', ')} />
+            <ReadOnly label="Head Office" value={f.head_office} />
+            <ReadOnly label="Branch Offices" value={f.branch_offices} />
+            <ReadOnly label="State" value={f.state_name} />
+            <ReadOnly label="District" value={f.city} />
+            <ReadOnly label="PIN Code" value={f.pincode} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 3. CONTACT PERSONS ── */}
+      <SectionCard title="Contact Persons"
+        editing={ed.contacts} onEdit={() => startEdit('contacts')}
+        onCancel={() => cancelEdit('contacts')}
+        onSave={() => saveSection('contacts', { first_name: f.first_name, last_name: f.last_name, ceo_name: f.ceo_name, spoc_name: f.spoc_name, ops_head: f.ops_head, finance_contact: f.finance_contact, placement_officer: f.placement_officer })}
+        busy={busy.contacts} savedMsg={savedMsg.contacts} error={errors.contacts}>
+        {ed.contacts ? (
+          <div className="grid grid-2">
+            <Field label="CEO / Director"><input value={f.ceo_name||''} onChange={e=>set('ceo_name',e.target.value)} placeholder="Full name" /></Field>
+            <Field label="SPOC (Single Point of Contact)"><input value={f.spoc_name||''} onChange={e=>set('spoc_name',e.target.value)} placeholder="Full name" /></Field>
+            <Field label="Operations Head"><input value={f.ops_head||''} onChange={e=>set('ops_head',e.target.value)} placeholder="Full name" /></Field>
+            <Field label="Finance Contact"><input value={f.finance_contact||''} onChange={e=>set('finance_contact',e.target.value)} placeholder="Full name" /></Field>
+            <Field label="Placement Officer"><input value={f.placement_officer||''} onChange={e=>set('placement_officer',e.target.value)} placeholder="Full name" /></Field>
+          </div>
+        ) : (
+          <div className="grid grid-2">
+            <ReadOnly label="CEO / Director" value={f.ceo_name} />
+            <ReadOnly label="SPOC" value={f.spoc_name} />
+            <ReadOnly label="Operations Head" value={f.ops_head} />
+            <ReadOnly label="Finance Contact" value={f.finance_contact} />
+            <ReadOnly label="Placement Officer" value={f.placement_officer} />
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── 4. BANK DETAILS ── */}
+      <SectionCard title="Bank Details"
+        editing={ed.bank} onEdit={() => startEdit('bank')}
+        onCancel={() => cancelEdit('bank')}
+        onSave={() => saveSection('bank', { bank_account_name: f.bank_account_name, bank_ifsc: f.bank_ifsc, bank_account_number: f.bank_account_number })}
+        busy={busy.bank} savedMsg={savedMsg.bank} error={errors.bank}>
+        {ed.bank ? (
+          <div className="grid grid-3">
+            <Field label="Account Name"><input value={f.bank_account_name||''} onChange={e=>set('bank_account_name',e.target.value)} placeholder="As per bank records" /></Field>
+            <Field label="IFSC Code"><input value={f.bank_ifsc||''} onChange={e=>set('bank_ifsc',e.target.value.toUpperCase())} placeholder="e.g. SBIN0001234" maxLength={11} /></Field>
+            <Field label="Account Number"><input value={f.bank_account_number||''} onChange={e=>set('bank_account_number',e.target.value.replace(/\D/g,''))} placeholder="Account number" /></Field>
+          </div>
+        ) : (
+          <div className="grid grid-3">
+            <ReadOnly label="Account Name" value={f.bank_account_name} />
+            <ReadOnly label="IFSC Code" value={f.bank_ifsc} />
+            <ReadOnly label="Account Number" value={f.bank_account_number ? '••••' + f.bank_account_number.slice(-4) : ''} />
+          </div>
+        )}
+      </SectionCard>
+
+      </div>{/* end 2-col grid */}
     </div>
   );
 }
@@ -94,6 +303,8 @@ function ReadOnly({ label, value }) {
 export default function Profile() {
   const { user, refresh } = useAuth();
   const isCandidate = user.role === 'candidate';
+  const isTrainingVendor = user.role === 'training_vendor';
+  const usesFullProfile = isCandidate || isTrainingVendor;
 
   const [f, setF] = useState(() => initForm(user));
   const [snap, setSnap] = useState(() => initForm(user)); // snapshot for cancel
@@ -169,19 +380,29 @@ export default function Profile() {
     reader.readAsDataURL(file);
   }
 
-  if (!isCandidate) {
+  /* ── helper: parse JSON arrays stored in DB ── */
+  function parseArr(v) { try { return JSON.parse(v || '[]'); } catch { return []; } }
+
+  if (isTrainingVendor) return <VendorProfile f={f} set={set} ed={editing} startEdit={startEdit} cancelEdit={cancelEdit} saveSection={saveSection} busy={busy} savedMsg={savedMsg} errors={errors} certRef={certRef} photoRef={photoRef} addCertificates={addCertificates} removeCert={removeCert} readFile={readFile} parseArr={parseArr} />;
+
+  if (!usesFullProfile) {
     return (
       <div className="page" style={{ maxWidth: 640 }}>
         <div className="page-header"><h1>My Profile</h1></div>
         <div className="card shadow">
-          <Field label="Name"><input value={f.name} onChange={e => set('name', e.target.value)} /></Field>
-          <Field label="Email"><input value={f.email} disabled /></Field>
+          <Field label="Full Name"><input value={f.name} onChange={e => set('name', e.target.value)} /></Field>
+          <Field label="Email"><input value={f.email} disabled style={{ background: '#F4F6FA', color: 'var(--ink-3)' }} /></Field>
           <Field label="Organization"><input value={f.org_name} onChange={e => set('org_name', e.target.value)} /></Field>
           <Field label="Location"><input value={f.location} onChange={e => set('location', e.target.value)} /></Field>
+          <Field label="Phone"><input value={f.phone} onChange={e => set('phone', e.target.value)} /></Field>
           <Field label="Bio"><textarea value={f.bio} onChange={e => set('bio', e.target.value)} /></Field>
-          <button className="btn btn-primary" onClick={() => saveSection('main', { name: f.name, org_name: f.org_name, location: f.location, bio: f.bio })} disabled={busy.main}>
-            {busy.main ? 'Saving…' : 'Save changes'}
-          </button>
+          {errors.main && <div style={{ color: '#EF4444', fontSize: 13, marginBottom: 8 }}>{errors.main}</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn btn-primary" onClick={() => saveSection('main', { name: f.name, org_name: f.org_name, location: f.location, bio: f.bio, phone: f.phone })} disabled={busy.main}>
+              {busy.main ? 'Saving…' : 'Save changes'}
+            </button>
+            {savedMsg.main && <span style={{ fontSize: 13, color: '#10B981', fontWeight: 600 }}>✓ Saved successfully</span>}
+          </div>
         </div>
       </div>
     );
@@ -189,51 +410,70 @@ export default function Profile() {
 
   const ed = editing;
 
+  const displayName = [f.first_name, f.last_name].filter(Boolean).join(' ') || f.org_name || user.name || (isTrainingVendor ? 'Training Vendor' : 'Candidate');
+
   return (
     <div className="page" style={{ maxWidth: 760 }}>
       <div className="page-header">
-        <h1>My Profile</h1>
-        <p>Keep your details current for better job matches.</p>
+        <h1>{displayName}</h1>
+        <p>{isTrainingVendor ? 'Keep your organisation details current.' : 'Keep your details current for better job matches.'}</p>
       </div>
 
-      {/* ── PERSONAL DETAILS ── */}
-      <SectionCard title="Personal Details"
+      {/* ── PERSONAL / ORGANISATION DETAILS ── */}
+      <SectionCard title={isTrainingVendor ? 'Organisation Details' : 'Personal Details'}
         editing={ed.personal} onEdit={() => startEdit('personal')}
         onCancel={() => cancelEdit('personal')}
-        onSave={() => saveSection('personal', { first_name: f.first_name, middle_name: f.middle_name, last_name: f.last_name, gender: f.gender, dob: f.dob, category: f.category })}
+        onSave={() => saveSection('personal', { first_name: f.first_name, middle_name: f.middle_name, last_name: f.last_name, gender: f.gender, dob: f.dob, category: f.category, org_name: f.org_name })}
         busy={busy.personal} savedMsg={savedMsg.personal} error={errors.personal}>
         {ed.personal ? (
           <>
+            {isTrainingVendor && (
+              <Field label="Organisation Name" required>
+                <input value={f.org_name} onChange={e => set('org_name', e.target.value)} placeholder="e.g. ABC Training Institute Pvt Ltd" />
+              </Field>
+            )}
             <div className="grid grid-3">
-              <Field label="First Name"><input value={f.first_name} onChange={e => set('first_name', e.target.value)} placeholder="First name" /></Field>
+              <Field label={isTrainingVendor ? 'Contact First Name' : 'First Name'}><input value={f.first_name} onChange={e => set('first_name', e.target.value)} placeholder="First name" /></Field>
               <Field label="Middle Name"><input value={f.middle_name} onChange={e => set('middle_name', e.target.value)} placeholder="Middle name" /></Field>
-              <Field label="Last Name"><input value={f.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name" /></Field>
+              <Field label={isTrainingVendor ? 'Contact Last Name' : 'Last Name'}><input value={f.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Last name" /></Field>
             </div>
             <div className="grid grid-2">
-              <Field label="Gender">
-                <select value={f.gender} onChange={e => set('gender', e.target.value)}>
-                  <option value="">Select gender</option>
-                  <option>Male</option><option>Female</option><option>Transgender</option><option>Prefer not to say</option>
-                </select>
+              <Field label={isTrainingVendor ? 'Organisation Type' : 'Gender'}>
+                {isTrainingVendor ? (
+                  <select value={f.gender} onChange={e => set('gender', e.target.value)}>
+                    <option value="">Select type</option>
+                    <option>Private Limited Company</option><option>Public Limited Company</option>
+                    <option>Partnership Firm</option><option>Sole Proprietorship</option>
+                    <option>LLP (Limited Liability Partnership)</option><option>Society / Trust / NGO</option>
+                    <option>Government Institution</option><option>Autonomous Body</option><option>Other</option>
+                  </select>
+                ) : (
+                  <select value={f.gender} onChange={e => set('gender', e.target.value)}>
+                    <option value="">Select gender</option>
+                    <option>Male</option><option>Female</option><option>Transgender</option><option>Prefer not to say</option>
+                  </select>
+                )}
               </Field>
-              <Field label="Date of Birth">
-                <input type="date" value={f.dob} onChange={e => set('dob', e.target.value)}
-                  max={new Date(Date.now() - 16 * 365.25 * 86400000).toISOString().split('T')[0]} />
+              <Field label={isTrainingVendor ? 'Date of Incorporation' : 'Date of Birth'}>
+                <DateDMY value={f.dob} onChange={v => set('dob', v)} maxYear={new Date().getFullYear()} minYear={isTrainingVendor ? 1900 : undefined} />
               </Field>
             </div>
-            <Field label="Category">
-              <select value={f.category} onChange={e => set('category', e.target.value)}>
-                <option value="">Select category</option>
-                <option>General</option><option>OBC</option><option>SC</option><option>ST</option><option>EWS</option>
-              </select>
-            </Field>
+            {!isTrainingVendor && (
+              <Field label="Category">
+                <select value={f.category} onChange={e => set('category', e.target.value)}>
+                  <option value="">Select category</option>
+                  <option>General</option><option>OBC</option><option>SC</option><option>ST</option><option>EWS</option>
+                </select>
+              </Field>
+            )}
           </>
         ) : (
           <div className="grid grid-2">
-            <ReadOnly label="Name" value={[f.first_name, f.middle_name, f.last_name].filter(Boolean).join(' ')} />
-            <ReadOnly label="Gender" value={f.gender} />
-            <ReadOnly label="Date of Birth" value={f.dob} />
-            <ReadOnly label="Category" value={f.category} />
+            {isTrainingVendor && <ReadOnly label="Organisation Name" value={f.org_name} />}
+            <ReadOnly label={isTrainingVendor ? 'Contact Person' : 'Name'} value={[f.first_name, f.middle_name, f.last_name].filter(Boolean).join(' ')} />
+            <ReadOnly label={isTrainingVendor ? 'Organisation Type' : 'Gender'} value={f.gender} />
+            <ReadOnly label={isTrainingVendor ? 'Date of Incorporation' : 'Date of Birth'} value={f.dob} />
+            {!isTrainingVendor && <ReadOnly label="Category" value={f.category} />}
           </div>
         )}
       </SectionCard>
@@ -309,8 +549,8 @@ export default function Profile() {
         )}
       </SectionCard>
 
-      {/* ── EMPLOYMENT STATUS ── */}
-      <SectionCard title="Employment Status"
+      {/* ── EMPLOYMENT STATUS (candidate only) ── */}
+      {!isTrainingVendor && <SectionCard title="Employment Status"
         editing={ed.employment} onEdit={() => startEdit('employment')}
         onCancel={() => cancelEdit('employment')}
         onSave={() => saveSection('employment', { employment_status: f.employment_status })}
@@ -349,10 +589,10 @@ export default function Profile() {
             {ed.employment ? 'Select your current employment status.' : 'Not specified'}
           </div>
         )}
-      </SectionCard>
+      </SectionCard>}
 
       {/* ── SKILLS ── */}
-      <SectionCard title="Skills"
+      <SectionCard title={isTrainingVendor ? 'Training Areas & Skills' : 'Skills'}
         editing={ed.skills} onEdit={() => startEdit('skills')}
         onCancel={() => cancelEdit('skills')}
         onSave={() => saveSection('skills', { skills: f.skillsText.split(',').map(s => s.trim()).filter(Boolean), interests: f.interests, preferred_sector: f.preferred_sector })}

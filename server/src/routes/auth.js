@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const { db, logAudit } = require('../db');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
@@ -101,6 +101,7 @@ router.post('/register', (req, res) => {
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  logAudit({ user, action: 'User registered', entity: 'user', entityId: user.id, detail: `Role: ${user.role}`, ip: req.ip });
   res.status(201).json({ token, user: publicUser(user) });
 });
 
@@ -108,9 +109,11 @@ router.post('/login', (req, res) => {
   const { email, password } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
   if (!user || !bcrypt.compareSync(password || '', user.password_hash)) {
+    logAudit({ user: null, action: 'Login failed', detail: `Email: ${email}`, ip: req.ip });
     return res.status(401).json({ error: 'Invalid email or password' });
   }
   const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  logAudit({ user, action: 'Login', entity: 'user', entityId: user.id, detail: `Role: ${user.role}`, ip: req.ip });
   res.json({ token, user: publicUser(user) });
 });
 

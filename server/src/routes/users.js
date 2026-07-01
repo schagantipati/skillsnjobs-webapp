@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const { db, logAudit } = require('../db');
 const { authRequired } = require('../middleware/auth');
 
 const router = express.Router();
@@ -20,6 +20,15 @@ function publicUser(u) {
     interests: u.interests, preferred_sector: u.preferred_sector,
     lang_english: u.lang_english, lang_hindi: u.lang_hindi, lang_regional: u.lang_regional,
     certificates: u.certificates, resume: u.resume,
+    // Training Vendor
+    registration_number: u.registration_number, pan: u.pan, gstin: u.gstin,
+    year_established: u.year_established, head_office: u.head_office,
+    branch_offices: u.branch_offices,
+    ceo_name: u.ceo_name, spoc_name: u.spoc_name, ops_head: u.ops_head,
+    finance_contact: u.finance_contact, placement_officer: u.placement_officer,
+    bank_account_name: u.bank_account_name, bank_ifsc: u.bank_ifsc,
+    bank_account_number: u.bank_account_number,
+    training_centres: u.training_centres, centre_photos: u.centre_photos,
   };
 }
 
@@ -38,6 +47,10 @@ router.put('/me', authRequired, (req, res) => {
     employment_status, interests, preferred_sector,
     lang_english, lang_hindi, lang_regional,
     certificates, resume,
+    registration_number, pan, gstin, year_established, head_office, branch_offices,
+    ceo_name, spoc_name, ops_head, finance_contact, placement_officer,
+    bank_account_name, bank_ifsc, bank_account_number,
+    training_centres, centre_photos,
   } = req.body;
 
   const e = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
@@ -49,54 +62,89 @@ router.put('/me', authRequired, (req, res) => {
     category=?, qualification=?, year_passed=?, board=?, university=?, percentage=?,
     employment_status=?, interests=?, preferred_sector=?,
     lang_english=?, lang_hindi=?, lang_regional=?,
-    certificates=?, resume=?
+    certificates=?, resume=?,
+    registration_number=?, pan=?, gstin=?, year_established=?, head_office=?, branch_offices=?,
+    ceo_name=?, spoc_name=?, ops_head=?, finance_contact=?, placement_officer=?,
+    bank_account_name=?, bank_ifsc=?, bank_account_number=?,
+    training_centres=?, centre_photos=?
     WHERE id=?`).run(
-    name ?? e.name,
-    location ?? e.location,
-    bio ?? e.bio,
+    name ?? e.name, location ?? e.location, bio ?? e.bio,
     JSON.stringify(skills ?? JSON.parse(e.skills || '[]')),
-    experience_years ?? e.experience_years,
-    org_name ?? e.org_name,
-    first_name ?? e.first_name,
-    middle_name ?? e.middle_name,
-    last_name ?? e.last_name,
-    dob ?? e.dob,
-    gender ?? e.gender,
-    phone ?? e.phone,
-    photo ?? e.photo,
-    address_line1 ?? e.address_line1,
-    address_line2 ?? e.address_line2,
-    city ?? e.city,
-    state_name ?? e.state_name,
-    country ?? e.country,
-    pincode ?? e.pincode,
-    category ?? e.category,
-    qualification ?? e.qualification,
-    year_passed ?? e.year_passed,
-    board ?? e.board,
-    university ?? e.university,
-    percentage ?? e.percentage,
-    employment_status ?? e.employment_status,
-    interests ?? e.interests,
-    preferred_sector ?? e.preferred_sector,
-    lang_english ?? e.lang_english,
-    lang_hindi ?? e.lang_hindi,
-    lang_regional ?? e.lang_regional,
-    certificates ?? e.certificates,
-    resume ?? e.resume,
+    experience_years ?? e.experience_years, org_name ?? e.org_name,
+    first_name ?? e.first_name, middle_name ?? e.middle_name, last_name ?? e.last_name,
+    dob ?? e.dob, gender ?? e.gender, phone ?? e.phone, photo ?? e.photo,
+    address_line1 ?? e.address_line1, address_line2 ?? e.address_line2,
+    city ?? e.city, state_name ?? e.state_name, country ?? e.country, pincode ?? e.pincode,
+    category ?? e.category, qualification ?? e.qualification, year_passed ?? e.year_passed,
+    board ?? e.board, university ?? e.university, percentage ?? e.percentage,
+    employment_status ?? e.employment_status, interests ?? e.interests, preferred_sector ?? e.preferred_sector,
+    lang_english ?? e.lang_english, lang_hindi ?? e.lang_hindi, lang_regional ?? e.lang_regional,
+    certificates ?? e.certificates, resume ?? e.resume,
+    registration_number ?? e.registration_number, pan ?? e.pan, gstin ?? e.gstin,
+    year_established ?? e.year_established, head_office ?? e.head_office, branch_offices ?? e.branch_offices,
+    ceo_name ?? e.ceo_name, spoc_name ?? e.spoc_name, ops_head ?? e.ops_head,
+    finance_contact ?? e.finance_contact, placement_officer ?? e.placement_officer,
+    bank_account_name ?? e.bank_account_name, bank_ifsc ?? e.bank_ifsc,
+    bank_account_number ?? e.bank_account_number,
+    training_centres ?? e.training_centres, centre_photos ?? e.centre_photos,
     req.user.id
   );
 
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  logAudit({ user: req.user, action: 'Profile updated', entity: 'user', entityId: req.user.id, ip: req.ip });
   res.json(publicUser(updated));
 });
 
 router.get('/candidates', authRequired, (req, res) => {
-  if (!['employer', 'admin', 'administrator'].includes(req.user.role)) {
+  if (!['employer', 'admin', 'administrator', 'superadmin', 'state_government', 'central_government'].includes(req.user.role)) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const rows = db.prepare(`SELECT * FROM users WHERE role = 'candidate' ORDER BY created_at DESC`).all();
   res.json(rows.map(publicUser));
+});
+
+// Superadmin: list users by role
+router.get('/by-role/:role', authRequired, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  const allowed = ['candidate','employer','trainer','placement_agency','csr_org','training_vendor','state_government','central_government','administrator','admin'];
+  const role = req.params.role;
+  if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  const rows = db.prepare('SELECT * FROM users WHERE role = ? ORDER BY created_at DESC').all(role);
+  res.json(rows.map(publicUser));
+});
+
+// Superadmin / admin: get audit logs
+router.get('/audit-logs', authRequired, (req, res) => {
+  if (!['superadmin', 'administrator', 'admin'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const offset = parseInt(req.query.offset) || 0;
+  const action = req.query.action || null;
+  const rows = action
+    ? db.prepare('SELECT * FROM audit_logs WHERE action = ? ORDER BY id DESC LIMIT ? OFFSET ?').all(action, limit, offset)
+    : db.prepare('SELECT * FROM audit_logs ORDER BY id DESC LIMIT ? OFFSET ?').all(limit, offset);
+  const total = action
+    ? db.prepare('SELECT COUNT(*) c FROM audit_logs WHERE action = ?').get(action).c
+    : db.prepare('SELECT COUNT(*) c FROM audit_logs').get().c;
+  res.json({ rows, total });
+});
+
+// Superadmin: get stats per role
+router.get('/stats', authRequired, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  const roles = ['candidate','training_vendor','trainer','csr_org','placement_agency','employer'];
+  const stats = {};
+  for (const r of roles) {
+    stats[r] = db.prepare('SELECT COUNT(*) c FROM users WHERE role = ?').get(r).c;
+  }
+  stats.total_users   = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+  stats.open_jobs     = db.prepare("SELECT COUNT(*) c FROM jobs WHERE status='open'").get().c;
+  stats.total_jobs    = db.prepare('SELECT COUNT(*) c FROM jobs').get().c;
+  stats.total_courses = db.prepare('SELECT COUNT(*) c FROM courses').get().c;
+  stats.applications  = db.prepare('SELECT COUNT(*) c FROM applications').get().c;
+  stats.hired         = db.prepare("SELECT COUNT(*) c FROM applications WHERE status='hired'").get().c;
+  stats.shortlisted   = db.prepare("SELECT COUNT(*) c FROM applications WHERE status='shortlisted'").get().c;
+  stats.enrollments   = db.prepare('SELECT COUNT(*) c FROM enrollments').get().c;
+  res.json(stats);
 });
 
 module.exports = router;

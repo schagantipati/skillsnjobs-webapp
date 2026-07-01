@@ -19,6 +19,7 @@ button{font-family:inherit; cursor:pointer}
 input,select,textarea{font-family:inherit; font-size:14px}
 
 .app-shell{min-height:100vh; display:flex; flex-direction:column}
+.app-shell > div{flex:1; display:flex; min-height:0}
 
 /* ── NAVBAR ── */
 .navbar{height:62px; background:var(--navy); display:flex; align-items:center; justify-content:space-between; padding:0 28px; position:sticky; top:0; z-index:50}
@@ -45,7 +46,7 @@ input,select,textarea{font-family:inherit; font-size:14px}
 /* ── CARDS ── */
 .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px}
 .shadow{box-shadow:var(--shadow)}
-.grid{display:grid; gap:14px}
+.grid{display:grid; gap:8px}
 .grid-2{grid-template-columns:1fr 1fr}
 .grid-3{grid-template-columns:repeat(3,1fr)}
 .grid-4{grid-template-columns:repeat(4,1fr)}
@@ -71,9 +72,9 @@ input,select,textarea{font-family:inherit; font-size:14px}
 .btn-block{width:100%; justify-content:center}
 
 /* ── FORMS ── */
-.field{margin-bottom:14px}
-.field label{display:block; font-size:12px; font-weight:700; color:var(--ink-2); margin-bottom:6px}
-.field input,.field select,.field textarea{width:100%; padding:10px 12px; border:1.5px solid var(--border); border-radius:9px; background:#fff; color:var(--ink)}
+.field{margin-bottom:8px}
+.field label{display:block; font-size:11px; font-weight:700; color:var(--ink-2); margin-bottom:3px}
+.field input,.field select,.field textarea{width:100%; padding:6px 10px; border:1.5px solid var(--border); border-radius:9px; background:#fff; color:var(--ink)}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none; border-color:var(--blue)}
 .field textarea{resize:vertical; min-height:80px}
 .hint{font-size:11px; color:var(--ink-3); margin-top:4px}

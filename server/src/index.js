@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const db = require('./db');
+const { db } = require('./db');
 const { authRequired } = require('./middleware/auth');
 
 const authRoutes = require('./routes/auth');
@@ -9,6 +9,7 @@ const userRoutes = require('./routes/users');
 const jobRoutes = require('./routes/jobs');
 const applicationRoutes = require('./routes/applications');
 const courseRoutes = require('./routes/courses');
+const importRoutes = require('./routes/importData');
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/import', importRoutes);
 
 // Lightweight dashboard stats
 app.get('/api/stats/summary', authRequired, (req, res) => {

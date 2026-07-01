@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
 const ROLES = [
   { value: 'candidate', label: 'Candidate' },
   { value: 'employer', label: 'Employer' },
@@ -79,6 +81,15 @@ export default function Register() {
   const [stateName, setStateName] = useState('');
   const [country, setCountry] = useState('India');
   const [pincode, setPincode] = useState('');
+
+  // Date parts — shared for both candidate DOB and vendor incorporation date
+  const [dateDay, setDateDay] = useState('');
+  const [dateMonth, setDateMonth] = useState('');
+  const [dateYear, setDateYear] = useState('');
+
+  function updateDob(d, m, y) {
+    if (d && m && y) setDob(`${String(d).padStart(2,'0')}-${m}-${y}`);
+  }
 
   // OTP state
   const [mobileOtpSent, setMobileOtpSent] = useState(false);
@@ -167,7 +178,7 @@ export default function Register() {
     if (password !== confirmPassword) { setError('Passwords do not match'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
 
-    if (role === 'candidate') {
+    if (usesFullForm) {
       if (!firstName.trim() || !lastName.trim()) { setError('First name and last name are required'); return; }
       const phoneErr = validatePhone();
       if (phoneErr) { setError(phoneErr); return; }
@@ -175,11 +186,12 @@ export default function Register() {
       if (emailErr) { setError(emailErr); return; }
       if (!mobileVerified) { setError('Please verify your mobile number with OTP'); return; }
       if (!emailVerified) { setError('Please verify your email address with OTP'); return; }
-      if (!dob) { setError('Date of birth is required'); return; }
+      if (!dateDay || !dateMonth || !dateYear) { setError('Date of birth is required'); return; }
       if (!gender) { setError('Gender is required'); return; }
       if (!addrLine1.trim()) { setError('Address Line 1 is required'); return; }
       if (!city.trim()) { setError('City is required'); return; }
       if (!pincode.trim()) { setError('PIN / ZIP code is required'); return; }
+      if (isTrainingVendor && !orgName.trim()) { setError('Organization Name is required'); return; }
     }
 
     setBusy(true);
@@ -216,10 +228,12 @@ export default function Register() {
   }
 
   const isCandidate = role === 'candidate';
+  const isTrainingVendor = role === 'training_vendor';
+  const usesFullForm = isCandidate || isTrainingVendor;
 
   return (
     <div className="auth-wrap" style={{ padding: '32px 16px' }}>
-      <div className="auth-card" style={{ maxWidth: isCandidate ? 680 : 480, width: '100%' }}>
+      <div className="auth-card" style={{ maxWidth: usesFullForm ? 680 : 480, width: '100%' }}>
         <div className="auth-logo"><div className="mark">🎯</div><span>SkillsNJobs</span></div>
         <h2>Create your account</h2>
         <p className="sub">Connect skills, jobs and training in one place.</p>
@@ -243,11 +257,21 @@ export default function Register() {
             </div>
           </div>
 
-          {/* ── CANDIDATE FIELDS ── */}
-          {isCandidate && (
+          {/* ── CANDIDATE / TRAINING VENDOR FIELDS ── */}
+          {usesFullForm && (
             <>
+              {/* Organization Name — Training Vendor only */}
+              {isTrainingVendor && (
+                <>
+                  <div style={{ marginTop: 80 }} />
+                  <Field label="Organization Name" required>
+                    <input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. ABC Training Institute Pvt Ltd" required />
+                  </Field>
+                </>
+              )}
+
               {/* Name row */}
-              <div style={{ marginTop: 80 }} />
+              {!isTrainingVendor && <div style={{ marginTop: 80 }} />}
               <div className="grid grid-3">
                 <Field label="First Name" required>
                   <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" required />
@@ -260,20 +284,62 @@ export default function Register() {
                 </Field>
               </div>
 
-              {/* DOB & Gender */}
+              {/* DOB & Gender — or Year of Incorporation & Org Type for Training Vendor */}
               <div className="grid grid-2">
-                <Field label="Date of Birth" required>
-                  <input type="date" value={dob} onChange={e => setDob(e.target.value)}
-                    max={new Date(Date.now() - 16 * 365.25 * 86400000).toISOString().split('T')[0]} required />
+                <Field label={isTrainingVendor ? 'Date of Incorporation' : 'Date of Birth'} required>
+                  {isTrainingVendor
+                    ? <div style={{ display: 'flex', gap: 6 }}>
+                        <select value={dateDay} onChange={e => { setDateDay(e.target.value); updateDob(e.target.value, dateMonth, dateYear); }} required style={{ flex: 1 }}>
+                          <option value="">DD</option>
+                          {Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0')).map(d=><option key={d}>{d}</option>)}
+                        </select>
+                        <select value={dateMonth} onChange={e => { setDateMonth(e.target.value); updateDob(dateDay, e.target.value, dateYear); }} required style={{ flex: 1 }}>
+                          <option value="">MMM</option>
+                          {MONTHS.map(m=><option key={m}>{m}</option>)}
+                        </select>
+                        <select value={dateYear} onChange={e => { setDateYear(e.target.value); updateDob(dateDay, dateMonth, e.target.value); }} required style={{ flex: 1.4 }}>
+                          <option value="">YYYY</option>
+                          {Array.from({length: new Date().getFullYear()-1899},(_,i)=> String(new Date().getFullYear()-i)).map(y=><option key={y}>{y}</option>)}
+                        </select>
+                      </div>
+                    : <div style={{ display: 'flex', gap: 6 }}>
+                        <select value={dateDay} onChange={e => { setDateDay(e.target.value); updateDob(e.target.value, dateMonth, dateYear); }} required style={{ flex: 1 }}>
+                          <option value="">DD</option>
+                          {Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0')).map(d=><option key={d}>{d}</option>)}
+                        </select>
+                        <select value={dateMonth} onChange={e => { setDateMonth(e.target.value); updateDob(dateDay, e.target.value, dateYear); }} required style={{ flex: 1 }}>
+                          <option value="">MMM</option>
+                          {MONTHS.map(m=><option key={m}>{m}</option>)}
+                        </select>
+                        <select value={dateYear} onChange={e => { setDateYear(e.target.value); updateDob(dateDay, dateMonth, e.target.value); }} required style={{ flex: 1.4 }}>
+                          <option value="">YYYY</option>
+                          {Array.from({length: new Date().getFullYear()-15-1899},(_,i)=>String(new Date().getFullYear()-15-i)).map(y=><option key={y}>{y}</option>)}
+                        </select>
+                      </div>
+                  }
                 </Field>
-                <Field label="Gender" required>
-                  <select value={gender} onChange={e => setGender(e.target.value)} required>
-                    <option value="">Select gender</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Transgender</option>
-                    <option>Prefer not to say</option>
-                  </select>
+                <Field label={isTrainingVendor ? 'Organization Type' : 'Gender'} required>
+                  {isTrainingVendor
+                    ? <select value={gender} onChange={e => setGender(e.target.value)} required>
+                        <option value="">Select type</option>
+                        <option>Private Limited Company</option>
+                        <option>Public Limited Company</option>
+                        <option>Partnership Firm</option>
+                        <option>Sole Proprietorship</option>
+                        <option>LLP (Limited Liability Partnership)</option>
+                        <option>Society / Trust / NGO</option>
+                        <option>Government Institution</option>
+                        <option>Autonomous Body</option>
+                        <option>Other</option>
+                      </select>
+                    : <select value={gender} onChange={e => setGender(e.target.value)} required>
+                        <option value="">Select gender</option>
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Transgender</option>
+                        <option>Prefer not to say</option>
+                      </select>
+                  }
                 </Field>
               </div>
 
@@ -386,9 +452,10 @@ export default function Register() {
             </>
           )}
 
-          {/* ── NON-CANDIDATE FIELDS ── */}
-          {!isCandidate && (
+          {/* ── OTHER ROLES (simple form) ── */}
+          {!usesFullForm && (
             <>
+              <div style={{ marginTop: 80 }} />
               <Field label="Full Name" required>
                 <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Your full name" required />
               </Field>
@@ -413,8 +480,8 @@ export default function Register() {
             </Field>
           </div>
 
-          {/* OTP status summary for candidate */}
-          {isCandidate && (
+          {/* OTP status summary */}
+          {usesFullForm && (
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 12, padding: '4px 10px', borderRadius: 99, background: mobileVerified ? '#D1FAE5' : '#FEF3C7', color: mobileVerified ? '#065F46' : '#92400E', fontWeight: 600 }}>
                 {mobileVerified ? '✓ Mobile verified' : '⚠ Mobile not verified'}

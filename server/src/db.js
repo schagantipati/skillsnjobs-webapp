@@ -8,12 +8,25 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 db.exec(`
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  user_name TEXT,
+  user_role TEXT,
+  action TEXT NOT NULL,
+  entity TEXT,
+  entity_id TEXT,
+  detail TEXT,
+  ip TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('candidate','employer','trainer','admin','placement_agency','csr_org','administrator','state_government','central_government','training_vendor')),
+  role TEXT NOT NULL CHECK(role IN ('candidate','employer','trainer','admin','placement_agency','csr_org','administrator','state_government','central_government','training_vendor','superadmin')),
   org_name TEXT,
   location TEXT,
   bio TEXT,
@@ -82,7 +95,10 @@ function seedIfEmpty() {
     { name: 'Aisha Khan', email: 'aisha@example.com', password_hash: hash('password123'), role: 'candidate', org_name: null, location: 'Hyderabad', bio: 'Aspiring data analyst', skills: JSON.stringify(['Excel','SQL','Communication']), experience_years: 1 },
     { name: 'Rahul Verma', email: 'rahul@example.com', password_hash: hash('password123'), role: 'candidate', org_name: null, location: 'Bengaluru', bio: 'Frontend developer learning React', skills: JSON.stringify(['HTML','CSS','JavaScript']), experience_years: 2 },
     { name: 'TechNova Pvt Ltd', email: 'hr@technova.com', password_hash: hash('password123'), role: 'employer', org_name: 'TechNova Pvt Ltd', location: 'Bengaluru', bio: 'Mid-size product company', skills: '[]', experience_years: 0 },
-    { name: 'Skillbridge Academy', email: 'trainer@skillbridge.in', password_hash: hash('password123'), role: 'trainer', org_name: 'Skillbridge Academy', location: 'Pune', bio: 'NSDC-approved training partner', skills: '[]', experience_years: 0 }
+    { name: 'Skillbridge Academy', email: 'trainer@skillbridge.in', password_hash: hash('password123'), role: 'trainer', org_name: 'Skillbridge Academy', location: 'Pune', bio: 'NSDC-approved training partner', skills: '[]', experience_years: 0 },
+    { name: 'Super Admin', email: 'superadmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'superadmin', org_name: null, location: 'New Delhi', bio: 'Platform super administrator', skills: '[]', experience_years: 0 },
+    { name: 'State Admin', email: 'stateadmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'state_government', org_name: 'State Government', location: 'Hyderabad', bio: 'State government representative', skills: '[]', experience_years: 0 },
+    { name: 'Central Admin', email: 'centraladmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'central_government', org_name: 'Central Government', location: 'New Delhi', bio: 'Central government representative', skills: '[]', experience_years: 0 },
   ];
   const userIds = {};
   for (const u of users) {
@@ -117,20 +133,27 @@ function seedIfEmpty() {
 // Migrate: add new candidate profile columns if they don't exist
 const existingCols = db.pragma('table_info(users)').map(c => c.name);
 const newCols = [
-  ['category', 'TEXT'],
-  ['qualification', 'TEXT'],
-  ['year_passed', 'TEXT'],
-  ['board', 'TEXT'],
-  ['university', 'TEXT'],
-  ['percentage', 'TEXT'],
-  ['employment_status', 'TEXT'],
-  ['interests', 'TEXT'],
-  ['preferred_sector', 'TEXT'],
-  ['lang_english', 'TEXT'],
-  ['lang_hindi', 'TEXT'],
-  ['lang_regional', 'TEXT'],
-  ['certificates', 'TEXT'],
-  ['resume', 'TEXT'],
+  // Candidate profile
+  ['category', 'TEXT'], ['qualification', 'TEXT'], ['year_passed', 'TEXT'],
+  ['board', 'TEXT'], ['university', 'TEXT'], ['percentage', 'TEXT'],
+  ['employment_status', 'TEXT'], ['interests', 'TEXT'], ['preferred_sector', 'TEXT'],
+  ['lang_english', 'TEXT'], ['lang_hindi', 'TEXT'], ['lang_regional', 'TEXT'],
+  ['certificates', 'TEXT'], ['resume', 'TEXT'],
+  // Shared / identity
+  ['first_name', 'TEXT'], ['middle_name', 'TEXT'], ['last_name', 'TEXT'],
+  ['dob', 'TEXT'], ['gender', 'TEXT'], ['phone', 'TEXT'], ['photo', 'TEXT'],
+  ['address_line1', 'TEXT'], ['address_line2', 'TEXT'],
+  ['city', 'TEXT'], ['state_name', 'TEXT'], ['country', 'TEXT'], ['pincode', 'TEXT'],
+  // Training Vendor – org details
+  ['registration_number', 'TEXT'], ['pan', 'TEXT'], ['gstin', 'TEXT'],
+  ['year_established', 'TEXT'], ['head_office', 'TEXT'], ['branch_offices', 'TEXT'],
+  // Training Vendor – contact persons
+  ['ceo_name', 'TEXT'], ['spoc_name', 'TEXT'], ['ops_head', 'TEXT'],
+  ['finance_contact', 'TEXT'], ['placement_officer', 'TEXT'],
+  // Training Vendor – bank
+  ['bank_account_name', 'TEXT'], ['bank_ifsc', 'TEXT'], ['bank_account_number', 'TEXT'],
+  // Training Vendor – infrastructure
+  ['training_centres', 'TEXT'], ['centre_photos', 'TEXT'],
 ];
 for (const [col, type] of newCols) {
   if (!existingCols.includes(col)) {
@@ -140,4 +163,24 @@ for (const [col, type] of newCols) {
 
 seedIfEmpty();
 
-module.exports = db;
+const _insertLog = db.prepare(
+  `INSERT INTO audit_logs (user_id, user_name, user_role, action, entity, entity_id, detail, ip)
+   VALUES (@user_id, @user_name, @user_role, @action, @entity, @entity_id, @detail, @ip)`
+);
+
+function logAudit({ user, action, entity = null, entityId = null, detail = null, ip = null }) {
+  try {
+    _insertLog.run({
+      user_id:   user?.id   ?? null,
+      user_name: user?.name ?? 'System',
+      user_role: user?.role ?? null,
+      action,
+      entity:    entity    ?? null,
+      entity_id: entityId  != null ? String(entityId) : null,
+      detail:    detail    ?? null,
+      ip:        ip        ?? null,
+    });
+  } catch (_) {}
+}
+
+module.exports = { db, logAudit };

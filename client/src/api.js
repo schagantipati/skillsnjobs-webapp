@@ -31,6 +31,12 @@ export const api = {
   me: () => request('/users/me'),
   updateMe: (payload) => request('/users/me', { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
+  usersByRole: (role) => request(`/users/by-role/${role}`),
+  userStats: () => request('/users/stats'),
+  auditLogs: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/audit-logs' + (qs ? `?${qs}` : '')); },
+  importUsers: (role, records) => request('/import/users', { method: 'POST', body: { role, records } }),
+  importJobs: (records) => request('/import/jobs', { method: 'POST', body: { records } }),
+  importCourses: (records) => request('/import/courses', { method: 'POST', body: { records } }),
 
   jobs: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
