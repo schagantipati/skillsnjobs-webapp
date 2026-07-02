@@ -82,6 +82,9 @@ CREATE TABLE IF NOT EXISTS enrollments (
 );
 `);
 
+// Migrations — safe to run on every startup
+try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
+
 function seedIfEmpty() {
   const userCount = db.prepare('SELECT COUNT(*) c FROM users').get().c;
   if (userCount > 0) return;

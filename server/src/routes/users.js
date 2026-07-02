@@ -128,6 +128,42 @@ router.get('/audit-logs', authRequired, (req, res) => {
   res.json({ rows, total });
 });
 
+// Superadmin: list ALL users (with optional role filter & search)
+router.get('/all', authRequired, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  const { role, search, status } = req.query;
+  let sql = 'SELECT * FROM users WHERE 1=1';
+  const params = [];
+  if (role)   { sql += ' AND role = ?';                       params.push(role); }
+  if (status) { sql += ' AND (is_active = ? OR is_active IS ?)'; params.push(status === 'active' ? 1 : 0, null); }
+  if (search) { sql += ' AND (name LIKE ? OR email LIKE ? OR org_name LIKE ?)'; const q = `%${search}%`; params.push(q, q, q); }
+  sql += ' ORDER BY created_at DESC';
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows.map(publicUser));
+});
+
+// Superadmin: activate / deactivate a user
+router.put('/:id/status', authRequired, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  const { is_active } = req.body;
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(is_active ? 1 : 0, req.params.id);
+  logAudit({ user: req.user, action: is_active ? 'User activated' : 'User deactivated', entity: 'user', entityId: req.params.id, ip: req.ip });
+  res.json({ success: true, is_active: !!is_active });
+});
+
+// Superadmin: delete a user
+router.delete('/:id', authRequired, (req, res) => {
+  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.id === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
+  db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  logAudit({ user: req.user, action: 'User deleted', entity: 'user', entityId: req.params.id, ip: req.ip });
+  res.json({ success: true });
+});
+
 // Superadmin: get stats per role
 router.get('/stats', authRequired, (req, res) => {
   if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
