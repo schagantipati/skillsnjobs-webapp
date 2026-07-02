@@ -11,6 +11,7 @@ const applicationRoutes = require('./routes/applications');
 const courseRoutes = require('./routes/courses');
 const importRoutes = require('./routes/importData');
 const orgClassificationRoutes = require('./routes/orgClassifications');
+const accreditationRoutes = require('./routes/accreditations');
 
 const app = express();
 app.use(cors());
@@ -26,6 +27,7 @@ app.use('/api/applications', applicationRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/org-classifications', orgClassificationRoutes);
+app.use('/api/accreditations', accreditationRoutes);
 
 // Lightweight dashboard stats
 app.get('/api/stats/summary', authRequired, (req, res) => {

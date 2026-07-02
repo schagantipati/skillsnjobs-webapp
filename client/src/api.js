@@ -68,6 +68,12 @@ export const api = {
 
   stats: () => request('/stats/summary'),
 
+  accreditations: () => request('/accreditations'),
+  addAccreditation: (name) => request('/accreditations', { method: 'POST', body: { name } }),
+  setAccreditationStatus: (id, is_enabled) => request(`/accreditations/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
+  renameAccreditation: (id, name) => request(`/accreditations/${id}`, { method: 'PATCH', body: { name } }),
+  deleteAccreditation: (id) => request(`/accreditations/${id}`, { method: 'DELETE' }),
+
   orgClassifications: () => request('/org-classifications'),
   addOrgClassification: (name) => request('/org-classifications', { method: 'POST', body: { name } }),
   setOrgClassificationStatus: (id, is_enabled) => request(`/org-classifications/${id}/status`, { method: 'PATCH', body: { is_enabled } }),

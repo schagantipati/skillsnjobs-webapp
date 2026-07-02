@@ -4,6 +4,7 @@ export default function SuperadminSetup() {
   const navigate = useNavigate();
 
   const items = [
+    { icon: '🏅', title: 'Accreditations & Empanelment', desc: 'Manage accreditation types for government verification — NSDC, PMKVY, ISO, NABL and more.', to: '/superadmin/setup/accreditations' },
     { icon: '🏢', title: 'Organisation Classifications', desc: 'Manage predefined organisation types used across the platform. Enable, disable, or add new values.', to: '/superadmin/setup/org-classifications' },
     { icon: '👤', title: 'Manage Users', desc: 'View, activate, deactivate or delete platform users by role.', to: '/superadmin/setup/manage-users' },
     { icon: '🔑', title: 'Roles & Permissions', desc: 'Manage what each role can access across the platform.', to: '/superadmin/setup/roles-permissions' },

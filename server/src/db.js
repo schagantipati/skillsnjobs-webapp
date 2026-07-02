@@ -105,6 +105,28 @@ if (ocCount === 0) {
   defaults.forEach((name, i) => ins.run(name, i + 1));
 }
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS accreditations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  is_enabled INTEGER DEFAULT 1,
+  is_system INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+const acCount = db.prepare('SELECT COUNT(*) c FROM accreditations').get().c;
+if (acCount === 0) {
+  const defaults = [
+    'NSDC Affiliation','Sector Skill Council Affiliation','State Skill Mission Empanelment',
+    'DDU-GKY PIA','PMKVY Partner','Apprenticeship Registration',
+    'ISO Certification','NABL / NABCB','Other Recognitions'
+  ];
+  const ins = db.prepare('INSERT INTO accreditations (name, is_enabled, is_system, sort_order) VALUES (?, 1, 1, ?)');
+  defaults.forEach((name, i) => ins.run(name, i + 1));
+}
+
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}
