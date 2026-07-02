@@ -127,6 +127,27 @@ if (acCount === 0) {
   defaults.forEach((name, i) => ins.run(name, i + 1));
 }
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS geographic_coverage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  is_enabled INTEGER DEFAULT 1,
+  is_system INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+const gcCount = db.prepare('SELECT COUNT(*) c FROM geographic_coverage').get().c;
+if (gcCount === 0) {
+  const gcDefaults = [
+    'States of Operation','Districts of Operation','Aspirational District Experience',
+    'Rural Coverage','Urban Coverage','Remote / Tribal Area Experience'
+  ];
+  const gcIns = db.prepare('INSERT INTO geographic_coverage (name, is_enabled, is_system, sort_order) VALUES (?, 1, 1, ?)');
+  gcDefaults.forEach((name, i) => gcIns.run(name, i + 1));
+}
+
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}

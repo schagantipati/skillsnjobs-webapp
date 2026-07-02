@@ -68,6 +68,12 @@ export const api = {
 
   stats: () => request('/stats/summary'),
 
+  geographicCoverage: () => request('/geographic-coverage'),
+  addGeographicCoverage: (name) => request('/geographic-coverage', { method: 'POST', body: { name } }),
+  setGeographicCoverageStatus: (id, is_enabled) => request(`/geographic-coverage/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
+  renameGeographicCoverage: (id, name) => request(`/geographic-coverage/${id}`, { method: 'PATCH', body: { name } }),
+  deleteGeographicCoverage: (id) => request(`/geographic-coverage/${id}`, { method: 'DELETE' }),
+
   accreditations: () => request('/accreditations'),
   addAccreditation: (name) => request('/accreditations', { method: 'POST', body: { name } }),
   setAccreditationStatus: (id, is_enabled) => request(`/accreditations/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
