@@ -70,6 +70,31 @@ export default function ManageUsers() {
     setTimeout(() => setToast(''), 3000);
   }
 
+  function exportCSV() {
+    const headers = ['ID','Name','Email','Role','Organisation','Phone','Location','Status','Joined'];
+    const rows = users.map(u => [
+      u.id,
+      u.name,
+      u.email,
+      roleLabel(u.role),
+      u.org_name || '',
+      u.phone || '',
+      u.location || '',
+      u.is_active !== 0 ? 'Active' : 'Inactive',
+      u.created_at?.slice(0,10) || '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.download = `users_export_${dateStr}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${users.length} users to CSV.`);
+  }
+
   async function handleStatus(user, is_active) {
     setBusy(true);
     try {
@@ -152,6 +177,10 @@ export default function ManageUsers() {
           placeholder="Search by name, email, org…"
           style={{ padding: '7px 14px', borderRadius: 8, border: '1.5px solid #DDE3EE', fontSize: 13, width: 220, background: '#FAFBFD', marginLeft: 'auto' }} />
 
+        <button onClick={exportCSV} disabled={users.length === 0}
+          style={{ padding: '7px 16px', borderRadius: 8, background: '#fff', color: '#059669', fontWeight: 700, fontSize: 13, border: '1.5px solid #6EE7B7', cursor: users.length === 0 ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: users.length === 0 ? 0.5 : 1 }}>
+          ↓ Export CSV
+        </button>
         <button onClick={() => setShowAddModal(true)}
           style={{ padding: '7px 18px', borderRadius: 8, background: '#0B1E3D', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}>
           + Add User
