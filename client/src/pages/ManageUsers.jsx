@@ -9,8 +9,10 @@ const ROLES = [
   { value: 'employer',         label: 'Employer' },
   { value: 'placement_agency', label: 'Placement Agency' },
   { value: 'csr_org',          label: 'CSR Organisation' },
-  { value: 'superadmin',       label: 'Super Admin' },
-  { value: 'administrator',    label: 'Administrator' },
+  { value: 'state_government',  label: 'State Government' },
+  { value: 'central_government',label: 'Central Government' },
+  { value: 'superadmin',        label: 'Super Admin' },
+  { value: 'administrator',     label: 'Administrator' },
 ];
 
 const ROLE_COLORS = {
@@ -20,8 +22,10 @@ const ROLE_COLORS = {
   employer:         { bg: '#FEF3C7', color: '#92400E' },
   placement_agency: { bg: '#FEE2E2', color: '#991B1B' },
   csr_org:          { bg: '#E0F2FE', color: '#0369A1' },
-  superadmin:       { bg: '#0B1E3D', color: '#fff' },
-  administrator:    { bg: '#374151', color: '#fff' },
+  superadmin:        { bg: '#0B1E3D', color: '#fff' },
+  administrator:     { bg: '#374151', color: '#fff' },
+  state_government:  { bg: '#FEF3C7', color: '#92400E' },
+  central_government:{ bg: '#DBEAFE', color: '#1E40AF' },
 };
 
 function roleLabel(r) {
@@ -385,14 +389,16 @@ export default function ManageUsers() {
 
 /* ── Add User Modal ─────────────────────────────────────────────── */
 const ADD_ROLES = [
-  { value: 'candidate',        label: 'Candidate' },
-  { value: 'training_vendor',  label: 'Training Vendor' },
-  { value: 'trainer',          label: 'Trainer' },
-  { value: 'employer',         label: 'Employer' },
-  { value: 'placement_agency', label: 'Placement Agency' },
-  { value: 'csr_org',          label: 'CSR Organisation' },
-  { value: 'administrator',    label: 'Administrator' },
-  { value: 'superadmin',       label: 'Super Admin' },
+  { value: 'candidate',         label: 'Candidate' },
+  { value: 'training_vendor',   label: 'Training Vendor' },
+  { value: 'trainer',           label: 'Trainer' },
+  { value: 'employer',          label: 'Employer' },
+  { value: 'placement_agency',  label: 'Placement Agency' },
+  { value: 'csr_org',           label: 'CSR Organisation' },
+  { value: 'state_government',  label: 'State Government' },
+  { value: 'central_government',label: 'Central Government' },
+  { value: 'administrator',     label: 'Administrator' },
+  { value: 'superadmin',        label: 'Super Admin' },
 ];
 
 function AddUserModal({ onClose, onSaved }) {
@@ -444,7 +450,7 @@ function AddUserModal({ onClose, onSaved }) {
         {/* Role selector — full width, prominent */}
         <div style={{ marginBottom: 16 }}>
           <label style={LBL}>Role *</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 8 }}>
             {ADD_ROLES.map(r => {
               const rc = ROLE_COLORS[r.value] || { bg: '#F1F5F9', color: '#374151' };
               const sel = form.role === r.value;
