@@ -313,67 +313,107 @@ export default function TrainingVendors() {
 /* ── Register Vendor Modal ──────────────────────────────────────── */
 function RegisterVendorModal({ onClose, onSaved }) {
   const EMPTY = { name: '', email: '', org_name: '', org_classification: '', phone: '', location: '', registration_number: '', pan: '', gstin: '', year_established: '', ceo_name: '', spoc_name: '', bio: '', password: 'Welcome@123', role: 'training_vendor' };
-  const [form, setForm]       = useState(EMPTY);
-  const [busy, setBusy]       = useState(false);
-  const [err, setErr]         = useState('');
-  const [orgClasses, setOrgClasses] = useState([]);
+  const [form, setForm]         = useState(EMPTY);
+  const [busy, setBusy]         = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [globalErr, setGlobalErr]     = useState('');
+  const [orgClasses, setOrgClasses]   = useState([]);
 
   useEffect(() => {
     api.orgClassifications().then(d => setOrgClasses(d.filter(c => c.is_enabled))).catch(() => {});
   }, []);
 
-  const F = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
-  const INP = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #DDE3EE', fontSize: 13, boxSizing: 'border-box', background: '#FAFBFD' };
+  const F = k => e => {
+    setForm(f => ({ ...f, [k]: e.target.value }));
+    setFieldErrors(fe => ({ ...fe, [k]: '' }));
+    setGlobalErr('');
+  };
+
+  const ERR_BORDER = '1.5px solid #FCA5A5';
+  const OK_BORDER  = '1.5px solid #DDE3EE';
+  const INP = (key) => ({ width: '100%', padding: '9px 12px', borderRadius: 8, border: fieldErrors[key] ? ERR_BORDER : OK_BORDER, fontSize: 13, boxSizing: 'border-box', background: fieldErrors[key] ? '#FFF5F5' : '#FAFBFD' });
   const LBL = { fontSize: 12, fontWeight: 700, color: '#445074', display: 'block', marginBottom: 4 };
 
   async function submit() {
-    if (!form.org_name || !form.email) { setErr('Organisation name and email are required.'); return; }
-    setBusy(true); setErr('');
+    // Client-side required validation
+    const fe = {};
+    if (!form.org_name.trim()) fe.org_name = 'Organisation name is required.';
+    if (!form.email.trim())    fe.email    = 'Email is required.';
+    if (Object.keys(fe).length) { setFieldErrors(fe); return; }
+
+    setBusy(true); setFieldErrors({}); setGlobalErr('');
     try {
       const res = await api.register({ ...form, name: form.name || form.org_name, gender: form.org_classification });
       onSaved({ ...form, id: res.user?.id || Date.now(), name: form.name || form.org_name });
-    } catch (e) { setErr(e.message); setBusy(false); }
+    } catch (e) {
+      if (e.field) setFieldErrors({ [e.field]: e.message });
+      else setGlobalErr(e.message);
+      setBusy(false);
+    }
   }
 
-  const textRows = [
-    [['Organisation Name *','org_name'], ['Contact Name','name']],
-    [['Email *','email','email'],        ['Phone','phone']],
-    [['Location','location'],           ['Year Established','year_established']],
-    [['Reg. Number','registration_number'], ['PAN','pan']],
-    [['GSTIN','gstin'],                  ['CEO Name','ceo_name']],
-    [['SPOC Name','spoc_name'],          ['Bio','bio']],
+  const FIELDS = [
+    { label: 'Organisation Name *', key: 'org_name' },
+    { label: 'Contact Name',        key: 'name' },
+    { label: 'Email *',             key: 'email',               type: 'email' },
+    { label: 'Mobile Number',       key: 'phone' },
+    { label: 'Location',            key: 'location' },
+    { label: 'Year Established',    key: 'year_established' },
+    { label: 'Reg. / CIN Number',   key: 'registration_number' },
+    { label: 'PAN',                 key: 'pan' },
+    { label: 'GSTIN',               key: 'gstin' },
+    { label: 'CEO Name',            key: 'ceo_name' },
+    { label: 'SPOC Name',           key: 'spoc_name' },
+    { label: 'Bio',                 key: 'bio' },
   ];
+
+  // Pair fields into rows of 2
+  const rows = [];
+  for (let i = 0; i < FIELDS.length; i += 2) rows.push(FIELDS.slice(i, i + 2));
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="card shadow" style={{ width: 580, maxWidth: '95vw', padding: 28, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div className="card shadow" style={{ width: 600, maxWidth: '95vw', padding: 28, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>×</button>
-        <div style={{ fontWeight: 800, fontSize: 16, color: '#0B1E3D', marginBottom: 20 }}>Register Training Vendor</div>
+        <div style={{ fontWeight: 800, fontSize: 16, color: '#0B1E3D', marginBottom: 4 }}>Register Training Vendor</div>
+        <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 18 }}>Duplicate organisation name, email, mobile, CIN and GST are not allowed.</div>
 
-        {/* Organisation Classification dropdown */}
+        {/* Organisation Classification */}
         <div style={{ marginBottom: 12 }}>
           <label style={LBL}>Organisation Classification *</label>
-          <select value={form.org_classification} onChange={F('org_classification')} style={INP}>
+          <select value={form.org_classification} onChange={F('org_classification')} style={{ ...INP('org_classification'), border: OK_BORDER }}>
             <option value="">Select classification</option>
             {orgClasses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
         </div>
 
-        {textRows.map((row, ri) => (
-          <div key={ri} style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-            {row.map(([label, key, type]) => (
-              <div key={key} style={{ flex: 1 }}>
-                <label style={LBL}>{label}</label>
-                <input type={type || 'text'} value={form[key]} onChange={F(key)} style={INP} />
+        {/* All other fields */}
+        {rows.map((row, ri) => (
+          <div key={ri} style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+            {row.map(f => (
+              <div key={f.key} style={{ flex: 1 }}>
+                <label style={LBL}>{f.label}</label>
+                <input type={f.type || 'text'} value={form[f.key]} onChange={F(f.key)} style={INP(f.key)} placeholder={f.key === 'registration_number' ? 'CIN / Reg. No.' : ''} />
+                {fieldErrors[f.key] && (
+                  <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>⚠</span> {fieldErrors[f.key]}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         ))}
-        {err && <div style={{ color: '#B91C1C', fontSize: 12, marginBottom: 10 }}>{err}</div>}
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
+
+        {globalErr && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#B91C1C', marginBottom: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 16 }}>⚠️</span> {globalErr}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
           <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={submit} disabled={busy} style={{ padding: '9px 22px' }}>
-            {busy ? 'Saving…' : 'Register Vendor'}
+            {busy ? 'Checking…' : 'Register Vendor'}
           </button>
         </div>
       </div>

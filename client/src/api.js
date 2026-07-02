@@ -18,7 +18,9 @@ async function request(path, { method = 'GET', body, auth = true } = {}) {
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await res.json() : null;
   if (!res.ok) {
-    throw new Error((data && data.error) || `Request failed (${res.status})`);
+    const err = new Error((data && data.error) || `Request failed (${res.status})`);
+    if (data && data.field) err.field = data.field;
+    throw err;
   }
   return data;
 }

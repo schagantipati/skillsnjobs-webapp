@@ -76,7 +76,32 @@ router.post('/register', (req, res) => {
   }
 
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-  if (existing) return res.status(409).json({ error: 'Email already registered' });
+  if (existing) return res.status(409).json({ error: 'Email already registered', field: 'email' });
+
+  // Training vendor duplicate checks
+  if (role === 'training_vendor') {
+    const { org_name: on, phone: ph, registration_number: rn, gstin: gs, pan: pn } = req.body;
+    if (on?.trim()) {
+      const dupOrg = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(org_name))=LOWER(TRIM(?))").get(on.trim());
+      if (dupOrg) return res.status(409).json({ error: `Organisation "${on.trim()}" is already registered.`, field: 'org_name' });
+    }
+    if (ph?.trim()) {
+      const dupPhone = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND TRIM(phone)=TRIM(?)").get(ph.trim());
+      if (dupPhone) return res.status(409).json({ error: `Mobile number ${ph.trim()} is already registered.`, field: 'phone' });
+    }
+    if (rn?.trim()) {
+      const dupReg = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(registration_number))=LOWER(TRIM(?))").get(rn.trim());
+      if (dupReg) return res.status(409).json({ error: `Registration/CIN number "${rn.trim()}" is already registered.`, field: 'registration_number' });
+    }
+    if (gs?.trim()) {
+      const dupGst = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(gstin))=LOWER(TRIM(?))").get(gs.trim());
+      if (dupGst) return res.status(409).json({ error: `GSTIN "${gs.trim()}" is already registered.`, field: 'gstin' });
+    }
+    if (pn?.trim()) {
+      const dupPan = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(pan))=LOWER(TRIM(?))").get(pn.trim());
+      if (dupPan) return res.status(409).json({ error: `PAN "${pn.trim()}" is already registered.`, field: 'pan' });
+    }
+  }
 
   const fullName = role === 'candidate'
     ? [first_name, middle_name, last_name].filter(Boolean).join(' ')
