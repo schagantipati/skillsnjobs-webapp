@@ -28,6 +28,7 @@ import PlatformAnalytics from './pages/PlatformAnalytics.jsx';
 import TrainingVendors from './pages/TrainingVendors.jsx';
 import Trainers from './pages/Trainers.jsx';
 import ManageUsers from './pages/ManageUsers.jsx';
+import OrgClassifications from './pages/OrgClassifications.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/infrastructure" element={<Protected roles={['training_vendor']}><Infrastructure /></Protected>} />
             <Route path="/superadmin" element={<Protected roles={['superadmin']}><SuperadminDashboard /></Protected>} />
             <Route path="/superadmin/setup" element={<Protected roles={['superadmin']}><SuperadminSetup /></Protected>} />
+            <Route path="/superadmin/setup/org-classifications" element={<Protected roles={['superadmin']}><OrgClassifications /></Protected>} />
             <Route path="/superadmin/setup/manage-users" element={<Protected roles={['superadmin']}><ManageUsers /></Protected>} />
             <Route path="/superadmin/setup/roles-permissions" element={<Protected roles={['superadmin']}><RolesPermissions /></Protected>} />
             <Route path="/superadmin/setup/audit-logs" element={<Protected roles={['superadmin','administrator','admin']}><AuditLogs /></Protected>} />

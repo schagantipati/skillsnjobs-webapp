@@ -82,6 +82,29 @@ CREATE TABLE IF NOT EXISTS enrollments (
 );
 `);
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS org_classifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  is_enabled INTEGER DEFAULT 1,
+  is_system INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+// Seed default org classifications if table is empty
+const ocCount = db.prepare('SELECT COUNT(*) c FROM org_classifications').get().c;
+if (ocCount === 0) {
+  const defaults = [
+    'Training Partner','NGO','Trust','Society','Company','Polytechnic','ITI',
+    'College / University','CSR Foundation','Industry Training Centre',
+    'Apprenticeship Provider','Sector Skill Council Partner','Assessment Agency','Placement Agency'
+  ];
+  const ins = db.prepare('INSERT INTO org_classifications (name, is_enabled, is_system, sort_order) VALUES (?, 1, 1, ?)');
+  defaults.forEach((name, i) => ins.run(name, i + 1));
+}
+
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}

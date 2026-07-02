@@ -66,7 +66,13 @@ export const api = {
   myEnrollments: () => request('/courses/mine/enrollments'),
   recommendations: () => request('/courses/recommendations/for-me'),
 
-  stats: () => request('/stats/summary')
+  stats: () => request('/stats/summary'),
+
+  orgClassifications: () => request('/org-classifications'),
+  addOrgClassification: (name) => request('/org-classifications', { method: 'POST', body: { name } }),
+  setOrgClassificationStatus: (id, is_enabled) => request(`/org-classifications/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
+  renameOrgClassification: (id, name) => request(`/org-classifications/${id}`, { method: 'PATCH', body: { name } }),
+  deleteOrgClassification: (id) => request(`/org-classifications/${id}`, { method: 'DELETE' })
 };
 
 export function setToken(token) {

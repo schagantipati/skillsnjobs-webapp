@@ -4,6 +4,8 @@ export default function SuperadminSetup() {
   const navigate = useNavigate();
 
   const items = [
+    { icon: '🏢', title: 'Organisation Classifications', desc: 'Manage predefined organisation types used across the platform. Enable, disable, or add new values.', to: '/superadmin/setup/org-classifications' },
+    { icon: '👤', title: 'Manage Users', desc: 'View, activate, deactivate or delete platform users by role.', to: '/superadmin/setup/manage-users' },
     { icon: '🔑', title: 'Roles & Permissions', desc: 'Manage what each role can access across the platform.', to: '/superadmin/setup/roles-permissions' },
     { icon: '📧', title: 'Email & Notifications', desc: 'Configure SMTP, OTP delivery, and notification templates.', to: '/superadmin/setup/email' },
     { icon: '🌐', title: 'Sectors & Categories', desc: 'Add or edit job sectors, skill categories, and course tags.', to: '/superadmin/setup/sectors' },
