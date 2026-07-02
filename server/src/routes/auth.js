@@ -76,10 +76,14 @@ router.post('/register', (req, res) => {
   }
 
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-  if (existing) return res.status(409).json({ error: 'Email already registered', field: 'email' });
+  if (existing && role !== 'training_vendor') return res.status(409).json({ error: 'Email already registered', field: 'email' });
 
   // Training vendor duplicate checks
   if (role === 'training_vendor') {
+    const dupEmail = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND email=?").get(email);
+    if (dupEmail) return res.status(409).json({ error: 'Email is already registered with another training vendor.', field: 'email' });
+    // Email exists under a different role — still must block (DB unique constraint)
+    if (existing) return res.status(409).json({ error: 'This email is already in use by another account.', field: 'email' });
     const { org_name: on, phone: ph, registration_number: rn, gstin: gs, pan: pn } = req.body;
     if (on?.trim()) {
       const dupOrg = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(org_name))=LOWER(TRIM(?))").get(on.trim());
