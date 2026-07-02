@@ -424,7 +424,7 @@ export default function Register() {
                 <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--ink-3)', marginBottom: 10, letterSpacing: 0.5 }}>EMAIL VERIFICATION</div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <div className="field" style={{ flex: 1 }}>
-                    <label>Email Address <span style={{ color: '#EF4444' }}>*</span></label>
+                    <label>Email Address (User Name) <span style={{ color: '#EF4444' }}>*</span></label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)}
                       placeholder="yourname@example.com" disabled={emailVerified} required />
                   </div>
@@ -461,7 +461,7 @@ export default function Register() {
               <Field label="Full Name" required>
                 <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Your full name" required />
               </Field>
-              <Field label="Email Address" required>
+              <Field label="Email Address (User Name)" required>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="yourname@example.com" required />
               </Field>
               {role !== 'candidate' && (
