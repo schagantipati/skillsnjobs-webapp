@@ -4,8 +4,8 @@ const { authRequired } = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET all
-router.get('/', authRequired, (req, res) => {
+// GET all — public (used in registration dropdown)
+router.get('/', (req, res) => {
   const rows = db.prepare('SELECT * FROM org_classifications ORDER BY sort_order, id').all();
   res.json(rows);
 });
