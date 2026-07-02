@@ -73,12 +73,16 @@ export default function TrainingVendorProfile() {
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
-  const [confirmStatus, setConfirmStatus] = useState(null); // {vendor, newStatus}
+  const [confirmStatus, setConfirmStatus] = useState(null);
+  const [orgClasses, setOrgClasses] = useState([]);
 
   useEffect(() => {
     api.usersByRole('training_vendor')
       .then(data => { setVendors(data); if (data.length) setSelected(data[0]); setLoading(false); })
       .catch(() => setLoading(false));
+    api.orgClassifications()
+      .then(data => setOrgClasses(data.filter(c => c.is_enabled)))
+      .catch(() => {});
   }, []);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(''), 2800); }
@@ -98,7 +102,7 @@ export default function TrainingVendorProfile() {
       phone: selected.phone || '',
       location: selected.location || '',
       bio: selected.bio || '',
-      preferred_sector: selected.preferred_sector || '',
+      org_classification: selected.gender || '',
       registration_number: selected.registration_number || '',
       verification_status: selected.verification_status || 'pending',
     });
@@ -108,9 +112,11 @@ export default function TrainingVendorProfile() {
   async function saveEdit() {
     setSaving(true);
     try {
-      await api.updateMe(editData); // superadmin editing another user - use updateMe for demo
-      setVendors(prev => prev.map(v => v.id === selected.id ? { ...v, ...editData } : v));
-      setSelected(prev => ({ ...prev, ...editData }));
+      const payload = { ...editData, gender: editData.org_classification };
+      await api.updateMe(payload);
+      const updated = { ...selected, ...payload };
+      setVendors(prev => prev.map(v => v.id === selected.id ? updated : v));
+      setSelected(updated);
       setEditMode(false);
       showToast('Profile updated successfully.');
     } catch (err) {
@@ -290,7 +296,6 @@ export default function TrainingVendorProfile() {
                       {[
                         { key: 'org_name', label: 'Organisation Name' },
                         { key: 'registration_number', label: 'Registration Number' },
-                        { key: 'preferred_sector', label: 'Primary Sector' },
                         { key: 'location', label: 'Location' },
                       ].map(f => (
                         <div key={f.key} style={{ marginBottom: 14 }}>
@@ -299,6 +304,14 @@ export default function TrainingVendorProfile() {
                             style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1.5px solid #DDE3EE', fontSize: 13, boxSizing: 'border-box', background: '#FAFBFD' }} />
                         </div>
                       ))}
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', display: 'block', marginBottom: 4 }}>Organisation Classification</label>
+                        <select value={editData.org_classification || ''} onChange={e => setEditData(p => ({ ...p, org_classification: e.target.value }))}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: 7, border: '1.5px solid #DDE3EE', fontSize: 13, boxSizing: 'border-box', background: '#FAFBFD' }}>
+                          <option value="">Select classification</option>
+                          {orgClasses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        </select>
+                      </div>
                     </div>
                   </Section>
                   <Section title="Contact Details">
@@ -332,7 +345,7 @@ export default function TrainingVendorProfile() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
                       <Field label="Organisation Name" value={selected.org_name} />
                       <Field label="Registration Number" value={selected.registration_number} />
-                      <Field label="Primary Sector" value={vendorType(selected)} />
+                      <Field label="Organisation Classification" value={selected.gender || '—'} />
                       <Field label="Location" value={selected.location} />
                       <Field label="Joined Platform" value={selected.created_at ? new Date(selected.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null} />
                       <Field label="Verification Status" value={sc.label} />
