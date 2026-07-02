@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS enrollments (
 
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN reset_token_expires INTEGER`); } catch {}
 
 function seedIfEmpty() {
   const userCount = db.prepare('SELECT COUNT(*) c FROM users').get().c;

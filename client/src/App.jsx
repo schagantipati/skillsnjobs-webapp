@@ -27,6 +27,9 @@ import ManageSkills from './pages/ManageSkills.jsx';
 import PlatformAnalytics from './pages/PlatformAnalytics.jsx';
 import TrainingVendors from './pages/TrainingVendors.jsx';
 import Trainers from './pages/Trainers.jsx';
+import ManageUsers from './pages/ManageUsers.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
 
 function Protected({ children, roles }) {
@@ -53,6 +56,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
             <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
+            <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPassword />} />
+            <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPassword />} />
 
             <Route path="/dashboard" element={<Protected>{user?.role === 'superadmin' ? <Navigate to="/superadmin" replace /> : <Dashboard />}</Protected>} />
             <Route path="/jobs" element={<Protected><Jobs /></Protected>} />
@@ -65,6 +70,7 @@ export default function App() {
             <Route path="/infrastructure" element={<Protected roles={['training_vendor']}><Infrastructure /></Protected>} />
             <Route path="/superadmin" element={<Protected roles={['superadmin']}><SuperadminDashboard /></Protected>} />
             <Route path="/superadmin/setup" element={<Protected roles={['superadmin']}><SuperadminSetup /></Protected>} />
+            <Route path="/superadmin/setup/manage-users" element={<Protected roles={['superadmin']}><ManageUsers /></Protected>} />
             <Route path="/superadmin/setup/roles-permissions" element={<Protected roles={['superadmin']}><RolesPermissions /></Protected>} />
             <Route path="/superadmin/setup/audit-logs" element={<Protected roles={['superadmin','administrator','admin']}><AuditLogs /></Protected>} />
             <Route path="/superadmin/setup/reports" element={<Protected roles={['superadmin','administrator','admin','state_government','central_government']}><ReportsExports /></Protected>} />

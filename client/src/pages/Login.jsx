@@ -36,7 +36,12 @@ export default function Login() {
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="field">
-            <label>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label style={{ margin: 0 }}>Password</label>
+              <Link to="/forgot-password" style={{ fontSize: 12, color: '#1E5FBF', fontWeight: 600, textDecoration: 'none' }}>
+                Forgot password?
+              </Link>
+            </div>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>

@@ -105,6 +105,43 @@ router.post('/register', (req, res) => {
   res.status(201).json({ token, user: publicUser(user) });
 });
 
+// Forgot password — generates reset token, returns it (+ logs it for dev)
+router.post('/forgot-password', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  // Always respond ok to prevent email enumeration
+  if (!user) return res.json({ success: true });
+
+  const token = require('crypto').randomBytes(32).toString('hex');
+  const expires = Date.now() + 60 * 60 * 1000; // 1 hour
+  db.prepare('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?').run(token, expires, user.id);
+  logAudit({ user, action: 'Password reset requested', entity: 'user', entityId: user.id, ip: req.ip });
+
+  // In production integrate SendGrid/SES here. For now return token so dev can use it.
+  console.log(`[RESET] Token for ${email}: ${token}`);
+  res.json({ success: true, ...(process.env.NODE_ENV !== 'production' ? { dev_token: token } : {}) });
+});
+
+// Reset password — validates token, updates password
+router.post('/reset-password', (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+  const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(token);
+  if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
+  if (Date.now() > user.reset_token_expires) {
+    db.prepare('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?').run(user.id);
+    return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+  }
+
+  const password_hash = bcrypt.hashSync(password, 10);
+  db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?').run(password_hash, user.id);
+  logAudit({ user, action: 'Password reset completed', entity: 'user', entityId: user.id, ip: req.ip });
+  res.json({ success: true });
+});
+
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
