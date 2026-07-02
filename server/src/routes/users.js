@@ -103,9 +103,9 @@ router.get('/candidates', authRequired, (req, res) => {
   res.json(rows.map(publicUser));
 });
 
-// Superadmin: list users by role
+// Superadmin / administrator: list users by role
 router.get('/by-role/:role', authRequired, (req, res) => {
-  if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+  if (!['superadmin', 'administrator'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
   const allowed = ['candidate','employer','trainer','placement_agency','csr_org','training_vendor','state_government','central_government','administrator','admin'];
   const role = req.params.role;
   if (!allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
