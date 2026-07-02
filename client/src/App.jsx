@@ -32,6 +32,7 @@ import OrgClassifications from './pages/OrgClassifications.jsx';
 import Accreditations from './pages/Accreditations.jsx';
 import GeographicCoverage from './pages/GeographicCoverage.jsx';
 import TargetBeneficiaries from './pages/TargetBeneficiaries.jsx';
+import TrainingVendorProfile from './pages/TrainingVendorProfile.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
@@ -88,7 +89,8 @@ export default function App() {
             <Route path="/superadmin/setup/email" element={<Protected roles={['superadmin']}><EmailNotifications /></Protected>} />
             <Route path="/superadmin/setup/skills" element={<Protected roles={['superadmin']}><ManageSkills /></Protected>} />
             <Route path="/superadmin/analytics" element={<Protected roles={['superadmin']}><PlatformAnalytics /></Protected>} />
-            <Route path="/superadmin/training-vendors" element={<Protected roles={['superadmin']}><TrainingVendors /></Protected>} />
+            <Route path="/superadmin/training-vendors" element={<Protected roles={['superadmin','administrator']}><TrainingVendors /></Protected>} />
+            <Route path="/superadmin/training-vendors/profiles" element={<Protected roles={['superadmin','administrator']}><TrainingVendorProfile /></Protected>} />
             <Route path="/superadmin/trainers" element={<Protected roles={['superadmin']}><Trainers /></Protected>} />
             <Route path="/superadmin/:section" element={<Protected roles={['superadmin']}><SuperadminDashboard /></Protected>} />
 
