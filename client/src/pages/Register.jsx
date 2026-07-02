@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
@@ -57,6 +57,11 @@ export default function Register() {
   const [role, setRole] = useState('candidate');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [orgClassifications, setOrgClassifications] = useState([]);
+
+  useEffect(() => {
+    api.orgClassifications().then(data => setOrgClassifications(data.filter(c => c.is_enabled))).catch(() => {});
+  }, []);
 
   // Common fields
   const [email, setEmail] = useState('');
@@ -318,19 +323,23 @@ export default function Register() {
                       </div>
                   }
                 </Field>
-                <Field label={isTrainingVendor ? 'Organization Type' : 'Gender'} required>
+                <Field label={isTrainingVendor ? 'Organisation Classification' : 'Gender'} required>
                   {isTrainingVendor
                     ? <select value={gender} onChange={e => setGender(e.target.value)} required>
-                        <option value="">Select type</option>
-                        <option>Private Limited Company</option>
-                        <option>Public Limited Company</option>
-                        <option>Partnership Firm</option>
-                        <option>Sole Proprietorship</option>
-                        <option>LLP (Limited Liability Partnership)</option>
-                        <option>Society / Trust / NGO</option>
-                        <option>Government Institution</option>
-                        <option>Autonomous Body</option>
-                        <option>Other</option>
+                        <option value="">Select classification</option>
+                        {orgClassifications.length > 0
+                          ? orgClassifications.map(c => <option key={c.id} value={c.name}>{c.name}</option>)
+                          : <>
+                              <option>Private Limited Company</option>
+                              <option>Public Limited Company</option>
+                              <option>Partnership Firm</option>
+                              <option>Sole Proprietorship</option>
+                              <option>LLP (Limited Liability Partnership)</option>
+                              <option>Society / Trust / NGO</option>
+                              <option>Government Institution</option>
+                              <option>Autonomous Body</option>
+                            </>
+                        }
                       </select>
                     : <select value={gender} onChange={e => setGender(e.target.value)} required>
                         <option value="">Select gender</option>

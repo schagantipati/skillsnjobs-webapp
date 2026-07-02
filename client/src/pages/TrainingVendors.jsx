@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { api } from '../api.js';
 
 /* ── helpers ──────────────────────────────────────────────────── */
@@ -312,10 +312,15 @@ export default function TrainingVendors() {
 
 /* ── Register Vendor Modal ──────────────────────────────────────── */
 function RegisterVendorModal({ onClose, onSaved }) {
-  const EMPTY = { name: '', email: '', org_name: '', phone: '', location: '', registration_number: '', pan: '', gstin: '', year_established: '', ceo_name: '', spoc_name: '', bio: '', password: 'Welcome@123', role: 'training_vendor' };
-  const [form, setForm] = useState(EMPTY);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr]   = useState('');
+  const EMPTY = { name: '', email: '', org_name: '', org_classification: '', phone: '', location: '', registration_number: '', pan: '', gstin: '', year_established: '', ceo_name: '', spoc_name: '', bio: '', password: 'Welcome@123', role: 'training_vendor' };
+  const [form, setForm]       = useState(EMPTY);
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState('');
+  const [orgClasses, setOrgClasses] = useState([]);
+
+  useEffect(() => {
+    api.orgClassifications().then(d => setOrgClasses(d.filter(c => c.is_enabled))).catch(() => {});
+  }, []);
 
   const F = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const INP = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #DDE3EE', fontSize: 13, boxSizing: 'border-box', background: '#FAFBFD' };
@@ -325,18 +330,18 @@ function RegisterVendorModal({ onClose, onSaved }) {
     if (!form.org_name || !form.email) { setErr('Organisation name and email are required.'); return; }
     setBusy(true); setErr('');
     try {
-      const res = await api.register({ ...form, name: form.name || form.org_name });
+      const res = await api.register({ ...form, name: form.name || form.org_name, gender: form.org_classification });
       onSaved({ ...form, id: res.user?.id || Date.now(), name: form.name || form.org_name });
     } catch (e) { setErr(e.message); setBusy(false); }
   }
 
-  const rows = [
+  const textRows = [
     [['Organisation Name *','org_name'], ['Contact Name','name']],
-    [['Email *','email','email'],       ['Phone','phone']],
-    [['Location','location'],          ['Year Established','year_established']],
-    [['Reg. Number','registration_number'],['PAN','pan']],
-    [['GSTIN','gstin'],                ['CEO Name','ceo_name']],
-    [['SPOC Name','spoc_name'],        ['Bio','bio']],
+    [['Email *','email','email'],        ['Phone','phone']],
+    [['Location','location'],           ['Year Established','year_established']],
+    [['Reg. Number','registration_number'], ['PAN','pan']],
+    [['GSTIN','gstin'],                  ['CEO Name','ceo_name']],
+    [['SPOC Name','spoc_name'],          ['Bio','bio']],
   ];
 
   return (
@@ -344,7 +349,17 @@ function RegisterVendorModal({ onClose, onSaved }) {
       <div className="card shadow" style={{ width: 580, maxWidth: '95vw', padding: 28, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 16, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>×</button>
         <div style={{ fontWeight: 800, fontSize: 16, color: '#0B1E3D', marginBottom: 20 }}>Register Training Vendor</div>
-        {rows.map((row, ri) => (
+
+        {/* Organisation Classification dropdown */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={LBL}>Organisation Classification *</label>
+          <select value={form.org_classification} onChange={F('org_classification')} style={INP}>
+            <option value="">Select classification</option>
+            {orgClasses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
+        </div>
+
+        {textRows.map((row, ri) => (
           <div key={ri} style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
             {row.map(([label, key, type]) => (
               <div key={key} style={{ flex: 1 }}>
