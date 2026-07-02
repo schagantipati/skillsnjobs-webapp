@@ -68,6 +68,12 @@ export const api = {
 
   stats: () => request('/stats/summary'),
 
+  targetBeneficiaries: () => request('/target-beneficiaries'),
+  addTargetBeneficiary: (name) => request('/target-beneficiaries', { method: 'POST', body: { name } }),
+  setTargetBeneficiaryStatus: (id, is_enabled) => request(`/target-beneficiaries/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
+  renameTargetBeneficiary: (id, name) => request(`/target-beneficiaries/${id}`, { method: 'PATCH', body: { name } }),
+  deleteTargetBeneficiary: (id) => request(`/target-beneficiaries/${id}`, { method: 'DELETE' }),
+
   geographicCoverage: () => request('/geographic-coverage'),
   addGeographicCoverage: (name) => request('/geographic-coverage', { method: 'POST', body: { name } }),
   setGeographicCoverageStatus: (id, is_enabled) => request(`/geographic-coverage/${id}/status`, { method: 'PATCH', body: { is_enabled } }),

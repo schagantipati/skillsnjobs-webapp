@@ -148,6 +148,29 @@ if (gcCount === 0) {
   gcDefaults.forEach((name, i) => gcIns.run(name, i + 1));
 }
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS target_beneficiaries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  is_enabled INTEGER DEFAULT 1,
+  is_system INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+const tbCount = db.prepare('SELECT COUNT(*) c FROM target_beneficiaries').get().c;
+if (tbCount === 0) {
+  const tbDefaults = [
+    'Women','Youth','SC','ST','OBC','Minorities',
+    'Persons with Disabilities','School Dropouts','College Students',
+    'Rural Youth','Urban Poor','Migrant Workers',
+    'Ex-Servicemen','Prison Inmates','Senior Citizens'
+  ];
+  const tbIns = db.prepare('INSERT INTO target_beneficiaries (name, is_enabled, is_system, sort_order) VALUES (?, 1, 1, ?)');
+  tbDefaults.forEach((name, i) => tbIns.run(name, i + 1));
+}
+
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}

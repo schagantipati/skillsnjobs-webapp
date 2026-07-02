@@ -13,6 +13,7 @@ const importRoutes = require('./routes/importData');
 const orgClassificationRoutes = require('./routes/orgClassifications');
 const accreditationRoutes = require('./routes/accreditations');
 const geographicCoverageRoutes = require('./routes/geographicCoverage');
+const targetBeneficiaryRoutes = require('./routes/targetBeneficiaries');
 
 const app = express();
 app.use(cors());
@@ -30,6 +31,7 @@ app.use('/api/import', importRoutes);
 app.use('/api/org-classifications', orgClassificationRoutes);
 app.use('/api/accreditations', accreditationRoutes);
 app.use('/api/geographic-coverage', geographicCoverageRoutes);
+app.use('/api/target-beneficiaries', targetBeneficiaryRoutes);
 
 // Lightweight dashboard stats
 app.get('/api/stats/summary', authRequired, (req, res) => {
