@@ -277,36 +277,29 @@ export default function Register() {
 
               {/* Name row */}
               {!isTrainingVendor && <div style={{ marginTop: 80 }} />}
-              <div className="grid grid-3">
-                <Field label="First Name" required>
-                  <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" required />
-                </Field>
-                <Field label="Middle Name">
-                  <input value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="Middle name" />
-                </Field>
-                <Field label="Last Name" required>
-                  <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" required />
-                </Field>
-              </div>
+              {isTrainingVendor
+                ? <Field label="Contact Person Name" required>
+                    <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Full name of authorised contact person" required />
+                  </Field>
+                : <div className="grid grid-3">
+                    <Field label="First Name" required>
+                      <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" required />
+                    </Field>
+                    <Field label="Middle Name">
+                      <input value={middleName} onChange={e => setMiddleName(e.target.value)} placeholder="Middle name" />
+                    </Field>
+                    <Field label="Last Name" required>
+                      <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" required />
+                    </Field>
+                  </div>
+              }
 
-              {/* DOB & Gender — or Year of Incorporation & Org Type for Training Vendor */}
+              {/* DOB & Gender — or Date of Incorporation & Org Classification for Training Vendor */}
               <div className="grid grid-2">
                 <Field label={isTrainingVendor ? 'Date of Incorporation' : 'Date of Birth'} required>
                   {isTrainingVendor
-                    ? <div style={{ display: 'flex', gap: 6 }}>
-                        <select value={dateDay} onChange={e => { setDateDay(e.target.value); updateDob(e.target.value, dateMonth, dateYear); }} required style={{ flex: 1 }}>
-                          <option value="">DD</option>
-                          {Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0')).map(d=><option key={d}>{d}</option>)}
-                        </select>
-                        <select value={dateMonth} onChange={e => { setDateMonth(e.target.value); updateDob(dateDay, e.target.value, dateYear); }} required style={{ flex: 1 }}>
-                          <option value="">MMM</option>
-                          {MONTHS.map(m=><option key={m}>{m}</option>)}
-                        </select>
-                        <select value={dateYear} onChange={e => { setDateYear(e.target.value); updateDob(dateDay, dateMonth, e.target.value); }} required style={{ flex: 1.4 }}>
-                          <option value="">YYYY</option>
-                          {Array.from({length: new Date().getFullYear()-1899},(_,i)=> String(new Date().getFullYear()-i)).map(y=><option key={y}>{y}</option>)}
-                        </select>
-                      </div>
+                    ? <input type="date" value={dob} onChange={e => setDob(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]} required />
                     : <div style={{ display: 'flex', gap: 6 }}>
                         <select value={dateDay} onChange={e => { setDateDay(e.target.value); updateDob(e.target.value, dateMonth, dateYear); }} required style={{ flex: 1 }}>
                           <option value="">DD</option>
