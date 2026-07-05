@@ -184,14 +184,14 @@ export default function Register() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
 
     if (usesFullForm) {
-      if (!firstName.trim() || !lastName.trim()) { setError('First name and last name are required'); return; }
+      if (isTrainingVendor ? !firstName.trim() : (!firstName.trim() || !lastName.trim())) { setError(isTrainingVendor ? 'Contact Person Name is required' : 'First name and last name are required'); return; }
       const phoneErr = validatePhone();
       if (phoneErr) { setError(phoneErr); return; }
       const emailErr = validateEmail();
       if (emailErr) { setError(emailErr); return; }
       if (!mobileVerified) { setError('Please verify your mobile number with OTP'); return; }
       if (!emailVerified) { setError('Please verify your email address with OTP'); return; }
-      if (!dateDay || !dateMonth || !dateYear) { setError('Date of birth is required'); return; }
+      if (isTrainingVendor ? !dob : (!dateDay || !dateMonth || !dateYear)) { setError(isTrainingVendor ? 'Date of Incorporation is required' : 'Date of birth is required'); return; }
       if (!gender) { setError('Gender is required'); return; }
       if (!addrLine1.trim()) { setError('Address Line 1 is required'); return; }
       if (!city.trim()) { setError('City is required'); return; }
@@ -202,7 +202,7 @@ export default function Register() {
     setBusy(true);
     try {
       const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
-      await register({
+      const u = await register({
         email, password, role,
         org_name: orgName || null,
         location: city || null,
@@ -224,7 +224,11 @@ export default function Register() {
         mobile_verified: mobileVerified,
         email_verified: emailVerified,
       });
-      navigate('/dashboard');
+      if (u.role === 'training_vendor') {
+        navigate('/vendor-portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message);
     } finally {

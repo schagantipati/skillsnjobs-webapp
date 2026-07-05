@@ -14,8 +14,22 @@ export default function Login() {
     e.preventDefault();
     setError(''); setBusy(true);
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const u = await login(email, password);
+      if (u.role === 'training_vendor') {
+        navigate('/vendor-portal');
+      } else if (u.role === 'candidate') {
+        navigate('/candidate-portal');
+      } else if (u.role === 'trainer') {
+        navigate('/trainer-portal');
+      } else if (u.role === 'placement_agency') {
+        navigate('/placement-partner-portal');
+      } else if (u.role === 'csr_org') {
+        navigate('/csr-portal');
+      } else if (u.role === 'employer') {
+        navigate('/employer-portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,7 +64,7 @@ export default function Login() {
           No account? <Link to="/register">Create one</Link>
         </div>
         <div className="hint" style={{ marginTop: 16, textAlign: 'center' }}>
-          Demo logins (password: <strong>password123</strong>): aisha@example.com (candidate) · hr@technova.com (employer) · trainer@skillbridge.in (trainer)
+          Demo logins (password: <strong>password123</strong>): aisha@example.com (candidate) · hr@technova.com (employer) · trainer@skillbridge.in (trainer) · pioneer@placements.in (placement partner)
         </div>
       </div>
     </div>

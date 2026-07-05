@@ -64,7 +64,7 @@ router.post('/register', (req, res) => {
     mobile_verified, email_verified,
   } = req.body;
 
-  const validRoles = ['candidate', 'employer', 'trainer', 'placement_agency', 'csr_org', 'administrator', 'state_government', 'central_government', 'training_vendor'];
+  const validRoles = ['candidate', 'employer', 'trainer', 'placement_agency', 'csr_org', 'training_vendor'];
   if (!email || !password || !role) return res.status(400).json({ error: 'email, password and role are required' });
   if (!validRoles.includes(role)) return res.status(400).json({ error: `Invalid role` });
 

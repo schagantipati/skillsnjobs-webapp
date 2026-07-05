@@ -33,12 +33,12 @@ function profileCompletion(user) {
   return Math.round(fields.filter(k => user[k]).length / fields.length * 100);
 }
 
-function SectionHead({ title, action, onAction, bg = '#EBF3FF', color = 'var(--navy)' }) {
+function SectionHead({ title, action, onAction }) {
   return (
-    <div style={{ background: bg, margin: '-18px -18px 14px -18px', padding: '10px 16px', borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontWeight: 700, fontSize: 13, color }}>{title}</span>
+    <div style={{ background: '#F8FAFC', margin: '-18px -18px 14px -18px', padding: '10px 16px', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ fontWeight: 700, fontSize: 13, color: '#003366' }}>{title}</span>
       {action && (
-        <span style={{ fontSize: 12, color: 'var(--blue)', cursor: 'pointer', fontWeight: 600 }} onClick={onAction}>
+        <span style={{ fontSize: 12, color: '#007B5E', cursor: 'pointer', fontWeight: 600 }} onClick={onAction}>
           {action} →
         </span>
       )}
@@ -201,11 +201,11 @@ export default function Dashboard() {
 
         {/* Row 1 — Apprenticeships */}
         <div className="card shadow">
-          <div style={{ background: '#E4F5F2', margin: '-18px -18px 14px -18px', padding: '10px 16px', borderRadius: '12px 12px 0 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--navy)' }}>🔧 Apprenticeships</span>
+          <div style={{ background: '#F8FAFC', margin: '-18px -18px 14px -18px', padding: '10px 16px', borderRadius: '12px 12px 0 0', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: '#003366' }}>🔧 Apprenticeships</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {isFresher && <span className="badge b-blue">Recommended</span>}
-              <span style={{ fontSize: 12, color: 'var(--blue)', cursor: 'pointer', fontWeight: 600 }}>View all →</span>
+              <span style={{ fontSize: 12, color: '#007B5E', cursor: 'pointer', fontWeight: 600 }}>View all →</span>
             </div>
           </div>
           {MOCK_APPRENTICESHIPS.map(a => (

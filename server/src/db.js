@@ -171,10 +171,136 @@ if (tbCount === 0) {
   tbDefaults.forEach((name, i) => tbIns.run(name, i + 1));
 }
 
+db.exec(`
+CREATE TABLE IF NOT EXISTS vendor_centres (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  address TEXT,
+  state_name TEXT,
+  district TEXT,
+  city TEXT,
+  pincode TEXT,
+  geo TEXT,
+  classrooms INTEGER DEFAULT 0,
+  labs INTEGER DEFAULT 0,
+  seating_capacity INTEGER DEFAULT 0,
+  internet TEXT,
+  power_backup TEXT,
+  accessibility TEXT,
+  equipment TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_trainers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  centre_id INTEGER REFERENCES vendor_centres(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  email TEXT,
+  mobile TEXT,
+  qualification TEXT,
+  sector TEXT,
+  experience_years INTEGER DEFAULT 0,
+  nsqf_level TEXT,
+  certification_doc TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_courses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  sector TEXT,
+  qp_code TEXT,
+  nos_code TEXT,
+  nsqf_level TEXT,
+  duration_hours INTEGER DEFAULT 0,
+  fee_type TEXT DEFAULT 'fee-based',
+  fee_amount REAL DEFAULT 0,
+  scheme TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  centre_id INTEGER REFERENCES vendor_centres(id) ON DELETE SET NULL,
+  course_id INTEGER REFERENCES vendor_courses(id) ON DELETE SET NULL,
+  batch_code TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  capacity INTEGER DEFAULT 30,
+  enrolled INTEGER DEFAULT 0,
+  trainer_id INTEGER REFERENCES vendor_trainers(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'upcoming',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES vendor_batches(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  mobile TEXT,
+  aadhaar_masked TEXT,
+  dob TEXT,
+  gender TEXT,
+  category TEXT,
+  scheme TEXT,
+  enroll_date TEXT DEFAULT (date('now')),
+  attendance_pct INTEGER DEFAULT 0,
+  placement_status TEXT DEFAULT 'not-placed',
+  status TEXT DEFAULT 'enrolled',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_assessments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES vendor_batches(id) ON DELETE SET NULL,
+  agency TEXT,
+  scheduled_date TEXT,
+  time_slot TEXT,
+  candidate_count INTEGER DEFAULT 0,
+  results TEXT,
+  status TEXT DEFAULT 'scheduled',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  doc_type TEXT NOT NULL,
+  filename TEXT,
+  file_data TEXT,
+  expiry_date TEXT,
+  status TEXT DEFAULT 'uploaded',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS vendor_grievances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ticket_no TEXT,
+  category TEXT,
+  priority TEXT DEFAULT 'normal',
+  subject TEXT,
+  details TEXT,
+  status TEXT DEFAULT 'open',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
 // Migrations — safe to run on every startup
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token TEXT`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN reset_token_expires INTEGER`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN verification_status TEXT DEFAULT 'pending'`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN vendor_profile TEXT`); } catch {}
 
 function seedIfEmpty() {
   const userCount = db.prepare('SELECT COUNT(*) c FROM users').get().c;
@@ -193,6 +319,8 @@ function seedIfEmpty() {
     { name: 'Super Admin', email: 'superadmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'superadmin', org_name: null, location: 'New Delhi', bio: 'Platform super administrator', skills: '[]', experience_years: 0 },
     { name: 'State Admin', email: 'stateadmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'state_government', org_name: 'State Government', location: 'Hyderabad', bio: 'State government representative', skills: '[]', experience_years: 0 },
     { name: 'Central Admin', email: 'centraladmin@skillsnjobs.in', password_hash: hash('Welcome@123'), role: 'central_government', org_name: 'Central Government', location: 'New Delhi', bio: 'Central government representative', skills: '[]', experience_years: 0 },
+    { name: 'Pioneer Placements', email: 'pioneer@placements.in', password_hash: hash('password123'), role: 'placement_agency', org_name: 'Pioneer Placements Pvt. Ltd.', location: 'Navi Mumbai', bio: 'NSDC-empanelled placement agency', skills: '[]', experience_years: 0 },
+    { name: 'Cipla Foundation', email: 'csr@cipla.com', password_hash: hash('password123'), role: 'csr_org', org_name: 'Cipla Foundation', location: 'Mumbai', bio: 'NSDC-empanelled CSR organisation', skills: '[]', experience_years: 0 },
   ];
   const userIds = {};
   for (const u of users) {
@@ -253,6 +381,156 @@ for (const [col, type] of newCols) {
   if (!existingCols.includes(col)) {
     db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
   }
+}
+
+// ══════════ STATE GOVERNMENT PORTAL TABLES ══════════
+db.exec(`
+CREATE TABLE IF NOT EXISTS sg_schemes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  ministry TEXT,
+  description TEXT,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sg_targets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scheme_id INTEGER NOT NULL REFERENCES sg_schemes(id) ON DELETE CASCADE,
+  fy TEXT NOT NULL,
+  annual_target INTEGER DEFAULT 0,
+  q1_target INTEGER DEFAULT 0,
+  q2_target INTEGER DEFAULT 0,
+  q3_target INTEGER DEFAULT 0,
+  q4_target INTEGER DEFAULT 0,
+  q1_achieved INTEGER DEFAULT 0,
+  q2_achieved INTEGER DEFAULT 0,
+  q3_achieved INTEGER DEFAULT 0,
+  q4_achieved INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(state_user_id, scheme_id, fy)
+);
+
+CREATE TABLE IF NOT EXISTS sg_training_partners (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  vendor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  type TEXT,
+  district TEXT,
+  state_name TEXT,
+  nsdc_code TEXT,
+  email TEXT,
+  mobile TEXT,
+  scheme TEXT,
+  centre_count INTEGER DEFAULT 0,
+  trainee_count INTEGER DEFAULT 0,
+  accreditation TEXT,
+  accreditation_expiry TEXT,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending','verified','suspended','blacklisted')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sg_candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  candidate_ref TEXT UNIQUE,
+  name TEXT NOT NULL,
+  gender TEXT,
+  dob TEXT,
+  district TEXT,
+  state_name TEXT,
+  mobile TEXT,
+  aadhaar_masked TEXT,
+  scheme TEXT,
+  course TEXT,
+  tp_id INTEGER REFERENCES sg_training_partners(id) ON DELETE SET NULL,
+  batch_code TEXT,
+  enroll_date TEXT DEFAULT (date('now')),
+  assessment_status TEXT DEFAULT 'pending',
+  certification_status TEXT DEFAULT 'not-certified',
+  placement_status TEXT DEFAULT 'not-placed',
+  employer_name TEXT,
+  salary INTEGER DEFAULT 0,
+  dropout_reason TEXT,
+  status TEXT DEFAULT 'enrolled' CHECK(status IN ('enrolled','in-training','assessed','certified','placed','dropped')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sg_disbursements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tp_id INTEGER REFERENCES sg_training_partners(id) ON DELETE SET NULL,
+  scheme TEXT,
+  amount REAL NOT NULL,
+  tranche TEXT,
+  fy TEXT,
+  disbursed_date TEXT,
+  reference_no TEXT,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','disbursed','on-hold')),
+  remarks TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sg_grievances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ticket_no TEXT UNIQUE,
+  filed_by TEXT,
+  filer_type TEXT,
+  category TEXT,
+  district TEXT,
+  description TEXT,
+  priority TEXT DEFAULT 'medium' CHECK(priority IN ('low','medium','high','urgent')),
+  status TEXT DEFAULT 'open' CHECK(status IN ('open','in-progress','resolved','closed')),
+  resolution TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  resolved_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sg_certificates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  candidate_id INTEGER REFERENCES sg_candidates(id) ON DELETE SET NULL,
+  cert_no TEXT UNIQUE,
+  candidate_name TEXT,
+  course TEXT,
+  nsqf_level TEXT,
+  tp_name TEXT,
+  scheme TEXT,
+  issued_date TEXT,
+  valid_status TEXT DEFAULT 'valid' CHECK(valid_status IN ('valid','revoked','flagged')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sg_notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  state_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  icon TEXT DEFAULT '🔵',
+  title TEXT NOT NULL,
+  message TEXT,
+  category TEXT,
+  priority TEXT DEFAULT 'normal',
+  is_read INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+// Seed schemes master if empty
+const schemeCount = db.prepare('SELECT COUNT(*) c FROM sg_schemes').get().c;
+if (schemeCount === 0) {
+  const schemes = [
+    ['PMKVY','PMKVY 4.0','Ministry of Skill Development & Entrepreneurship','Pradhan Mantri Kaushal Vikas Yojana 4.0'],
+    ['DDU-GKY','DDU-GKY','Ministry of Rural Development','Deen Dayal Upadhyaya Grameen Kaushalya Yojana'],
+    ['NAPS','NAPS','Ministry of Skill Development & Entrepreneurship','National Apprenticeship Promotion Scheme'],
+    ['STATE','State Skill Mission','State Government','State Skill Development Mission'],
+    ['CSR','CSR Programs','Various Corporate Houses','Corporate Social Responsibility Skill Programs'],
+    ['FEE','Fee-Based Courses','N/A','Self-funded vocational training programs'],
+  ];
+  const ins = db.prepare('INSERT INTO sg_schemes (code,name,ministry,description) VALUES (?,?,?,?)');
+  schemes.forEach(s => ins.run(...s));
 }
 
 seedIfEmpty();

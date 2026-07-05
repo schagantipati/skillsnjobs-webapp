@@ -34,6 +34,7 @@ export const api = {
   verifyOtp: (type, value, otp) => request('/auth/verify-otp', { method: 'POST', body: { type, value, otp }, auth: false }),
   me: () => request('/users/me'),
   updateMe: (payload) => request('/users/me', { method: 'PUT', body: payload }),
+  updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
   userStats: () => request('/users/stats'),
@@ -92,7 +93,80 @@ export const api = {
   addOrgClassification: (name) => request('/org-classifications', { method: 'POST', body: { name } }),
   setOrgClassificationStatus: (id, is_enabled) => request(`/org-classifications/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
   renameOrgClassification: (id, name) => request(`/org-classifications/${id}`, { method: 'PATCH', body: { name } }),
-  deleteOrgClassification: (id) => request(`/org-classifications/${id}`, { method: 'DELETE' })
+  deleteOrgClassification: (id) => request(`/org-classifications/${id}`, { method: 'DELETE' }),
+
+  // Training Vendor portal
+  vendorStats: () => request('/vendor/stats'),
+  // Centres
+  vendorCentres: () => request('/vendor/centres'),
+  createVendorCentre: (b) => request('/vendor/centres', { method: 'POST', body: b }),
+  updateVendorCentre: (id, b) => request(`/vendor/centres/${id}`, { method: 'PUT', body: b }),
+  deleteVendorCentre: (id) => request(`/vendor/centres/${id}`, { method: 'DELETE' }),
+  // Trainers
+  vendorTrainers: () => request('/vendor/trainers'),
+  createVendorTrainer: (b) => request('/vendor/trainers', { method: 'POST', body: b }),
+  updateVendorTrainer: (id, b) => request(`/vendor/trainers/${id}`, { method: 'PUT', body: b }),
+  deleteVendorTrainer: (id) => request(`/vendor/trainers/${id}`, { method: 'DELETE' }),
+  // Courses
+  vendorCourses: () => request('/vendor/courses'),
+  createVendorCourse: (b) => request('/vendor/courses', { method: 'POST', body: b }),
+  updateVendorCourse: (id, b) => request(`/vendor/courses/${id}`, { method: 'PUT', body: b }),
+  deleteVendorCourse: (id) => request(`/vendor/courses/${id}`, { method: 'DELETE' }),
+  // Batches
+  vendorBatches: () => request('/vendor/batches'),
+  createVendorBatch: (b) => request('/vendor/batches', { method: 'POST', body: b }),
+  updateVendorBatch: (id, b) => request(`/vendor/batches/${id}`, { method: 'PUT', body: b }),
+  deleteVendorBatch: (id) => request(`/vendor/batches/${id}`, { method: 'DELETE' }),
+  // Candidates
+  vendorCandidates: (params) => { const qs = params ? new URLSearchParams(params).toString() : ''; return request('/vendor/candidates' + (qs ? `?${qs}` : '')); },
+  createVendorCandidate: (b) => request('/vendor/candidates', { method: 'POST', body: b }),
+  updateVendorCandidate: (id, b) => request(`/vendor/candidates/${id}`, { method: 'PUT', body: b }),
+  deleteVendorCandidate: (id) => request(`/vendor/candidates/${id}`, { method: 'DELETE' }),
+  // Assessments
+  vendorAssessments: () => request('/vendor/assessments'),
+  createVendorAssessment: (b) => request('/vendor/assessments', { method: 'POST', body: b }),
+  updateVendorAssessment: (id, b) => request(`/vendor/assessments/${id}`, { method: 'PUT', body: b }),
+  deleteVendorAssessment: (id) => request(`/vendor/assessments/${id}`, { method: 'DELETE' }),
+  // Documents
+  vendorDocuments: () => request('/vendor/documents'),
+  uploadVendorDocument: (b) => request('/vendor/documents', { method: 'POST', body: b }),
+  deleteVendorDocument: (id) => request(`/vendor/documents/${id}`, { method: 'DELETE' }),
+  // Grievances
+  vendorGrievances: () => request('/vendor/grievances'),
+  createVendorGrievance: (b) => request('/vendor/grievances', { method: 'POST', body: b }),
+  updateVendorGrievance: (id, b) => request(`/vendor/grievances/${id}`, { method: 'PUT', body: b }),
+
+  // ── State Government Portal ──
+  sgStats: () => request('/state-govt/stats'),
+  sgSchemes: () => request('/state-govt/schemes'),
+  sgMis: () => request('/state-govt/mis'),
+  sgProfile: () => request('/state-govt/profile'),
+  // Training Partners
+  sgTPs: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/state-govt/training-partners' + (qs ? `?${qs}` : '')); },
+  sgCreateTP: (b) => request('/state-govt/training-partners', { method: 'POST', body: b }),
+  sgUpdateTP: (id, b) => request(`/state-govt/training-partners/${id}`, { method: 'PUT', body: b }),
+  // Candidates
+  sgCandidates: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/state-govt/candidates' + (qs ? `?${qs}` : '')); },
+  sgCreateCandidate: (b) => request('/state-govt/candidates', { method: 'POST', body: b }),
+  sgUpdateCandidate: (id, b) => request(`/state-govt/candidates/${id}`, { method: 'PUT', body: b }),
+  // Targets
+  sgTargets: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/state-govt/targets' + (qs ? `?${qs}` : '')); },
+  sgCreateTarget: (b) => request('/state-govt/targets', { method: 'POST', body: b }),
+  sgUpdateAchievement: (id, b) => request(`/state-govt/targets/${id}/achievement`, { method: 'PUT', body: b }),
+  // Disbursements
+  sgDisbursements: () => request('/state-govt/disbursements'),
+  sgCreateDisbursement: (b) => request('/state-govt/disbursements', { method: 'POST', body: b }),
+  sgUpdateDisbStatus: (id, status) => request(`/state-govt/disbursements/${id}/status`, { method: 'PUT', body: { status } }),
+  // Grievances
+  sgGrievances: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/state-govt/grievances' + (qs ? `?${qs}` : '')); },
+  sgCreateGrievance: (b) => request('/state-govt/grievances', { method: 'POST', body: b }),
+  sgUpdateGrievance: (id, b) => request(`/state-govt/grievances/${id}`, { method: 'PUT', body: b }),
+  // Certificates
+  sgCertificates: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/state-govt/certificates' + (qs ? `?${qs}` : '')); },
+  sgVerifyCert: (cert_no) => request('/state-govt/certificates/verify', { method: 'POST', body: { cert_no } }),
+  // Notifications
+  sgNotifications: () => request('/state-govt/notifications'),
+  sgMarkNotifRead: () => request('/state-govt/notifications/mark-read', { method: 'PUT' }),
 };
 
 export function setToken(token) {

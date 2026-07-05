@@ -18,10 +18,13 @@ router.get('/all', authRequired, requireRole('admin', 'administrator'), (req, re
   res.json(rows.map(r => ({ ...r, employer_name: r.org_name || r.employer_name })));
 });
 
-// Admin: delete any application
-router.delete('/:id', authRequired, requireRole('admin', 'administrator'), (req, res) => {
+// Candidate withdraws own application; admin can delete any
+router.delete('/:id', authRequired, (req, res) => {
   const app = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
   if (!app) return res.status(404).json({ error: 'Application not found' });
+  const isAdmin = ['admin', 'administrator'].includes(req.user.role);
+  const isOwner = req.user.role === 'candidate' && app.candidate_id === req.user.id;
+  if (!isAdmin && !isOwner) return res.status(403).json({ error: 'Forbidden' });
   db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

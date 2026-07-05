@@ -29,6 +29,8 @@ function publicUser(u) {
     bank_account_name: u.bank_account_name, bank_ifsc: u.bank_ifsc,
     bank_account_number: u.bank_account_number,
     training_centres: u.training_centres, centre_photos: u.centre_photos,
+    vendor_profile: u.vendor_profile ? JSON.parse(u.vendor_profile) : null,
+    is_active: u.is_active, verification_status: u.verification_status,
   };
 }
 
@@ -50,7 +52,7 @@ router.put('/me', authRequired, (req, res) => {
     registration_number, pan, gstin, year_established, head_office, branch_offices,
     ceo_name, spoc_name, ops_head, finance_contact, placement_officer,
     bank_account_name, bank_ifsc, bank_account_number,
-    training_centres, centre_photos,
+    training_centres, centre_photos, vendor_profile,
   } = req.body;
 
   const e = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
@@ -66,7 +68,7 @@ router.put('/me', authRequired, (req, res) => {
     registration_number=?, pan=?, gstin=?, year_established=?, head_office=?, branch_offices=?,
     ceo_name=?, spoc_name=?, ops_head=?, finance_contact=?, placement_officer=?,
     bank_account_name=?, bank_ifsc=?, bank_account_number=?,
-    training_centres=?, centre_photos=?
+    training_centres=?, centre_photos=?, vendor_profile=?
     WHERE id=?`).run(
     name ?? e.name, location ?? e.location, bio ?? e.bio,
     JSON.stringify(skills ?? JSON.parse(e.skills || '[]')),
@@ -87,6 +89,7 @@ router.put('/me', authRequired, (req, res) => {
     bank_account_name ?? e.bank_account_name, bank_ifsc ?? e.bank_ifsc,
     bank_account_number ?? e.bank_account_number,
     training_centres ?? e.training_centres, centre_photos ?? e.centre_photos,
+    vendor_profile !== undefined ? JSON.stringify(vendor_profile) : e.vendor_profile,
     req.user.id
   );
 
@@ -140,6 +143,61 @@ router.get('/all', authRequired, (req, res) => {
   sql += ' ORDER BY created_at DESC';
   const rows = db.prepare(sql).all(...params);
   res.json(rows.map(publicUser));
+});
+
+// Superadmin/administrator: update any user profile by id
+router.put('/:id', authRequired, (req, res) => {
+  if (!['superadmin', 'administrator'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { org_name, location, bio, phone, gender, registration_number, pan, gstin, year_established, dob, verification_status,
+    ceo_name, spoc_name, ops_head, finance_contact, placement_officer,
+    bank_account_name, bank_ifsc, bank_account_number,
+    head_office, branch_offices, address_line1, address_line2, city, state_name, pincode,
+    vendor_profile } = req.body;
+  db.prepare(`UPDATE users SET
+    org_name = COALESCE(?, org_name),
+    location = COALESCE(?, location),
+    bio = COALESCE(?, bio),
+    phone = COALESCE(?, phone),
+    gender = COALESCE(?, gender),
+    registration_number = COALESCE(?, registration_number),
+    pan = COALESCE(?, pan),
+    gstin = COALESCE(?, gstin),
+    year_established = COALESCE(?, year_established),
+    dob = COALESCE(?, dob),
+    verification_status = COALESCE(?, verification_status),
+    ceo_name = COALESCE(?, ceo_name),
+    spoc_name = COALESCE(?, spoc_name),
+    ops_head = COALESCE(?, ops_head),
+    finance_contact = COALESCE(?, finance_contact),
+    placement_officer = COALESCE(?, placement_officer),
+    bank_account_name = COALESCE(?, bank_account_name),
+    bank_ifsc = COALESCE(?, bank_ifsc),
+    bank_account_number = COALESCE(?, bank_account_number),
+    head_office = COALESCE(?, head_office),
+    branch_offices = COALESCE(?, branch_offices),
+    address_line1 = COALESCE(?, address_line1),
+    address_line2 = COALESCE(?, address_line2),
+    city = COALESCE(?, city),
+    state_name = COALESCE(?, state_name),
+    pincode = COALESCE(?, pincode),
+    vendor_profile = CASE WHEN ? IS NOT NULL THEN ? ELSE vendor_profile END
+    WHERE id = ?`).run(
+    org_name ?? null, location ?? null, bio ?? null, phone ?? null,
+    gender ?? null, registration_number ?? null, pan ?? null, gstin ?? null,
+    year_established ?? null, dob ?? null, verification_status ?? null,
+    ceo_name ?? null, spoc_name ?? null, ops_head ?? null, finance_contact ?? null, placement_officer ?? null,
+    bank_account_name ?? null, bank_ifsc ?? null, bank_account_number ?? null,
+    head_office ?? null, branch_offices ?? null, address_line1 ?? null, address_line2 ?? null,
+    city ?? null, state_name ?? null, pincode ?? null,
+    vendor_profile !== undefined ? JSON.stringify(vendor_profile) : null,
+    vendor_profile !== undefined ? JSON.stringify(vendor_profile) : null,
+    req.params.id
+  );
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  logAudit({ user: req.user, action: 'User profile updated', entity: 'user', entityId: req.params.id, ip: req.ip });
+  res.json(publicUser(updated));
 });
 
 // Superadmin: activate / deactivate a user

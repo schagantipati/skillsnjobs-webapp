@@ -1,0 +1,38 @@
+// Standard Indian form field validators — return error string or '' if valid
+
+export const PATTERNS = {
+  mobile:  /^[6-9]\d{9}$/,
+  email:   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+  pincode: /^\d{6}$/,
+  gst:     /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/,
+  pan:     /^[A-Z]{5}\d{4}[A-Z]{1}$/,
+  tan:     /^[A-Z]{4}\d{5}[A-Z]{1}$/,
+  cin:     /^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/,
+  ifsc:    /^[A-Z]{4}0[A-Z0-9]{6}$/,
+  aadhaar: /^\d{12}$/,
+  website: /^https?:\/\/.+\..+/,
+  phone:   /^[0-9\-\s\+\(\)]{7,15}$/,
+};
+
+export const MESSAGES = {
+  mobile:  'Must be a 10-digit number starting with 6–9',
+  email:   'Enter a valid email address',
+  pincode: 'Must be a 6-digit PIN code',
+  gst:     'Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)',
+  pan:     'Invalid PAN — format: ABCDE1234F (10 chars)',
+  tan:     'Invalid TAN — format: PDES03028F (10 chars)',
+  cin:     'Invalid CIN — format: U72200KA2015PTC082341 (21 chars)',
+  ifsc:    'Invalid IFSC — format: HDFC0001234 (11 chars)',
+  aadhaar: 'Must be a 12-digit Aadhaar number',
+  website: 'Enter a valid URL starting with http:// or https://',
+  phone:   'Enter a valid phone / landline number',
+};
+
+// Fields that should be auto-uppercased
+export const UPPERCASE_FIELDS = new Set(['gst', 'pan', 'tan', 'cin', 'ifsc']);
+
+export function validate(type, value) {
+  if (!value || !value.trim()) return '';
+  const v = UPPERCASE_FIELDS.has(type) ? value.trim().toUpperCase() : value.trim();
+  return PATTERNS[type]?.test(v) ? '' : (MESSAGES[type] || 'Invalid value');
+}

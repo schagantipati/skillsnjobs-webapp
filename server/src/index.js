@@ -14,6 +14,8 @@ const orgClassificationRoutes = require('./routes/orgClassifications');
 const accreditationRoutes = require('./routes/accreditations');
 const geographicCoverageRoutes = require('./routes/geographicCoverage');
 const targetBeneficiaryRoutes = require('./routes/targetBeneficiaries');
+const vendorRoutes = require('./routes/vendor');
+const stateGovtRoutes = require('./routes/stateGovt');
 
 const app = express();
 app.use(cors());
@@ -32,6 +34,8 @@ app.use('/api/org-classifications', orgClassificationRoutes);
 app.use('/api/accreditations', accreditationRoutes);
 app.use('/api/geographic-coverage', geographicCoverageRoutes);
 app.use('/api/target-beneficiaries', targetBeneficiaryRoutes);
+app.use('/api/vendor', vendorRoutes);
+app.use('/api/state-govt', stateGovtRoutes);
 
 // Lightweight dashboard stats
 app.get('/api/stats/summary', authRequired, (req, res) => {
@@ -61,6 +65,10 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+if (!process.env.JWT_SECRET) {
+  console.warn('WARNING: JWT_SECRET env var not set — using insecure default. Set JWT_SECRET in production.');
+}
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`SkillsNJobs API running on http://localhost:${PORT}`));
