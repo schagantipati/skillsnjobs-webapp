@@ -26,10 +26,13 @@ export default function Navbar() {
       padding: '0 20px', position: 'sticky', top: 0, zIndex: 50,
       boxShadow: '0 1px 4px rgba(10,45,110,.06)',
     }}>
-      {/* Page title */}
-      <div style={{ display:'flex', alignItems:'center', gap:0 }}>
-        {page.section && <span style={{ fontSize:11, color:'#6B7FA3', fontWeight:500, marginRight:6 }}>{page.section} /</span>}
-        <span style={{ fontWeight:800, fontSize:15, color:'#003366' }}>{page.title || 'SkillsNJobs'}</span>
+      {/* Logo + page title */}
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <img src="/logo.png" alt="Skills n Jobs" style={{ height:36, width:36, objectFit:'contain', cursor:'pointer' }} onClick={() => navigate('/')} />
+        <div>
+          {page.section && <span style={{ fontSize:11, color:'#6B7FA3', fontWeight:500, marginRight:6 }}>{page.section} /</span>}
+          <span style={{ fontWeight:800, fontSize:15, color:'#003366' }}>{page.title || 'SkillsNJobs'}</span>
+        </div>
       </div>
 
       {/* Right — user + sign out */}

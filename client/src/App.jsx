@@ -14,7 +14,6 @@ import Courses from './pages/Courses.jsx';
 import Candidates from './pages/Candidates.jsx';
 import Profile from './pages/Profile.jsx';
 import SuperadminDashboard from './pages/SuperadminDashboard.jsx';
-import TrainingPartnerOnboarding from './pages/TrainingPartnerOnboarding.jsx';
 import TrainingVendorPortal from './pages/TrainingVendorPortal.jsx';
 import CandidatePortal from './pages/CandidatePortal.jsx';
 import TrainerPortal from './pages/TrainerPortal.jsx';
@@ -24,6 +23,7 @@ import EmployerPortal from './pages/EmployerPortal.jsx';
 import StateGovtPortal from './pages/StateGovtPortal.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import LandingPage from './pages/LandingPage.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
 
 function Protected({ children, roles, vendorOk }) {
@@ -66,12 +66,12 @@ export default function App() {
         <div style={{ flex: 1, minWidth: 0, display:'flex', flexDirection:'column' }}>
           {user && !isPortalUser && <Navbar />}
           <Routes>
+            <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
             <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
             <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
             <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPassword />} />
             <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPassword />} />
 
-            <Route path="/onboarding" element={<Protected roles={['training_vendor']} vendorOk><TrainingPartnerOnboarding /></Protected>} />
             <Route path="/vendor-portal" element={<Protected roles={['training_vendor']} vendorOk><TrainingVendorPortal /></Protected>} />
             <Route path="/candidate-portal" element={<Protected roles={['candidate']}><CandidatePortal /></Protected>} />
             <Route path="/trainer-portal" element={<Protected roles={['trainer']}><TrainerPortal /></Protected>} />
@@ -112,7 +112,7 @@ export default function App() {
                 user.role === 'employer' ? '/employer-portal' :
                 user.role === 'state_government' ? '/state-govt-portal' :
                 '/dashboard'
-              ) : '/login'
+              ) : '/'
             } replace />} />
           </Routes>
         </div>
