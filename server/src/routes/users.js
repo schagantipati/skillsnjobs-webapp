@@ -62,6 +62,18 @@ router.put('/me', authRequired, (req, res) => {
 
   const e = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 
+  // Duplicate checks for training_vendor profile updates
+  if (e.role === 'training_vendor') {
+    if (email && email !== e.email) {
+      const dup = db.prepare('SELECT id FROM users WHERE email=? AND id!=?').get(email, e.id);
+      if (dup) return res.status(409).json({ error: 'This email is already registered with another account.', field: 'email' });
+    }
+    if (org_name && org_name.trim() && org_name.trim().toLowerCase() !== (e.org_name || '').trim().toLowerCase()) {
+      const dup = db.prepare("SELECT id FROM users WHERE role='training_vendor' AND LOWER(TRIM(org_name))=LOWER(TRIM(?)) AND id!=?").get(org_name.trim(), e.id);
+      if (dup) return res.status(409).json({ error: `Organisation "${org_name.trim()}" is already registered.`, field: 'org_name' });
+    }
+  }
+
   db.prepare(`UPDATE users SET
     name=?, location=?, bio=?, skills=?, experience_years=?, org_name=?,
     first_name=?, middle_name=?, last_name=?, dob=?, gender=?, phone=?, photo=?,
@@ -88,7 +100,7 @@ router.put('/me', authRequired, (req, res) => {
     employment_status ?? e.employment_status, interests ?? e.interests, preferred_sector ?? e.preferred_sector,
     lang_english ?? e.lang_english, lang_hindi ?? e.lang_hindi, lang_regional ?? e.lang_regional,
     certificates ?? e.certificates, resume ?? e.resume,
-    email ?? e.email, tan ?? e.tan, cin ?? e.cin, website ?? e.website,
+    (email || e.email), tan ?? e.tan, cin ?? e.cin, website ?? e.website,
     registration_number ?? e.registration_number, pan ?? e.pan, gstin ?? e.gstin,
     year_established ?? e.year_established, head_office ?? e.head_office, branch_offices ?? e.branch_offices,
     ceo_name ?? e.ceo_name, spoc_name ?? e.spoc_name, ops_head ?? e.ops_head,

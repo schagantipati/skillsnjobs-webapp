@@ -287,7 +287,9 @@ function OrgProfile({ user, onUserUpdate }) {
       setSaved(true);
       setTimeout(() => { setEditing(false); setSaved(false); }, 800);
     } catch (e) {
-      setErrors(p => ({ ...p, _global: e.message || 'Save failed' }));
+      if (e.field === 'email') setErrors(p => ({ ...p, email: e.message }));
+      else if (e.field === 'org_name') setErrors(p => ({ ...p, _global: e.message }));
+      else setErrors(p => ({ ...p, _global: e.message || 'Save failed' }));
     } finally {
       setSaving(false);
     }

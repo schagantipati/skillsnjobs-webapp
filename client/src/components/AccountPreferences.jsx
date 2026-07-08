@@ -120,7 +120,9 @@ export default function AccountPreferences({ onLogout, cardStyle = {} }) {
     if (pErr) { setPhoneError(pErr); return; }
     setSaving(true); setSaveMsg('');
     try {
-      const updated = await api.updateMe(form);
+      // Never send email — it's the login ID and is read-only; exclude it to avoid accidental overwrites
+      const { email: _email, ...payload } = form;
+      const updated = await api.updateMe(payload);
       if (setUser) setUser(updated);
       setSaveMsg('✅ Changes saved successfully.');
     } catch (err) {

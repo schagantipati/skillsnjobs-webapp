@@ -1,0 +1,26 @@
+name: Railway – Stop server (11:30 PM IST)
+
+on:
+  schedule:
+    # 11:30 PM IST = 18:00 UTC
+    - cron: '0 18 * * *'
+  workflow_dispatch:   # allow manual trigger
+
+jobs:
+  suspend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Suspend Railway service
+        run: |
+          curl -s -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -d '{
+              "query": "mutation { serviceInstanceUpdate(serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\", input: { numReplicas: 0 }) }"
+            }' | tee response.json
+          if grep -q '"errors"' response.json; then
+            echo "Railway API returned errors:"
+            cat response.json
+            exit 1
+          fi
+          echo "Service suspended successfully."

@@ -82,6 +82,7 @@ export default function Register() {
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [orgNameError, setOrgNameError] = useState('');
   const [pincodeError, setPincodeError] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoBase64, setPhotoBase64] = useState('');
@@ -235,7 +236,9 @@ export default function Register() {
       });
       navigate('/');
     } catch (err) {
-      setError(err.message);
+      if (err.field === 'email') { setEmailError(err.message); setError(''); }
+      else if (err.field === 'org_name') { setOrgNameError(err.message); setError(''); }
+      else setError(err.message);
     } finally {
       setBusy(false);
     }
@@ -284,7 +287,9 @@ export default function Register() {
                 <>
                   <div style={{ marginTop: 80 }} />
                   <Field label="Organization Name" required>
-                    <input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. ABC Training Institute Pvt Ltd" required />
+                    <input value={orgName} onChange={e => { setOrgName(e.target.value); setOrgNameError(''); }} placeholder="e.g. ABC Training Institute Pvt Ltd" required
+                      style={orgNameError ? { borderColor: '#EF4444' } : undefined} />
+                    {orgNameError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>⚠ {orgNameError}</div>}
                   </Field>
                 </>
               )}
@@ -499,7 +504,9 @@ export default function Register() {
               </Field>
               {role !== 'candidate' && (
                 <Field label="Organization Name">
-                  <input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="e.g. TechNova Pvt Ltd" />
+                  <input value={orgName} onChange={e => { setOrgName(e.target.value); setOrgNameError(''); }} placeholder="e.g. TechNova Pvt Ltd"
+                    style={orgNameError ? { borderColor: '#EF4444' } : undefined} />
+                  {orgNameError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>⚠ {orgNameError}</div>}
                 </Field>
               )}
             </>
