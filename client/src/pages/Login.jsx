@@ -70,7 +70,7 @@ export default function Login() {
           </div>
           <div className="field">
             <label>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            <input type="email" name="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="field">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -79,7 +79,7 @@ export default function Login() {
                 Forgot password?
               </Link>
             </div>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+            <input type="password" name="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>

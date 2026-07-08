@@ -13,10 +13,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function login(email, password) {
-    const { token, user } = await api.login({ email, password });
+    const { token } = await api.login({ email, password });
     setToken(token);
-    setUser(user);
-    return user;
+    const fullUser = await api.me();
+    setUser(fullUser);
+    return fullUser;
   }
 
   async function register(payload) {

@@ -369,7 +369,7 @@ const newCols = [
   ['address_line1', 'TEXT'], ['address_line2', 'TEXT'],
   ['city', 'TEXT'], ['state_name', 'TEXT'], ['country', 'TEXT'], ['pincode', 'TEXT'],
   // Shared org identity
-  ['cin', 'TEXT'], ['website', 'TEXT'],
+  ['cin', 'TEXT'], ['website', 'TEXT'], ['tan', 'TEXT'],
   // Training Vendor – org details
   ['registration_number', 'TEXT'], ['pan', 'TEXT'], ['gstin', 'TEXT'],
   ['year_established', 'TEXT'], ['head_office', 'TEXT'], ['branch_offices', 'TEXT'],
