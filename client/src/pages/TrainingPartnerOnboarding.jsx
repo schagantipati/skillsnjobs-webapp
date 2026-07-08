@@ -201,10 +201,9 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   useEffect(() => {
     if (!user) return;
 
-    /* ── If vendor_profile already has saved onboarding data, restore it ── */
     const vp = user.vendor_profile || {};
 
-    /* Step 1 — prefer saved onboarding data, fall back to registration fields */
+    /* Step 1 */
     setOrgType(     vp.step1?.orgType      || user.gender          || '');
     setDateIncorp(  vp.step1?.dateIncorp   || toISODate(user.dob)  || '');
     setCinReg(      vp.step1?.cinReg       || user.registration_number || '');
@@ -229,11 +228,45 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     setMsme(        vp.step3?.msme         || '');
     setUdyam(       vp.step3?.udyam        || '');
 
+    /* Step 4 */
+    setNsdcCode(    vp.step4?.nsdcCode     || '');
+    setAffilType(   vp.step4?.affiliType   || '');
+    setSscName(     vp.step4?.sscName      || '');
+    setSscAffId(    vp.step4?.sscAffId     || '');
+    setAffFrom(     vp.step4?.affFrom      || '');
+    setAffTo(       vp.step4?.affTo        || '');
+    setIsoCert(     vp.step4?.isoCert      || '');
+
+    /* Step 5 */
+    if (vp.step5?.sectors?.length) setSectors(vp.step5.sectors);
+    if (vp.step5?.jobRoles?.length) setJobRoles(vp.step5.jobRoles);
+
+    /* Step 6 */
+    if (vp.step6?.numCentres) setNumCentres(vp.step6.numCentres);
+    if (vp.step6?.centres?.length) setCentres(vp.step6.centres);
+
+    /* Step 7 */
+    setFtTrainers(  vp.step7?.ftTrainers   || '');
+    setPtTrainers(  vp.step7?.ptTrainers   || '');
+    setTrainerQual( vp.step7?.trainerQual  || '');
+    setNumAssessors(vp.step7?.numAssessors || '');
+    setAssessorCert(vp.step7?.assessorCert || '');
+    setTotalStaff(  vp.step7?.totalStaff   || '');
+
+    /* Step 8 */
+    if (vp.step8?.courses?.length) setCourses(vp.step8.courses);
+
     /* Step 9 */
+    setBankName(    vp.step9?.bankName     || '');
+    setBankBranch(  vp.step9?.bankBranch   || '');
     setBankIfsc(    vp.step9?.bankIfsc     || user.bank_ifsc       || '');
+    setBankAccType( vp.step9?.bankAccType  || '');
     setBankAccName( vp.step9?.bankAccName  || user.bank_account_name || '');
     setBankAccNum(  vp.step9?.bankAccNum   || user.bank_account_number || '');
-  }, [user]);
+
+    /* Step 10 */
+    if (vp.step10?.docStatus) setDocStatus(vp.step10.docStatus);
+  }, [user?.id]);
 
   /* ── Validate step ─────────────────────────────────────────── */
   function validate() {
@@ -311,8 +344,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   }
 
   function buildVendorProfile() {
+    const prevVp = user?.vendor_profile || {};
     return {
       completed: step === STEPS.length,
+      savedStep: Math.max(step, prevVp.savedStep || 0),
       step1:  { orgType, dateIncorp, cinReg, website, headAddr, headState, headDistrict, headCity, headPin },
       step2:  { spocName, spocDesig, altName, altMobile, altEmail },
       step3:  { pan: panNo, tan: tanNo, gstin: gstNo, msme, udyam },
@@ -392,7 +427,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const initials = (user?.org_name || 'TP').slice(0, 2).toUpperCase();
 
   const s = STEPS[step - 1];
-  const pct = Math.round(step / STEPS.length * 100);
+  const savedStep = user?.vendor_profile?.savedStep || 0;
+  const pct = Math.round(savedStep / STEPS.length * 100);
 
   /* ── Sidebar ─────────────────────────────────────────────── */
   const Sidebar = (
