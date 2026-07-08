@@ -194,7 +194,7 @@ export default function PlacementPartnerPortal() {
   const [candidateList, setCandidateList] = useState([]);
 
   // ── Agency Info state ──
-  const [agInfo, setAgInfo] = useState({ org_name:'', cin:'', gstin:'', pan:'', website:'', phone:'', email:'' });
+  const [agInfo, setAgInfo] = useState({ org_name:'', cin:'', gstin:'', pan:'', tan:'', website:'', phone:'', email:'' });
   const [agInfoLoaded, setAgInfoLoaded] = useState(false);
   const [agInfoSaving, setAgInfoSaving] = useState(false);
   const [agInfoMsg, setAgInfoMsg] = useState('');
@@ -387,6 +387,7 @@ export default function PlacementPartnerPortal() {
         cin:      u.cin      || '',
         gstin:    u.gstin    || '',
         pan:      u.pan      || '',
+        tan:      u.tan      || '',
         website:  u.website  || '',
         phone:    u.phone    || '',
         email:    u.email    || '',
@@ -401,6 +402,7 @@ export default function PlacementPartnerPortal() {
     if (agInfo.cin    && !/^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(agInfo.cin.toUpperCase()))   errs.cin     = 'Invalid CIN format';
     if (agInfo.gstin  && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(agInfo.gstin.toUpperCase())) errs.gstin   = 'Invalid GSTIN format';
     if (agInfo.pan    && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(agInfo.pan.toUpperCase()))                      errs.pan     = 'Invalid PAN format';
+    if (agInfo.tan    && !/^[A-Z]{4}\d{5}[A-Z]{1}$/.test(agInfo.tan.toUpperCase()))                      errs.tan     = 'Invalid TAN — format: PDES03028F (10 chars)';
     if (agInfo.website && !/^https?:\/\/.+\..+/.test(agInfo.website))                                    errs.website = 'Enter a valid URL (e.g. https://example.com)';
     if (agInfo.phone  && !/^[6-9]\d{9}$/.test(agInfo.phone.replace(/\D/g,'')))                           errs.phone   = 'Enter a valid 10-digit mobile number';
     if (agInfo.email  && !/^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/.test(agInfo.email.trim()))        errs.email   = 'Enter a valid email address';
@@ -412,6 +414,7 @@ export default function PlacementPartnerPortal() {
         cin:      agInfo.cin.toUpperCase().trim()   || null,
         gstin:    agInfo.gstin.toUpperCase().trim() || null,
         pan:      agInfo.pan.toUpperCase().trim()   || null,
+        tan:      agInfo.tan.toUpperCase().trim()   || null,
         website:  agInfo.website.trim()             || null,
         phone:    agInfo.phone.replace(/\D/g,'')    || null,
         email:    agInfo.email.trim()               || null,
@@ -773,6 +776,13 @@ export default function PlacementPartnerPortal() {
               onBlur: () => { const v = agInfo.pan.toUpperCase(); if (v && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(v)) setAgErr('pan','Invalid PAN format'); } })}
             <ErrMsg f="pan" />
           </Field>
+          <Field label="TAN">
+            {inp('tan', { upper:true, placeholder:'e.g. PDES03028F', max:10,
+              onBlur: () => { const v = agInfo.tan.toUpperCase(); if (v && !/^[A-Z]{4}\d{5}[A-Z]{1}$/.test(v)) setAgErr('tan','Invalid TAN — format: PDES03028F (10 chars)'); } })}
+            <ErrMsg f="tan" />
+          </Field>
+        </Grid>
+        <Grid>
           <Field label="Website URL">
             {inp('website', { placeholder:'https://www.youragency.com',
               onBlur: () => { if (agInfo.website && !/^https?:\/\/.+\..+/.test(agInfo.website)) setAgErr('website','Enter a valid URL (e.g. https://example.com)'); } })}
@@ -819,11 +829,11 @@ export default function PlacementPartnerPortal() {
             <Inp value={contact.spoc_name} onChange={e=>set('spoc_name',e.target.value)} placeholder="e.g. Suresh Patil" />
           </Field>
           <Field label="Mobile">
-            <Inp value={contact.phone} onChange={e=>set('phone',e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="10-digit mobile" />
+            <ValidInp value={contact.phone} onChange={e=>set('phone',e.target.value.replace(/\D/g,'').slice(0,10))} validate="mobile" placeholder="10-digit mobile" />
           </Field>
         </Grid>
         <Field label="Email">
-          <Inp value={contact.email} onChange={e=>set('email',e.target.value)} placeholder="contact@yourcompany.com" />
+          <ValidInp value={contact.email} onChange={e=>set('email',e.target.value)} validate="email" placeholder="contact@yourcompany.com" />
         </Field>
       </Card>
       <Card>

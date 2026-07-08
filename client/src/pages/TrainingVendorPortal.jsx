@@ -226,12 +226,72 @@ function Dashboard({ user, onNav }) {
 }
 
 // ── Organisation Profile ──────────────────────────────────────────────────────
-function OrgProfile({ user }) {
+// Validators for org profile fields
+const VALIDATORS = {
+  gstin:  v => /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/.test(v.toUpperCase()) ? '' : 'Invalid GSTIN (e.g. 27AAPFU0939F1ZV)',
+  pan:    v => /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(v.toUpperCase()) ? '' : 'Invalid PAN (e.g. ABCDE1234F)',
+  tan:    v => /^[A-Z]{4}[0-9]{5}[A-Z]{1}$/.test(v.toUpperCase()) ? '' : 'Invalid TAN (e.g. PDES03028F)',
+  mobile: v => /^[6-9]\d{9}$/.test(v) ? '' : 'Must be 10 digits starting with 6–9',
+  email:  v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? '' : 'Enter a valid email address',
+};
+
+function OrgProfile({ user, onUserUpdate }) {
   const vp = user?.vendor_profile || {};
   const s1 = vp.step1 || {};
   const s2 = vp.step2 || {};
   const s3 = vp.step3 || {};
   const s9 = vp.step9 || {};
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const openEdit = () => {
+    setForm({
+      email:  user?.email || '',
+      mobile: (user?.phone || '').replace(/^\+91/, ''),
+      gstin:  (s3.gstin || user?.gstin || '').toUpperCase(),
+      pan:    (s3.pan   || user?.pan   || '').toUpperCase(),
+      tan:    (s3.tan   || '').toUpperCase(),
+    });
+    setErrors({});
+    setSaved(false);
+    setEditing(true);
+  };
+
+  const fv = k => form[k] || '';
+  const setErr = (k, v) => setErrors(p => ({ ...p, [k]: v }));
+  const clearErr = k => setErrors(p => ({ ...p, [k]: '' }));
+
+  const validate = () => {
+    const errs = {};
+    Object.entries(VALIDATORS).forEach(([k, fn]) => {
+      const val = (fv(k) || '').trim();
+      if (val) errs[k] = fn(val);
+    });
+    if (!fv('email').trim()) errs.email = 'Email is required';
+    if (!fv('mobile').trim()) errs.mobile = 'Mobile is required';
+    setErrors(errs);
+    return Object.values(errs).every(e => !e);
+  };
+
+  const save = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const updatedVp = { ...vp, step3: { ...s3, gstin: fv('gstin').toUpperCase(), pan: fv('pan').toUpperCase(), tan: fv('tan').toUpperCase() } };
+      await api.updateMe({ email: fv('email'), phone: fv('mobile'), gstin: fv('gstin').toUpperCase(), pan: fv('pan').toUpperCase(), vendor_profile: updatedVp });
+      if (onUserUpdate) await onUserUpdate();
+      setSaved(true);
+      setTimeout(() => { setEditing(false); setSaved(false); }, 800);
+    } catch (e) {
+      setErrors(p => ({ ...p, _global: e.message || 'Save failed' }));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const Row = ({ label, value }) => (
     <div style={{ display:'flex', padding:'8px 0', borderBottom:'1px solid #F8FAFF' }}>
@@ -240,9 +300,28 @@ function OrgProfile({ user }) {
     </div>
   );
 
+  const UPPERCASE_KEYS = new Set(['gstin', 'pan', 'tan']);
+  const Field = ({ label, fkey, placeholder, hint }) => (
+    <div style={{ marginBottom:14 }}>
+      <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:4 }}>{label}</label>
+      <input
+        style={{ ...S.input, ...(errors[fkey] ? { borderColor:'#DC2626', background:'#FEF2F2' } : {}) }}
+        value={fv(fkey)}
+        placeholder={placeholder}
+        onChange={e => { const v = UPPERCASE_KEYS.has(fkey) ? e.target.value.toUpperCase() : e.target.value; setForm(p => ({ ...p, [fkey]: v })); clearErr(fkey); }}
+        onBlur={() => { const v = (fv(fkey) || '').trim(); if (v) setErr(fkey, VALIDATORS[fkey]?.(v) || ''); }}
+      />
+      {errors[fkey] ? <div style={{ color:'#DC2626', fontSize:11, marginTop:3 }}>⚠ {errors[fkey]}</div>
+        : hint ? <div style={{ color:'#94A3B8', fontSize:11, marginTop:3 }}>{hint}</div> : null}
+    </div>
+  );
+
   return (
     <div>
-      <div style={S.pageTitle}>Organisation Profile</div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+        <div style={S.pageTitle}>Organisation Profile</div>
+        <button style={S.btnPrimary} onClick={openEdit}>✏ Edit</button>
+      </div>
       <div style={S.pageSub}>Organisation profile overview</div>
 
       <div style={S.card}>
@@ -284,6 +363,27 @@ function OrgProfile({ user }) {
         <Row label="Account number" value={s9.bankAccNum ? '****' + String(s9.bankAccNum).slice(-4) : user?.bank_account_number ? '****' + String(user.bank_account_number).slice(-4) : null} />
         <Row label="IFSC code" value={s9.bankIfsc || user?.bank_ifsc} />
       </div>
+
+      {editing && (
+        <Modal title="Edit Organisation Profile" onClose={() => setEditing(false)}>
+          <div style={{ marginBottom:8, paddingBottom:10, borderBottom:'1px solid #E2E8F0', fontSize:12, fontWeight:700, color:'#7886A6', textTransform:'uppercase', letterSpacing:.5 }}>Contact</div>
+          <Field label="Email *" fkey="email" placeholder="contact@org.com" />
+          <Field label="Mobile Number *" fkey="mobile" placeholder="9876543210" hint="10 digits starting with 6–9" />
+
+          <div style={{ marginTop:16, marginBottom:8, paddingBottom:10, borderBottom:'1px solid #E2E8F0', fontSize:12, fontWeight:700, color:'#7886A6', textTransform:'uppercase', letterSpacing:.5 }}>Legal & Tax</div>
+          <Field label="GSTIN" fkey="gstin" placeholder="27AAPFU0939F1ZV" hint="15-character GST Identification Number" />
+          <Field label="PAN" fkey="pan" placeholder="ABCDE1234F" hint="10-character Permanent Account Number" />
+          <Field label="TAN" fkey="tan" placeholder="PDES03028F" hint="10-character Tax Deduction Account Number" />
+
+          {errors._global && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12, marginBottom:10 }}>⚠ {errors._global}</div>}
+          {saved && <div style={{ ...S.alert('success'), marginBottom:10 }}>✓ Saved successfully</div>}
+
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setEditing(false)}>Cancel</button>
+            <button style={S.btnPrimary} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1305,7 +1405,7 @@ const SEARCH_INDEX = NAV.flatMap(item => {
 });
 
 export default function TrainingVendorPortal() {
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
   const routerNavigate = useNavigate();
   const [activeKey, setActiveKey] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
@@ -1324,7 +1424,7 @@ export default function TrainingVendorPortal() {
 
   const renderPanel = () => {
     if (activeKey === 'dashboard') return <Dashboard user={user} onNav={navigate} />;
-    if (activeKey === 'org-profile') return <OrgProfile user={user} />;
+    if (activeKey === 'org-profile') return <OrgProfile user={user} onUserUpdate={refresh} />;
     if (activeKey === 'centres' || activeKey === 'centres-add') return <Centres activeSection={activeKey} onNav={navigate} />;
     if (activeKey === 'trainers' || activeKey === 'trainers-add') return <TrainersList activeSection={activeKey} onNav={navigate} />;
     if (activeKey === 'courses' || activeKey === 'courses-add') return <CoursesList />;

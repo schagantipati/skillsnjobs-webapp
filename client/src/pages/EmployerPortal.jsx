@@ -309,6 +309,7 @@ export default function EmployerPortal() {
     location: user?.location || '',
     pan: user?.pan || '',
     gstin: user?.gstin || '',
+    tan: user?.tan || '',
     cin: user?.cin || '',
     website: user?.website || '',
     bio: user?.bio || '',
@@ -318,13 +319,16 @@ export default function EmployerPortal() {
     city: user?.city || '',
     state_name: user?.state_name || '',
     pincode: user?.pincode || '',
+    email: user?.email || '',
   }));
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [panError, setPanError] = useState('');
   const [cinError, setCinError] = useState('');
   const [gstError, setGstError] = useState('');
+  const [tanError, setTanError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [websiteError, setWebsiteError] = useState('');
   const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
   const CIN_RE = /^[A-Z]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/;
@@ -655,17 +659,22 @@ export default function EmployerPortal() {
         const gst = profileInfo.gstin.toUpperCase().trim();
         if (!GST_RE.test(gst)) { setGstError('Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)'); return; }
       }
+      if (profileInfo.tan) {
+        const tan = profileInfo.tan.toUpperCase().trim();
+        if (!/^[A-Z]{4}\d{5}[A-Z]$/.test(tan)) { setTanError('Invalid TAN — format: PDES03028F (10 chars)'); return; }
+      }
       if (profileInfo.website) {
         const wErr = fieldValidate('website', profileInfo.website);
         if (wErr) { setWebsiteError(wErr); return; }
       }
-      setPanError(''); setCinError(''); setGstError(''); setWebsiteError('');
+      setPanError(''); setCinError(''); setGstError(''); setTanError(''); setWebsiteError('');
       setProfileSaving(true); setProfileMsg('');
       try {
         await api.updateMe({
           org_name: profileInfo.org_name || null,
           pan: profileInfo.pan || null,
           gstin: profileInfo.gstin || null,
+          tan: profileInfo.tan || null,
           cin: profileInfo.cin || null,
           website: profileInfo.website || null,
           bio: profileInfo.bio || null,
@@ -726,6 +735,18 @@ export default function EmployerPortal() {
             </div>
           </Field>
         </Grid>
+        <Grid>
+          <Field label="TAN">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.tan}
+                onChange={e => { setProfileInfo(f => ({ ...f, tan: e.target.value.toUpperCase() })); setTanError(''); }}
+                onBlur={() => { if (profileInfo.tan) setTanError(/^[A-Z]{4}\d{5}[A-Z]$/.test(profileInfo.tan.toUpperCase()) ? '' : 'Invalid TAN — format: PDES03028F (10 chars)'); }}
+                placeholder="e.g. PDES03028F"
+                style={{ ...inp, borderColor: tanError ? '#C0392B' : '#dde2eb', background: tanError ? '#FEF2F2' : '#fafbfc' }} />
+              {tanError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {tanError}</div>}
+            </div>
+          </Field>
+        </Grid>
         <Field label="Company Description">
           <textarea rows={3} value={profileInfo.bio} onChange={set('bio')} placeholder="Brief about your company…"
             style={{ ...inp, resize:'vertical' }} />
@@ -748,10 +769,16 @@ export default function EmployerPortal() {
         }
       }
       setPhoneError('');
+      if (profileInfo.email) {
+        const emailPat = /^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/;
+        if (!emailPat.test(profileInfo.email)) { setEmailError('Invalid email address'); return; }
+      }
+      setEmailError('');
       setProfileSaving(true); setProfileMsg('');
       try {
         await api.updateMe({
           phone: profileInfo.phone ? '+91' + profileInfo.phone : null,
+          email: profileInfo.email || null,
           location: profileInfo.city || profileInfo.location || null,
           spoc_name: profileInfo.spoc_name || null,
           address_line1: profileInfo.address_line1 || null,
@@ -781,6 +808,16 @@ export default function EmployerPortal() {
                 placeholder="e.g. 9876543210" maxLength={10}
                 style={{ ...inp, borderColor: phoneError ? '#C0392B' : '#dde2eb', background: phoneError ? '#FEF2F2' : '#fafbfc' }} />
               {phoneError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {phoneError}</div>}
+            </div>
+          </Field>
+          <Field label="Email Address">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.email}
+                onChange={e => { setProfileInfo(f => ({ ...f, email: e.target.value })); setEmailError(''); }}
+                onBlur={() => { const v = profileInfo.email; if (v) { const ok = /^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/.test(v); setEmailError(ok ? '' : 'Invalid email address'); } }}
+                placeholder="e.g. contact@company.com"
+                style={{ ...inp, borderColor: emailError ? '#C0392B' : '#dde2eb', background: emailError ? '#FEF2F2' : '#fafbfc' }} />
+              {emailError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {emailError}</div>}
             </div>
           </Field>
         </Grid>

@@ -212,6 +212,8 @@ export default function CsrOrganizationPortal() {
     org_name: user?.org_name || '',
     cin: user?.cin || '',
     pan: user?.pan || '',
+    gstin: user?.gstin || '',
+    tan: user?.tan || '',
     website: user?.website || '',
     bio: user?.bio || '',
   }));
@@ -241,6 +243,8 @@ export default function CsrOrganizationPortal() {
         org_name: user.org_name || '',
         cin: user.cin || '',
         pan: user.pan || '',
+        gstin: user.gstin || '',
+        tan: user.tan || '',
         website: user.website || '',
         bio: user.bio || '',
       }));
@@ -264,7 +268,7 @@ export default function CsrOrganizationPortal() {
   async function saveInfo() {
     setInfoSaving(true);
     try {
-      await api.updateMe({ org_name: profileInfo.org_name, cin: profileInfo.cin, pan: profileInfo.pan, website: profileInfo.website, bio: profileInfo.bio });
+      await api.updateMe({ org_name: profileInfo.org_name, cin: profileInfo.cin, pan: profileInfo.pan, gstin: profileInfo.gstin, website: profileInfo.website, bio: profileInfo.bio });
       alert('Organisation info saved.');
     } catch { alert('Save failed.'); } finally { setInfoSaving(false); }
   }
@@ -275,6 +279,7 @@ export default function CsrOrganizationPortal() {
         address_line1: profileContact.address_line1, city: profileContact.city,
         state_name: profileContact.state_name, pincode: profileContact.pincode,
         phone: profileContact.phone ? '+91' + profileContact.phone : null,
+        email: profileContact.email,
         spoc_name: profileContact.spoc_name,
       });
       alert('Contact info saved.');
@@ -605,6 +610,10 @@ export default function CsrOrganizationPortal() {
         </Grid>
         <Grid>
           <Field label="PAN Number"><ValidInp value={profileInfo.pan} onChange={set('pan')} validate="pan" /></Field>
+          <Field label="GSTIN"><ValidInp value={profileInfo.gstin} onChange={set('gstin')} validate="gst" placeholder="e.g. 29AAACT1234A1ZK" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="TAN"><ValidInp value={profileInfo.tan} onChange={set('tan')} validate="tan" placeholder="e.g. PDES03028F" /></Field>
           <Field label="Website"><Inp value={profileInfo.website} onChange={set('website')} /></Field>
         </Grid>
         <Field label="Description / Mission"><textarea className="inp" rows={3} value={profileInfo.bio} onChange={set('bio')} placeholder="Describe your CSR mission…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
@@ -632,8 +641,8 @@ export default function CsrOrganizationPortal() {
           <Field label="PIN Code"><ValidInp value={profileContact.pincode} onChange={set('pincode')} validate="pincode" /></Field>
         </Grid>
         <Grid>
-          <Field label="Phone"><Inp value={profileContact.phone} onChange={set('phone')} placeholder="10-digit mobile" /></Field>
-          <Field label="Email"><Inp value={profileContact.email} placeholder="Email (read-only)" /></Field>
+          <Field label="Mobile Number"><ValidInp value={profileContact.phone} onChange={set('phone')} validate="mobile" placeholder="9876543210" /></Field>
+          <Field label="Email"><ValidInp value={profileContact.email} onChange={set('email')} validate="email" placeholder="contact@org.com" /></Field>
         </Grid>
         <div style={{ textAlign:'right' }}><Btn onClick={saveContact} style={{ opacity: contactSaving ? .7 : 1 }}>{contactSaving ? 'Saving…' : '💾 Save Changes'}</Btn></div>
       </Card>
