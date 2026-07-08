@@ -6,8 +6,8 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [email, setEmail] = useState('aisha@example.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loginRole, setLoginRole] = useState(searchParams.get('role') || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
