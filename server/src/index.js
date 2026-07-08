@@ -28,6 +28,12 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, service: 'skillsnjobs-api' }));
 
+// TEMP DEBUG — remove before production
+app.get('/api/debug/users', (req, res) => {
+  const users = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users ORDER BY id').all();
+  res.json({ total: users.length, users });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
