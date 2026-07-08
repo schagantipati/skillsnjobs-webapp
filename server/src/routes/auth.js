@@ -47,6 +47,11 @@ router.post('/verify-otp', (req, res) => {
   const { type, value, otp } = req.body;
   if (!type || !value || !otp) return res.status(400).json({ error: 'type, value and otp are required' });
 
+  // Hardcode mode: accept 000000 without checking the store
+  if (process.env.HARDCODE_OTP === 'true' && String(otp) === '000000') {
+    return res.json({ success: true, verified: true });
+  }
+
   const key = `${type}:${value}`;
   const record = otpStore.get(key);
   if (!record) return res.status(400).json({ error: 'OTP not sent or expired. Please request a new OTP.' });
