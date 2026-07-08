@@ -34,6 +34,7 @@ export const api = {
   verifyOtp: (type, value, otp) => request('/auth/verify-otp', { method: 'POST', body: { type, value, otp }, auth: false }),
   me: () => request('/users/me'),
   updateMe: (payload) => request('/users/me', { method: 'PUT', body: payload }),
+  changePassword: (current_password, new_password) => request('/users/me/change-password', { method: 'POST', body: { current_password, new_password } }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
@@ -67,9 +68,13 @@ export const api = {
   createCourse: (payload) => request('/courses', { method: 'POST', body: payload }),
   enroll: (id) => request(`/courses/${id}/enroll`, { method: 'POST' }),
   myEnrollments: () => request('/courses/mine/enrollments'),
+  myCertificates: () => request('/courses/mine/certificates'),
+  myGrievances: () => request('/courses/mine/grievances'),
+  submitGrievance: (b) => request('/courses/mine/grievances', { method: 'POST', body: b }),
   recommendations: () => request('/courses/recommendations/for-me'),
 
   stats: () => request('/stats/summary'),
+  dashboardStats: () => request('/stats/summary'),
 
   targetBeneficiaries: () => request('/target-beneficiaries'),
   addTargetBeneficiary: (name) => request('/target-beneficiaries', { method: 'POST', body: { name } }),
@@ -135,6 +140,108 @@ export const api = {
   vendorGrievances: () => request('/vendor/grievances'),
   createVendorGrievance: (b) => request('/vendor/grievances', { method: 'POST', body: b }),
   updateVendorGrievance: (id, b) => request(`/vendor/grievances/${id}`, { method: 'PUT', body: b }),
+
+  // ── CSR Organization Portal ──
+  csrStats: () => request('/csr/stats'),
+  csrProjects: () => request('/csr/projects'),
+  csrCreateProject: (b) => request('/csr/projects', { method: 'POST', body: b }),
+  csrUpdateProject: (id, b) => request(`/csr/projects/${id}`, { method: 'PUT', body: b }),
+  csrDeleteProject: (id) => request(`/csr/projects/${id}`, { method: 'DELETE' }),
+  csrBeneficiaries: (p = {}) => { const qs = new URLSearchParams(p).toString(); return request('/csr/beneficiaries' + (qs ? `?${qs}` : '')); },
+  csrCreateBeneficiary: (b) => request('/csr/beneficiaries', { method: 'POST', body: b }),
+  csrUpdateBeneficiary: (id, b) => request(`/csr/beneficiaries/${id}`, { method: 'PUT', body: b }),
+  csrDisbursements: () => request('/csr/disbursements'),
+  csrCreateDisbursement: (b) => request('/csr/disbursements', { method: 'POST', body: b }),
+  csrUpdateDisbursementStatus: (id, status) => request(`/csr/disbursements/${id}/status`, { method: 'PUT', body: { status } }),
+  csrTrainingPartners: () => request('/csr/training-partners'),
+  csrCreateTP: (b) => request('/csr/training-partners', { method: 'POST', body: b }),
+  csrUpdateTP: (id, b) => request(`/csr/training-partners/${id}`, { method: 'PUT', body: b }),
+  csrDeleteTP: (id) => request(`/csr/training-partners/${id}`, { method: 'DELETE' }),
+
+  // ── Batches (Trainer Portal) ──
+  myBatches: () => request('/batches/mine'),
+  allBatches: () => request('/batches'),
+  createBatch: (b) => request('/batches', { method: 'POST', body: b }),
+  updateBatch: (id, b) => request(`/batches/${id}`, { method: 'PUT', body: b }),
+  deleteBatch: (id) => request(`/batches/${id}`, { method: 'DELETE' }),
+  batchLearners: (id) => request(`/batches/${id}/learners`),
+  batchAttendance: (id, date) => request(`/batches/${id}/attendance` + (date ? `?date=${date}` : '')),
+  markAttendance: (id, date, records) => request(`/batches/${id}/attendance`, { method: 'POST', body: { date, records } }),
+
+  // ── Placements (Placement Partner Portal) ──
+  myPlacements: () => request('/placements/mine'),
+  placementSummary: () => request('/placements/summary'),
+  createPlacement: (b) => request('/placements', { method: 'POST', body: b }),
+  updatePlacement: (id, b) => request(`/placements/${id}`, { method: 'PUT', body: b }),
+  deletePlacement: (id) => request(`/placements/${id}`, { method: 'DELETE' }),
+
+  // ── Trainer Profile ──
+  trainerQualifications: () => request('/users/me/qualifications'),
+  addTrainerQualification: (b) => request('/users/me/qualifications', { method: 'POST', body: b }),
+  deleteTrainerQualification: (id) => request(`/users/me/qualifications/${id}`, { method: 'DELETE' }),
+  trainerExperience: () => request('/users/me/experience'),
+  addTrainerExperience: (b) => request('/users/me/experience', { method: 'POST', body: b }),
+  deleteTrainerExperience: (id) => request(`/users/me/experience/${id}`, { method: 'DELETE' }),
+  trainerSkills: () => request('/users/me/skills'),
+  addTrainerSkill: (b) => request('/users/me/skills', { method: 'POST', body: b }),
+  deleteTrainerSkill: (id) => request(`/users/me/skills/${id}`, { method: 'DELETE' }),
+
+  // ── Trainer Features ──
+  trainerCertifications: () => request('/trainer/certifications'),
+  addTrainerCertification: (b) => request('/trainer/certifications', { method: 'POST', body: b }),
+  deleteTrainerCertification: (id) => request(`/trainer/certifications/${id}`, { method: 'DELETE' }),
+
+  trainerDocuments: () => request('/trainer/documents'),
+  addTrainerDocument: (formData) => {
+    const token = localStorage.getItem('snj_token');
+    return fetch('/api/trainer/documents', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    }).then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `Upload failed (${r.status})`);
+      return data;
+    });
+  },
+  downloadTrainerDocument: (id) => `/api/trainer/documents/${id}/download`,
+  updateTrainerDocument: (id, b) => request(`/trainer/documents/${id}`, { method: 'PUT', body: b }),
+  deleteTrainerDocument: (id) => request(`/trainer/documents/${id}`, { method: 'DELETE' }),
+
+  trainerSessions: () => request('/trainer/sessions'),
+  addTrainerSession: (b) => request('/trainer/sessions', { method: 'POST', body: b }),
+  updateTrainerSession: (id, b) => request(`/trainer/sessions/${id}`, { method: 'PUT', body: b }),
+  deleteTrainerSession: (id) => request(`/trainer/sessions/${id}`, { method: 'DELETE' }),
+
+  trainerAssessments: () => request('/trainer/assessments'),
+  addTrainerAssessment: (b) => request('/trainer/assessments', { method: 'POST', body: b }),
+  updateTrainerAssessment: (id, b) => request(`/trainer/assessments/${id}`, { method: 'PUT', body: b }),
+  deleteTrainerAssessment: (id) => request(`/trainer/assessments/${id}`, { method: 'DELETE' }),
+
+  trainerMockTests: () => request('/trainer/mock-tests'),
+  addTrainerMockTest: (b) => request('/trainer/mock-tests', { method: 'POST', body: b }),
+  deleteTrainerMockTest: (id) => request(`/trainer/mock-tests/${id}`, { method: 'DELETE' }),
+
+  trainerContent: () => request('/trainer/content'),
+  addTrainerContent: (b) => request('/trainer/content', { method: 'POST', body: b }),
+  deleteTrainerContent: (id) => request(`/trainer/content/${id}`, { method: 'DELETE' }),
+
+  trainerTickets: () => request('/trainer/tickets'),
+  addTrainerTicket: (b) => request('/trainer/tickets', { method: 'POST', body: b }),
+  updateTrainerTicket: (id, b) => request(`/trainer/tickets/${id}`, { method: 'PUT', body: b }),
+
+  trainerGrievances: () => request('/trainer/grievances'),
+  addTrainerGrievance: (b) => request('/trainer/grievances', { method: 'POST', body: b }),
+
+  trainerReportAttendance: () => request('/trainer/reports/attendance'),
+  trainerReportBatch: () => request('/trainer/reports/batch'),
+  trainerReportDropout: () => request('/trainer/reports/dropout'),
+  trainerReportAssessment: () => request('/trainer/reports/assessment'),
+  trainerReportPlacement: () => request('/trainer/reports/placement'),
+  trainerCertEligible: () => request('/trainer/cert-eligible'),
+  trainerNotifications: () => request('/trainer/notifications'),
+  trainerVerifyCert: (cert_no) => request(`/trainer/cert-verify?cert_no=${encodeURIComponent(cert_no)}`),
+  trainerReportScheme: () => request('/trainer/reports/scheme'),
 
   // ── State Government Portal ──
   sgStats: () => request('/state-govt/stats'),

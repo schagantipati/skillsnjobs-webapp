@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { db, logAudit } = require('../db');
 const { authRequired } = require('../middleware/auth');
 
@@ -20,6 +21,8 @@ function publicUser(u) {
     interests: u.interests, preferred_sector: u.preferred_sector,
     lang_english: u.lang_english, lang_hindi: u.lang_hindi, lang_regional: u.lang_regional,
     certificates: u.certificates, resume: u.resume,
+    // Shared org
+    cin: u.cin, website: u.website,
     // Training Vendor
     registration_number: u.registration_number, pan: u.pan, gstin: u.gstin,
     year_established: u.year_established, head_office: u.head_office,
@@ -49,6 +52,7 @@ router.put('/me', authRequired, (req, res) => {
     employment_status, interests, preferred_sector,
     lang_english, lang_hindi, lang_regional,
     certificates, resume,
+    cin, website,
     registration_number, pan, gstin, year_established, head_office, branch_offices,
     ceo_name, spoc_name, ops_head, finance_contact, placement_officer,
     bank_account_name, bank_ifsc, bank_account_number,
@@ -65,6 +69,7 @@ router.put('/me', authRequired, (req, res) => {
     employment_status=?, interests=?, preferred_sector=?,
     lang_english=?, lang_hindi=?, lang_regional=?,
     certificates=?, resume=?,
+    cin=?, website=?,
     registration_number=?, pan=?, gstin=?, year_established=?, head_office=?, branch_offices=?,
     ceo_name=?, spoc_name=?, ops_head=?, finance_contact=?, placement_officer=?,
     bank_account_name=?, bank_ifsc=?, bank_account_number=?,
@@ -82,6 +87,7 @@ router.put('/me', authRequired, (req, res) => {
     employment_status ?? e.employment_status, interests ?? e.interests, preferred_sector ?? e.preferred_sector,
     lang_english ?? e.lang_english, lang_hindi ?? e.lang_hindi, lang_regional ?? e.lang_regional,
     certificates ?? e.certificates, resume ?? e.resume,
+    cin ?? e.cin, website ?? e.website,
     registration_number ?? e.registration_number, pan ?? e.pan, gstin ?? e.gstin,
     year_established ?? e.year_established, head_office ?? e.head_office, branch_offices ?? e.branch_offices,
     ceo_name ?? e.ceo_name, spoc_name ?? e.spoc_name, ops_head ?? e.ops_head,
@@ -96,6 +102,18 @@ router.put('/me', authRequired, (req, res) => {
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   logAudit({ user: req.user, action: 'Profile updated', entity: 'user', entityId: req.user.id, ip: req.ip });
   res.json(publicUser(updated));
+});
+
+router.post('/me/change-password', authRequired, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'current_password and new_password are required' });
+  if (new_password.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!bcrypt.compareSync(current_password, user.password_hash)) return res.status(400).json({ error: 'Current password is incorrect' });
+  const hash = bcrypt.hashSync(new_password, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
+  logAudit({ user: req.user, action: 'Password changed', entity: 'user', entityId: req.user.id, ip: req.ip });
+  res.json({ message: 'Password updated successfully' });
 });
 
 router.get('/candidates', authRequired, (req, res) => {
@@ -239,6 +257,75 @@ router.get('/stats', authRequired, (req, res) => {
   stats.shortlisted   = db.prepare("SELECT COUNT(*) c FROM applications WHERE status='shortlisted'").get().c;
   stats.enrollments   = db.prepare('SELECT COUNT(*) c FROM enrollments').get().c;
   res.json(stats);
+});
+
+// ── Trainer: Qualifications ──
+router.get('/me/qualifications', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const rows = db.prepare('SELECT * FROM trainer_qualifications WHERE trainer_id = ? ORDER BY id').all(req.user.id);
+  res.json(rows);
+});
+
+router.post('/me/qualifications', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const { degree, institution, year, score } = req.body;
+  if (!degree || !institution) return res.status(400).json({ error: 'degree and institution are required' });
+  const result = db.prepare(
+    'INSERT INTO trainer_qualifications (trainer_id, degree, institution, year, score) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.user.id, degree, institution, year || null, score || null);
+  res.json({ id: result.lastInsertRowid, trainer_id: req.user.id, degree, institution, year, score });
+});
+
+router.delete('/me/qualifications/:id', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM trainer_qualifications WHERE id = ? AND trainer_id = ?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// ── Trainer: Experience ──
+router.get('/me/experience', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const rows = db.prepare('SELECT * FROM trainer_experience WHERE trainer_id = ? ORDER BY id').all(req.user.id);
+  res.json(rows);
+});
+
+router.post('/me/experience', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const { org, role, from_date, to_date, sector } = req.body;
+  if (!org || !role) return res.status(400).json({ error: 'org and role are required' });
+  const result = db.prepare(
+    'INSERT INTO trainer_experience (trainer_id, org, role, from_date, to_date, sector) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.user.id, org, role, from_date || null, to_date || null, sector || null);
+  res.json({ id: result.lastInsertRowid, trainer_id: req.user.id, org, role, from_date, to_date, sector });
+});
+
+router.delete('/me/experience/:id', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM trainer_experience WHERE id = ? AND trainer_id = ?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
+});
+
+// ── Trainer: Skills ──
+router.get('/me/skills', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const rows = db.prepare('SELECT * FROM trainer_skills WHERE trainer_id = ? ORDER BY id').all(req.user.id);
+  res.json(rows);
+});
+
+router.post('/me/skills', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  const { domain, courses, ssc, nsqf_level, years_exp } = req.body;
+  if (!domain) return res.status(400).json({ error: 'domain is required' });
+  const result = db.prepare(
+    'INSERT INTO trainer_skills (trainer_id, domain, courses, ssc, nsqf_level, years_exp) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.user.id, domain, courses || null, ssc || null, nsqf_level || null, years_exp || null);
+  res.json({ id: result.lastInsertRowid, trainer_id: req.user.id, domain, courses, ssc, nsqf_level, years_exp });
+});
+
+router.delete('/me/skills/:id', authRequired, (req, res) => {
+  if (req.user.role !== 'trainer') return res.status(403).json({ error: 'Forbidden' });
+  db.prepare('DELETE FROM trainer_skills WHERE id = ? AND trainer_id = ?').run(req.params.id, req.user.id);
+  res.json({ ok: true });
 });
 
 module.exports = router;

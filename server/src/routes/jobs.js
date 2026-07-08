@@ -59,19 +59,23 @@ router.get('/:id', authRequired, (req, res) => {
   res.json(jobOut(j, { employer_name: j.org_name || j.employer_name }));
 });
 
-router.post('/', authRequired, requireRole('employer', 'admin'), (req, res) => {
+function stripTags(str) {
+  return typeof str === 'string' ? str.replace(/<[^>]*>/g, '').trim() : str;
+}
+
+router.post('/', authRequired, requireRole('employer', 'admin', 'placement_agency'), (req, res) => {
   const { title, description, required_skills, location, job_type, salary_min, salary_max } = req.body;
   if (!title) return res.status(400).json({ error: 'title is required' });
   const info = db.prepare(`INSERT INTO jobs (employer_id,title,description,required_skills,location,job_type,salary_min,salary_max)
     VALUES (?,?,?,?,?,?,?,?)`).run(
-    req.user.id, title, description || '', JSON.stringify(required_skills || []),
-    location || '', job_type || 'Full-time', salary_min || null, salary_max || null
+    req.user.id, stripTags(title), stripTags(description) || '', JSON.stringify(required_skills || []),
+    stripTags(location) || '', job_type || 'Full-time', salary_min || null, salary_max || null
   );
   const j = db.prepare('SELECT * FROM jobs WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json(jobOut(j));
 });
 
-router.put('/:id', authRequired, requireRole('employer', 'admin'), (req, res) => {
+router.put('/:id', authRequired, requireRole('employer', 'admin', 'placement_agency'), (req, res) => {
   const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (req.user.role !== 'admin' && job.employer_id !== req.user.id) {
@@ -79,7 +83,7 @@ router.put('/:id', authRequired, requireRole('employer', 'admin'), (req, res) =>
   }
   const { title, description, required_skills, location, job_type, salary_min, salary_max, status } = req.body;
   db.prepare(`UPDATE jobs SET title=?, description=?, required_skills=?, location=?, job_type=?, salary_min=?, salary_max=?, status=? WHERE id=?`).run(
-    title ?? job.title, description ?? job.description,
+    stripTags(title ?? job.title), stripTags(description ?? job.description),
     JSON.stringify(required_skills ?? JSON.parse(job.required_skills || '[]')),
     location ?? job.location, job_type ?? job.job_type,
     salary_min ?? job.salary_min, salary_max ?? job.salary_max,
@@ -89,7 +93,7 @@ router.put('/:id', authRequired, requireRole('employer', 'admin'), (req, res) =>
   res.json(jobOut(updated));
 });
 
-router.delete('/:id', authRequired, requireRole('employer', 'admin'), (req, res) => {
+router.delete('/:id', authRequired, requireRole('employer', 'admin', 'placement_agency'), (req, res) => {
   const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
   if (req.user.role !== 'admin' && job.employer_id !== req.user.id) {
@@ -100,7 +104,7 @@ router.delete('/:id', authRequired, requireRole('employer', 'admin'), (req, res)
 });
 
 // Employer: list jobs they posted
-router.get('/mine/list', authRequired, requireRole('employer', 'admin'), (req, res) => {
+router.get('/mine/list', authRequired, requireRole('employer', 'admin', 'placement_agency'), (req, res) => {
   const rows = db.prepare('SELECT * FROM jobs WHERE employer_id = ? ORDER BY created_at DESC').all(req.user.id);
   res.json(rows.map(j => jobOut(j)));
 });

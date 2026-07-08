@@ -2,10 +2,12 @@ import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
+import AccountPreferences from '../components/AccountPreferences.jsx';
+import { api } from '../api.js';
 
-const SW = 240, TH = 58;
+const SW = 220, TH = 58;
 const C = {
-  navy:'#0D2137', sidebar:'#1A56C4', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
+  navy:'#0D2137', sidebar:'#010E3C', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
   gold:'#C8860A', red:'#C0392B', purple:'#6B3FA0',
   pBlue:'#EBF1FB', pGreen:'#E8F5EE', pGold:'#FEF6E4',
   pRed:'#FDECEA', pPurple:'#F0EAFB', pTeal:'#E6F4F6',
@@ -178,16 +180,281 @@ export default function PlacementPartnerPortal() {
   const [openMenus, setOpenMenus] = useState({});
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [dbStats, setDbStats] = useState({});
   const searchRef = useRef(null);
+
+  // ── Placement & Job state ──
+  const [myPlacements, setMyPlacements] = useState([]);
+  const [placementsLoaded, setPlacementsLoaded] = useState(false);
+  const [myJobs, setMyJobs] = useState([]);
+  const [jobsLoaded, setJobsLoaded] = useState(false);
+  const [plForm, setPlForm] = useState({ candidate_id:'', job_title:'', company:'', location:'', ctc:'', placement_date:'', status:'placed' });
+  const [plSaving, setPlSaving] = useState(false);
+  const [plMsg, setPlMsg] = useState('');
+  const [candidateList, setCandidateList] = useState([]);
+
+  // ── Agency Info state ──
+  const [agInfo, setAgInfo] = useState({ org_name:'', cin:'', gstin:'', pan:'', website:'', phone:'', email:'' });
+  const [agInfoLoaded, setAgInfoLoaded] = useState(false);
+  const [agInfoSaving, setAgInfoSaving] = useState(false);
+  const [agInfoMsg, setAgInfoMsg] = useState('');
+  const [agInfoErrors, setAgInfoErrors] = useState({});
+
+  function setAgErr(k, msg) { setAgInfoErrors(e => ({ ...e, [k]: msg })); }
+  function clearAgErr(k) { setAgInfoErrors(e => ({ ...e, [k]: '' })); }
+
+  // ── Contact & Address state ──
+  const [contact, setContact] = useState({ spoc_name:'', phone:'', email:'', address_line1:'', address_line2:'', city:'', state_name:'', pincode:'' });
+  const [contactLoaded, setContactLoaded] = useState(false);
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactMsg, setContactMsg] = useState('');
+
+  function loadContact() {
+    if (contactLoaded) return;
+    api.me().then(u => {
+      setContact({
+        spoc_name:    u.spoc_name     || '',
+        phone:        u.phone         || '',
+        email:        u.email         || '',
+        address_line1:u.address_line1 || '',
+        address_line2:u.address_line2 || '',
+        city:         u.city          || '',
+        state_name:   u.state_name    || '',
+        pincode:      u.pincode       || '',
+      });
+      setContactLoaded(true);
+    }).catch(() => {});
+  }
+
+  async function saveContact() {
+    setContactSaving(true); setContactMsg('');
+    try {
+      await api.updateMe({
+        spoc_name:     contact.spoc_name.trim()     || null,
+        phone:         contact.phone.replace(/\D/g,'') || null,
+        email:         contact.email.trim()         || null,
+        address_line1: contact.address_line1.trim() || null,
+        address_line2: contact.address_line2.trim() || null,
+        city:          contact.city.trim()          || null,
+        state_name:    contact.state_name.trim()    || null,
+        pincode:       contact.pincode.trim()       || null,
+      });
+      setContactMsg('Saved successfully');
+    } catch { setContactMsg('Save failed. Please try again.'); }
+    setContactSaving(false);
+  }
+
+  // ── Interview scheduling state ──
+  const [ppInterview, setPpInterview] = useState({ candidate_name:'', job_role:'', date:'', time:'', mode:'In-person', interviewer:'' });
+  const [ppInterviewSaving, setPpInterviewSaving] = useState(false);
+  const [ppInterviewMsg, setPpInterviewMsg] = useState('');
+  const [scheduledInterviews, setScheduledInterviews] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_pp_interviews') || '[]'); } catch { return []; } });
+
+  function scheduleInterview() {
+    if (!ppInterview.candidate_name.trim() || !ppInterview.date || !ppInterview.time) {
+      setPpInterviewMsg('Candidate name, date and time are required.'); return;
+    }
+    const entry = { ...ppInterview, id: Date.now(), scheduled_at: new Date().toISOString() };
+    const updated = [entry, ...scheduledInterviews];
+    setScheduledInterviews(updated);
+    localStorage.setItem('snj_pp_interviews', JSON.stringify(updated));
+    setPpInterview({ candidate_name:'', job_role:'', date:'', time:'', mode:'In-person', interviewer:'' });
+    setPpInterviewMsg('✅ Interview scheduled.');
+  }
+
+  // ── Offer letter state ──
+  const [ppOffer, setPpOffer] = useState({ candidate_name:'', job_role:'', joining_date:'', ctc:'' });
+  const [ppOfferSaving, setPpOfferSaving] = useState(false);
+  const [ppOfferMsg, setPpOfferMsg] = useState('');
+  const [generatedOffers, setGeneratedOffers] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_pp_offers') || '[]'); } catch { return []; } });
+
+  function generateOffer() {
+    if (!ppOffer.candidate_name.trim() || !ppOffer.job_role.trim()) {
+      setPpOfferMsg('Candidate and job role are required.'); return;
+    }
+    const entry = { ...ppOffer, id: Date.now(), status: 'Generated', created_at: new Date().toISOString() };
+    const updated = [entry, ...generatedOffers];
+    setGeneratedOffers(updated);
+    localStorage.setItem('snj_pp_offers', JSON.stringify(updated));
+    setPpOffer({ candidate_name:'', job_role:'', joining_date:'', ctc:'' });
+    setPpOfferMsg('✅ Offer letter generated & sent.');
+  }
+
+  // ── Add Employer state ──
+  const [empForm, setEmpForm] = useState({ company_name:'', sector:'IT-ITES', contact_person:'', designation:'', mobile:'', email:'', city:'', state_name:'Maharashtra', vacancies:'', nsqf_level:'Any', notes:'' });
+  const [empSaving, setEmpSaving] = useState(false);
+  const [empMsg, setEmpMsg] = useState('');
+  const [addedEmployers, setAddedEmployers] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_pp_employers') || '[]'); } catch { return []; } });
+
+  function addEmployer() {
+    if (!empForm.company_name.trim()) { setEmpMsg('Company name is required.'); return; }
+    setEmpSaving(true);
+    const entry = { ...empForm, id: Date.now(), added_at: new Date().toISOString() };
+    const updated = [entry, ...addedEmployers];
+    setAddedEmployers(updated);
+    localStorage.setItem('snj_pp_employers', JSON.stringify(updated));
+    setEmpForm({ company_name:'', sector:'IT-ITES', contact_person:'', designation:'', mobile:'', email:'', city:'', state_name:'Maharashtra', vacancies:'', nsqf_level:'Any', notes:'' });
+    setEmpMsg('✅ Employer added successfully.');
+    setEmpSaving(false);
+  }
+
+  // ── MoU state ──
+  const [mouForm, setMouForm] = useState({ employer:'', mou_date:'', validity:'12', positions:'', file_name:'' });
+  const [mouMsg, setMouMsg] = useState('');
+  const [uploadedMous, setUploadedMous] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_pp_mous') || '[]'); } catch { return []; } });
+
+  function uploadMou() {
+    if (!mouForm.employer || mouForm.employer === 'Select Employer') { setMouMsg('Please select an employer.'); return; }
+    if (!mouForm.mou_date) { setMouMsg('MoU date is required.'); return; }
+    const entry = { ...mouForm, id: Date.now(), uploaded_at: new Date().toISOString(), status: 'Active' };
+    const updated = [entry, ...uploadedMous];
+    setUploadedMous(updated);
+    localStorage.setItem('snj_pp_mous', JSON.stringify(updated));
+    setMouForm({ employer:'', mou_date:'', validity:'12', positions:'', file_name:'' });
+    setMouMsg('✅ MoU uploaded successfully.');
+  }
+
+  // ── Incentive claim state ──
+  const [claimForm, setClaimForm] = useState({ scheme:'PMKVY Placement Linked Incentive', candidate:'', employer:'', joining_date:'' });
+  const [claimMsg, setClaimMsg] = useState('');
+  const [claims, setClaims] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_pp_claims') || '[]'); } catch { return []; } });
+
+  function submitClaim() {
+    if (!claimForm.candidate || claimForm.candidate === 'Select Candidate') { setClaimMsg('Please select a candidate.'); return; }
+    const entry = { ...claimForm, id: Date.now(), status: 'Submitted', submitted_at: new Date().toISOString() };
+    const updated = [entry, ...claims];
+    setClaims(updated);
+    localStorage.setItem('snj_pp_claims', JSON.stringify(updated));
+    setClaimForm({ scheme:'PMKVY Placement Linked Incentive', candidate:'', employer:'', joining_date:'' });
+    setClaimMsg('✅ Claim submitted successfully.');
+  }
+
+  // ── Candidate search state ──
+  const [searchFilters, setSearchFilters] = useState({ sector:'All', nsqf:'All', location:'', qualification:'Any' });
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  async function searchCandidates() {
+    setSearching(true);
+    try {
+      const results = await api.candidates();
+      let filtered = results || [];
+      if (searchFilters.sector !== 'All') filtered = filtered.filter(c => (c.sector || '').includes(searchFilters.sector));
+      if (searchFilters.location.trim()) filtered = filtered.filter(c => (c.city || c.location || '').toLowerCase().includes(searchFilters.location.toLowerCase()));
+      setSearchResults(filtered);
+    } catch { setSearchResults([]); }
+    setSearching(false);
+  }
+
+  // ── Bank Details state ──
+  const [bank, setBank] = useState({ bank_account_name:'', bank_account_number:'', bank_ifsc:'', bank_name:'', bank_branch:'' });
+  const [bankLoaded, setBankLoaded] = useState(false);
+  const [bankSaving, setBankSaving] = useState(false);
+  const [bankMsg, setBankMsg] = useState('');
+
+  function loadBank() {
+    if (bankLoaded) return;
+    api.me().then(u => {
+      setBank({
+        bank_account_name:   u.bank_account_name   || '',
+        bank_account_number: u.bank_account_number || '',
+        bank_ifsc:           u.bank_ifsc           || '',
+        bank_name:           '',
+        bank_branch:         '',
+      });
+      setBankLoaded(true);
+    }).catch(() => {});
+  }
+
+  async function saveBank() {
+    setBankSaving(true); setBankMsg('');
+    try {
+      await api.updateMe({
+        bank_account_name:   bank.bank_account_name.trim()   || null,
+        bank_account_number: bank.bank_account_number.trim() || null,
+        bank_ifsc:           bank.bank_ifsc.toUpperCase().trim() || null,
+      });
+      setBankMsg('Saved successfully');
+    } catch { setBankMsg('Save failed. Please try again.'); }
+    setBankSaving(false);
+  }
+
+  function loadAgInfo() {
+    if (agInfoLoaded) return;
+    api.me().then(u => {
+      setAgInfo({
+        org_name: u.org_name || '',
+        cin:      u.cin      || '',
+        gstin:    u.gstin    || '',
+        pan:      u.pan      || '',
+        website:  u.website  || '',
+        phone:    u.phone    || '',
+        email:    u.email    || '',
+      });
+      setAgInfoLoaded(true);
+    }).catch(() => {});
+  }
+
+  async function saveAgInfo() {
+    const errs = {};
+    if (!agInfo.org_name.trim()) errs.org_name = 'Agency name is required';
+    if (agInfo.cin    && !/^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(agInfo.cin.toUpperCase()))   errs.cin     = 'Invalid CIN format';
+    if (agInfo.gstin  && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(agInfo.gstin.toUpperCase())) errs.gstin   = 'Invalid GSTIN format';
+    if (agInfo.pan    && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(agInfo.pan.toUpperCase()))                      errs.pan     = 'Invalid PAN format';
+    if (agInfo.website && !/^https?:\/\/.+\..+/.test(agInfo.website))                                    errs.website = 'Enter a valid URL (e.g. https://example.com)';
+    if (agInfo.phone  && !/^[6-9]\d{9}$/.test(agInfo.phone.replace(/\D/g,'')))                           errs.phone   = 'Enter a valid 10-digit mobile number';
+    if (agInfo.email  && !/^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/.test(agInfo.email.trim()))        errs.email   = 'Enter a valid email address';
+    if (Object.keys(errs).length) { setAgInfoErrors(errs); return; }
+    setAgInfoSaving(true); setAgInfoMsg('');
+    try {
+      await api.updateMe({
+        org_name: agInfo.org_name.trim(),
+        cin:      agInfo.cin.toUpperCase().trim()   || null,
+        gstin:    agInfo.gstin.toUpperCase().trim() || null,
+        pan:      agInfo.pan.toUpperCase().trim()   || null,
+        website:  agInfo.website.trim()             || null,
+        phone:    agInfo.phone.replace(/\D/g,'')    || null,
+        email:    agInfo.email.trim()               || null,
+      });
+      setAgInfoMsg('Saved successfully');
+    } catch { setAgInfoMsg('Save failed. Please try again.'); }
+    setAgInfoSaving(false);
+  }
+
+  useEffect(() => {
+    api.dashboardStats().then(setDbStats).catch(() => {});
+    api.myPlacements().then(p => { setMyPlacements(p); setPlacementsLoaded(true); }).catch(() => {});
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+  }, []);
+
+  function loadPlacements() {
+    if (placementsLoaded) return;
+    api.myPlacements().then(p => { setMyPlacements(p); setPlacementsLoaded(true); }).catch(() => {});
+  }
+  function refreshPlacements() {
+    api.myPlacements().then(p => { setMyPlacements(p); setPlacementsLoaded(true); }).catch(() => {});
+  }
+  function loadJobs() {
+    if (jobsLoaded) return;
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+  }
 
   function toggleMenu(id) {
     setOpenMenus(m => ({ ...m, [id]: !m[id] }));
   }
-  function go(key) { setPanel(key); }
+  function go(key) {
+    setPanel(key);
+    if (['pl-active','pl-completed','pl-dropout'].includes(key)) loadPlacements();
+    if (['jobs-active','jobs-draft','jobs-closed'].includes(key)) loadJobs();
+    if (key === 'cand-search') api.candidates().then(setCandidateList).catch(() => {});
+    if (key === 'profile-info') loadAgInfo();
+    if (key === 'profile-contact') loadContact();
+    if (key === 'profile-bank') loadBank();
+  }
 
-  function handleLogout() { logout(); navigate('/login'); }
+  function handleLogout() { logout(); navigate('/'); }
 
-  const searchResults = searchQ.trim()
+  const navSearchResults = searchQ.trim()
     ? SEARCH_INDEX.filter(n => n.label.toLowerCase().includes(searchQ.toLowerCase()) || n.section.toLowerCase().includes(searchQ.toLowerCase())).slice(0, 8)
     : [];
 
@@ -222,18 +489,19 @@ export default function PlacementPartnerPortal() {
     }
     const label = s => <div style={{ padding:'18px 18px 5px', fontSize:10, fontWeight:700, color:'rgba(255,255,255,.35)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'auto', zIndex:200, display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'0 18px', height:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
-          <div style={{ width:32, height:32, background:C.blue, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>🏢</div>
+      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'0 16px', height:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0, minHeight:TH }}>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
             <div style={{ color:'#fff', fontWeight:800, fontSize:14.5, lineHeight:1.2 }}>SkillsNJobs</div>
             <div style={{ color:'rgba(255,255,255,.5)', fontSize:10 }}>PLACEMENT PARTNER</div>
           </div>
         </div>
 
+        <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
         {label('Main')}
         <NavItem icon="🏠" label="Dashboard" active={panel==='dashboard'} onClick={()=>go('dashboard')} />
-        <NavItem icon="🔔" label="Notifications" badge="7" active={panel==='notifications'} onClick={()=>go('notifications')} />
+        <NavItem icon="🔔" label="Notifications" active={panel==='notifications'} onClick={()=>go('notifications')} />
 
         {label('My Profile')}
         <NavItem icon="🏢" label="Agency Profile" id="profile" onClick={()=>toggleMenu('profile')} />
@@ -307,6 +575,7 @@ export default function PlacementPartnerPortal() {
 
         {label('Account')}
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />
+        </div>
       </div>
     );
   }
@@ -326,9 +595,9 @@ export default function PlacementPartnerPortal() {
             style={{ width:'100%', padding:'8px 12px 8px 36px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#f6f8fc' }}
           />
           <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', opacity:.45, fontSize:14 }}>🔍</span>
-          {searchOpen && searchResults.length > 0 && (
+          {searchOpen && navSearchResults.length > 0 && (
             <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1.5px solid #dde2eb', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:500, maxHeight:260, overflowY:'auto' }}>
-              {searchResults.map(r => (
+              {navSearchResults.map(r => (
                 <div key={r.key} onMouseDown={()=>{ go(r.key); setSearchQ(''); setSearchOpen(false); }}
                   style={{ padding:'9px 14px', cursor:'pointer', fontSize:13, borderBottom:'1px solid #f0f2f5' }}
                   onMouseEnter={e=>e.currentTarget.style.background='#EBF1FB'}
@@ -342,12 +611,14 @@ export default function PlacementPartnerPortal() {
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
           <div style={{ cursor:'pointer', padding:6, position:'relative' }} onClick={()=>go('notifications')}>
-            🔔<span style={{ position:'absolute', top:2, right:2, width:17, height:17, borderRadius:'50%', background:C.red, color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>7</span>
+            🔔
           </div>
-          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:15 }}>PP</div>
+          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:15 }}>
+            {(user?.org_name || 'PP').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+          </div>
           <div style={{ lineHeight:1.25 }}>
-            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || 'Pioneer Placements'}</div>
-            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: PP-000012</div>
+            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || '—'}</div>
+            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: PA-{String(user?.id || '').padStart(6,'0')}</div>
           </div>
           <button onClick={handleLogout} style={{ background:C.blue, color:'#fff', border:'none', padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>⏻ Sign Out</button>
         </div>
@@ -358,15 +629,15 @@ export default function PlacementPartnerPortal() {
   // ── PANELS ─────────────────────────────────────────────────────────────────
   function PanelDashboard() {
     return <>
-      <Alert icon="⚡" type="warn">Action needed: 3 employer demand requests awaiting response. <strong>View Now →</strong></Alert>
-      <SectionHead title="Welcome back, Pioneer Placements! 🎯" />
+      {myPlacements.length === 0 && <Alert icon="⚡" type="info">Complete your agency profile and start adding placements to track your progress.</Alert>}
+      <SectionHead title={`Welcome back, ${user?.org_name || ''}! 🎯`} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="142" label="Total Placements" sub="This year" />
-        <KpiCard val="38" label="Active Jobs" sub="Currently open" color={C.blue} />
-        <KpiCard val="214" label="Candidates Pipeline" sub="Across all jobs" color={C.teal} />
-        <KpiCard val="26" label="Employers" sub="Registered partners" color={C.green} />
-        <KpiCard val="₹4.2L" label="Incentives Earned" sub="PMKVY + PLI" color={C.gold} />
-        <KpiCard val="89%" label="Placement Rate" sub="Last 90 days" color={C.purple} />
+        <KpiCard val={dbStats.totalPlacements ?? '—'} label="Total Placements" sub="All time" />
+        <KpiCard val={dbStats.placedThisYear ?? '—'} label="Placed This Year" sub={new Date().getFullYear()} color={C.blue} />
+        <KpiCard val={dbStats.joinedCount ?? '—'} label="Joined" sub="Confirmed joinings" color={C.teal} />
+        <KpiCard val={dbStats.openJobs ?? '—'} label="Open Jobs" sub="Platform-wide" color={C.green} />
+        <KpiCard val={dbStats.avgCTC ? `₹${dbStats.avgCTC}L` : '—'} label="Avg CTC" sub="Placed candidates" color={C.gold} />
+        <KpiCard val={dbStats.totalPlacements && dbStats.candidates ? `${Math.round(dbStats.totalPlacements/dbStats.candidates*100)}%` : '—'} label="Placement Rate" sub="Placed vs candidates" color={C.purple} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[['📋','Post a Job','jobs-post'],['🔍','Find Candidates','cand-search'],['🗓️','Interviews Today','cand-interview'],['💰','Claim Incentive','pl-incentive']].map(([icon,lbl,k])=>(
@@ -381,94 +652,195 @@ export default function PlacementPartnerPortal() {
       <Grid cols={2}>
         <Card>
           <CardTitle>📋 Recent Job Postings</CardTitle>
-          <Table head={['Job Title','Employer','Applied','Status']} rows={[
-            ['Data Entry Operator','TechNova Ltd','22',<Badge color="green">Active</Badge>],
-            ['Sales Executive','RetailMart','18',<Badge color="green">Active</Badge>],
-            ['Housekeeping Staff','GreenHotel','11',<Badge color="green">Active</Badge>],
-            ['Forklift Operator','LogiCo','7',<Badge color="gold">Draft</Badge>],
-            ['BPO Associate','CallFirst','31',<Badge color="red">Closed</Badge>],
-          ]} />
+          {myJobs.length === 0
+            ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No job postings yet</div>
+            : <Table head={['Job Title','Location','Status']} rows={myJobs.slice(0,5).map(j=>[
+                j.job_title || '—',
+                j.location  || '—',
+                <Badge color={j.status==='open'?'green':j.status==='draft'?'gold':'red'}>
+                  {j.status==='open'?'Active':j.status==='draft'?'Draft':'Closed'}
+                </Badge>
+              ])} />
+          }
         </Card>
         <Card>
-          <CardTitle>📈 Placement Funnel (This Month)</CardTitle>
-          {[['214','Applications Received',100,C.blue],['148','Shortlisted',69,C.teal],['87','Interviewed',41,C.purple],['54','Offers Extended',25,C.gold],['42','Joined / Placed',20,C.green]].map(([n,l,p,c])=>(
-            <div key={l} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #f0f2f5' }}>
-              <div style={{ fontSize:22, fontWeight:800, color:C.navy, minWidth:52 }}>{n}</div>
-              <div style={{ fontSize:13, color:'#374151', flex:1 }}>{l}</div>
-              <div style={{ width:160 }}><ProgBar pct={p} color={c} /></div>
-            </div>
-          ))}
+          <CardTitle>📈 Placement Funnel</CardTitle>
+          {(()=>{
+            const total  = myPlacements.length;
+            const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status)).length;
+            const funnel = [
+              [total,   'Total Candidates', 100,   C.blue],
+              [placed,  'Placed / Joined',  total?Math.round(placed/total*100):0, C.green],
+            ];
+            if (total === 0) return <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No placement data yet</div>;
+            return funnel.map(([n,l,p,c])=>(
+              <div key={l} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #f0f2f5' }}>
+                <div style={{ fontSize:22, fontWeight:800, color:C.navy, minWidth:52 }}>{n}</div>
+                <div style={{ fontSize:13, color:'#374151', flex:1 }}>{l}</div>
+                <div style={{ width:160 }}><ProgBar pct={p} color={c} /></div>
+              </div>
+            ));
+          })()}
         </Card>
       </Grid>
       <Grid cols={2}>
         <Card>
-          <CardTitle>🔔 Recent Activity</CardTitle>
-          <TlItem dot={C.green} title="Riya Sharma joined TechNova as Data Entry Operator" meta="Today · 10:30 AM" />
-          <TlItem dot={C.blue} title="3 new applications on Sales Executive role" meta="Today · 9:15 AM" />
-          <TlItem dot={C.gold} title="Interview scheduled: Amit Kumar @ RetailMart — Jul 6" meta="Yesterday · 5:20 PM" />
-          <TlItem dot={C.purple} title="Incentive claim ₹12,000 submitted under PMKVY" meta="Jul 3, 2026" />
-          <TlItem dot={C.teal} title="GreenHotel signed new MoU for 20 positions" meta="Jul 2, 2026" />
+          <CardTitle>🔔 Recent Placements</CardTitle>
+          {myPlacements.length === 0
+            ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No recent activity</div>
+            : myPlacements.slice(0,5).map((p,i)=>(
+                <TlItem key={i} dot={p.status==='joined'?C.green:C.blue}
+                  title={`${p.candidate_name||'Candidate'} — ${p.job_title||'Role'} at ${p.company||'Employer'}`}
+                  meta={p.placement_date ? new Date(p.placement_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : ''} />
+              ))
+          }
         </Card>
         <Card>
           <CardTitle>🏆 Top Employers by Placements</CardTitle>
-          <Table head={['Employer','Sector','Placed','Active Jobs']} rows={[
-            ['TechNova Ltd','IT-ITES','28',<Badge color="blue">5 Jobs</Badge>],
-            ['RetailMart','Retail','22',<Badge color="blue">4 Jobs</Badge>],
-            ['GreenHotel','Hospitality','18',<Badge color="green">3 Jobs</Badge>],
-            ['LogiCo','Logistics','14',<Badge color="gold">2 Jobs</Badge>],
-            ['CallFirst','BPO','12',<Badge color="teal">1 Job</Badge>],
-          ]} />
+          {(()=>{
+            const counts = {};
+            myPlacements.forEach(p=>{ if(p.company) counts[p.company]=(counts[p.company]||0)+1; });
+            const rows = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5)
+              .map(([emp,n])=>[emp, n, <Badge color="blue">{n} placed</Badge>]);
+            return rows.length === 0
+              ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No employer data yet</div>
+              : <Table head={['Employer','Placed','']} rows={rows} />;
+          })()}
         </Card>
       </Grid>
     </>;
   }
 
   function PanelNotifications() {
+    const recent = myPlacements.slice(0,7);
     return <>
       <Bc parts={['Notifications']} />
       <SectionHead title="Notifications 🔔" />
       <Card>
-        <TlItem dot={C.red} title="⚠️ Incentive claim IC-2024-089 requires additional documents" meta="Today · 11:00 AM · Schemes" />
-        <TlItem dot={C.green} title="✅ Riya Sharma placement confirmed by TechNova" meta="Today · 10:30 AM · Placements" />
-        <TlItem dot={C.blue} title="📋 3 new candidate applications on Sales Executive role" meta="Today · 9:15 AM · Jobs" />
-        <TlItem dot={C.gold} title="📅 Interview reminder: Amit Kumar @ RetailMart tomorrow 10 AM" meta="Yesterday · 6:00 PM · Interviews" />
-        <TlItem dot={C.purple} title="🏛️ New demand from LogiCo — 10 forklift operators needed" meta="Jul 3, 2026 · Employers" />
-        <TlItem dot={C.teal} title="📊 Monthly placement report for June 2026 ready" meta="Jul 1, 2026 · Reports" />
-        <TlItem dot={C.green} title="✅ MoU with GreenHotel approved and activated" meta="Jun 30, 2026 · Employers" />
+        {recent.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No notifications yet</div>
+          : recent.map((p,i) => (
+              <TlItem key={i} dot={p.status==='joined'?C.green:C.blue}
+                title={`${p.candidate_name||'Candidate'} — ${p.job_title||'Role'} at ${p.company||'Employer'} (${p.status})`}
+                meta={p.placement_date ? new Date(p.placement_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) + ' · Placements' : 'Placements'} />
+            ))
+        }
       </Card>
     </>;
   }
 
   function PanelProfileInfo() {
+    const inp = (field, opts = {}) => {
+      const hasErr = !!agInfoErrors[field];
+      return (
+        <input
+          value={agInfo[field]}
+          onChange={e => { setAgInfo(a => ({ ...a, [field]: opts.upper ? e.target.value.toUpperCase() : e.target.value })); clearAgErr(field); }}
+          onBlur={opts.onBlur || undefined}
+          placeholder={opts.placeholder || ''}
+          maxLength={opts.max}
+          style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${hasErr ? '#dc2626' : '#dde2eb'}`, borderRadius:8, fontSize:13.5, outline:'none', boxSizing:'border-box' }}
+        />
+      );
+    };
+    const ErrMsg = ({ f }) => agInfoErrors[f] ? <div style={{ fontSize:11.5, color:'#dc2626', marginTop:3 }}>{agInfoErrors[f]}</div> : null;
+
     return <>
       <Bc parts={['Agency Profile','Agency Information']} />
       <SectionHead title="Agency Information 🏢" />
-      <Card>
-        <Grid><Field label="Agency Name"><Inp defaultValue="Pioneer Placements Pvt. Ltd." /></Field><Field label="Registration Number"><Inp defaultValue="PP-2021-MH-00012" /></Field></Grid>
-        <Grid><Field label="Year of Establishment"><Inp defaultValue="2021" /></Field><Field label="Type of Agency"><Sel options={['Private Placement Agency','Government Empanelled','Both']} /></Field></Grid>
-        <Field label="About / Mission"><textarea defaultValue="Pioneer Placements bridges skilled youth with leading employers across IT, Retail, Hospitality and Logistics sectors." rows={3} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontFamily:'inherit', fontSize:13.5 }} /></Field>
-        <Grid><Field label="Total Placements (Lifetime)"><Inp defaultValue="1,240" /></Field><Field label="Active Employer Partners"><Inp defaultValue="26" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>💾 Save Changes</Btn></div>
-      </Card>
+      {!agInfoLoaded && <div style={{ color:'#64748b', padding:'16px 0' }}>Loading…</div>}
+      {agInfoLoaded && <Card>
+        <Field label="Agency Name *">
+          {inp('org_name', { placeholder:'Full registered name of the agency',
+            onBlur: () => !agInfo.org_name.trim() && setAgErr('org_name','Agency name is required') })}
+          <ErrMsg f="org_name" />
+        </Field>
+        <Grid>
+          <Field label="CIN Number">
+            {inp('cin', { upper:true, placeholder:'e.g. U74999MH2021PTC000001', max:21,
+              onBlur: () => { const v = agInfo.cin.toUpperCase(); if (v && !/^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(v)) setAgErr('cin','Invalid CIN format'); } })}
+            <ErrMsg f="cin" />
+          </Field>
+          <Field label="GST Number">
+            {inp('gstin', { upper:true, placeholder:'e.g. 27AAAPL1234C1ZV', max:15,
+              onBlur: () => { const v = agInfo.gstin.toUpperCase(); if (v && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(v)) setAgErr('gstin','Invalid GSTIN format'); } })}
+            <ErrMsg f="gstin" />
+          </Field>
+        </Grid>
+        <Grid>
+          <Field label="PAN Number">
+            {inp('pan', { upper:true, placeholder:'e.g. AAAPL1234C', max:10,
+              onBlur: () => { const v = agInfo.pan.toUpperCase(); if (v && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(v)) setAgErr('pan','Invalid PAN format'); } })}
+            <ErrMsg f="pan" />
+          </Field>
+          <Field label="Website URL">
+            {inp('website', { placeholder:'https://www.youragency.com',
+              onBlur: () => { if (agInfo.website && !/^https?:\/\/.+\..+/.test(agInfo.website)) setAgErr('website','Enter a valid URL (e.g. https://example.com)'); } })}
+            <ErrMsg f="website" />
+          </Field>
+        </Grid>
+        <Grid>
+          <Field label="Phone Number">
+            <input
+              value={agInfo.phone}
+              onChange={e => { setAgInfo(a => ({ ...a, phone: e.target.value.replace(/\D/g,'').slice(0,10) })); clearAgErr('phone'); }}
+              onBlur={() => { const v = agInfo.phone.replace(/\D/g,''); if (v && !/^[6-9]\d{9}$/.test(v)) setAgErr('phone','Enter a valid 10-digit mobile number'); }}
+              placeholder="e.g. 9876543210"
+              style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${agInfoErrors.phone ? '#dc2626' : '#dde2eb'}`, borderRadius:8, fontSize:13.5, outline:'none', boxSizing:'border-box' }}
+            />
+            <ErrMsg f="phone" />
+          </Field>
+          <Field label="Email ID">
+            {inp('email', { placeholder:'contact@youragency.in',
+              onBlur: () => { const v = agInfo.email.trim(); if (v && !/^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/.test(v)) setAgErr('email','Enter a valid email address'); } })}
+            <ErrMsg f="email" />
+          </Field>
+        </Grid>
+        {agInfoMsg && <div style={{ fontSize:13, color: agInfoMsg.includes('failed') ? '#dc2626' : '#16a34a', marginBottom:8 }}>{agInfoMsg}</div>}
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background: agInfoSaving ? '#94a3b8' : C.blue }} onClick={saveAgInfo} disabled={agInfoSaving}>
+            {agInfoSaving ? 'Saving…' : '💾 Save Changes'}
+          </Btn>
+        </div>
+      </Card>}
     </>;
   }
 
   function PanelProfileContact() {
+    if (!contactLoaded) return <div style={{ padding:40, textAlign:'center', color:'#64748b' }}>Loading…</div>;
+    const set = (k,v) => setContact(c => ({ ...c, [k]:v }));
     return <>
       <Bc parts={['Agency Profile','Contact & Address']} />
       <SectionHead title="Contact & Address 📍" />
       <Card>
         <CardTitle>Primary Contact</CardTitle>
-        <Grid><Field label="Contact Person"><Inp defaultValue="Suresh Patil" /></Field><Field label="Designation"><Inp defaultValue="Director" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp defaultValue="9876543210" validate="mobile" /></Field><Field label="Email"><ValidInp defaultValue="suresh@pioneerplacements.in" validate="email" /></Field></Grid>
+        <Grid>
+          <Field label="Contact Person">
+            <Inp value={contact.spoc_name} onChange={e=>set('spoc_name',e.target.value)} placeholder="e.g. Suresh Patil" />
+          </Field>
+          <Field label="Mobile">
+            <Inp value={contact.phone} onChange={e=>set('phone',e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="10-digit mobile" />
+          </Field>
+        </Grid>
+        <Field label="Email">
+          <Inp value={contact.email} onChange={e=>set('email',e.target.value)} placeholder="contact@yourcompany.com" />
+        </Field>
       </Card>
       <Card>
         <CardTitle>Office Address</CardTitle>
-        <Field label="Address Line 1"><Inp defaultValue="Shop 12, Millennium Business Park" /></Field>
-        <Field label="Address Line 2"><Inp defaultValue="Mahape, Navi Mumbai" /></Field>
-        <Grid><Field label="City"><Inp defaultValue="Navi Mumbai" /></Field><Field label="State"><Sel options={['Maharashtra','Karnataka','Tamil Nadu','Telangana','Delhi','Gujarat']} /></Field></Grid>
-        <Grid><Field label="PIN Code"><ValidInp defaultValue="400710" validate="pincode" /></Field><Field label="District"><Inp defaultValue="Thane" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>💾 Save Changes</Btn></div>
+        <Field label="Address Line 1"><Inp value={contact.address_line1} onChange={e=>set('address_line1',e.target.value)} placeholder="Street / Building" /></Field>
+        <Field label="Address Line 2"><Inp value={contact.address_line2} onChange={e=>set('address_line2',e.target.value)} placeholder="Area / Landmark (optional)" /></Field>
+        <Grid>
+          <Field label="City"><Inp value={contact.city} onChange={e=>set('city',e.target.value)} placeholder="City" /></Field>
+          <Field label="State"><Inp value={contact.state_name} onChange={e=>set('state_name',e.target.value)} placeholder="State" /></Field>
+        </Grid>
+        <Field label="PIN Code"><Inp value={contact.pincode} onChange={e=>set('pincode',e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit PIN" /></Field>
+        {contactMsg && <div style={{ fontSize:12.5, color: contactMsg.includes('fail') ? '#dc2626':'#16a34a', marginTop:4 }}>{contactMsg}</div>}
+        <div style={{ textAlign:'right', marginTop:10 }}>
+          <Btn style={{ background:C.blue }} onClick={saveContact} disabled={contactSaving}>
+            {contactSaving ? 'Saving…' : '💾 Save Changes'}
+          </Btn>
+        </div>
       </Card>
     </>;
   }
@@ -497,16 +869,39 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelProfileBank() {
+    if (!bankLoaded) return <div style={{ padding:40, textAlign:'center', color:'#64748b' }}>Loading…</div>;
+    const set = (k,v) => setBank(b => ({ ...b, [k]:v }));
     return <>
       <Bc parts={['Agency Profile','Bank Details']} />
       <SectionHead title="Bank Details 🏦" />
       <Alert icon="🔒" type="info">Bank details are used for incentive disbursals. Keep them accurate and up to date.</Alert>
       <Card>
-        <Grid><Field label="Account Holder Name"><Inp defaultValue="Pioneer Placements Pvt. Ltd." /></Field><Field label="Bank Name"><Inp defaultValue="State Bank of India" /></Field></Grid>
-        <Grid><Field label="Account Number"><Inp defaultValue="XXXXXXXX4521" /></Field><Field label="IFSC Code"><ValidInp defaultValue="SBIN0005678" validate="ifsc" /></Field></Grid>
-        <Grid><Field label="Account Type"><Sel options={['Current Account','Savings Account']} /></Field><Field label="Branch"><Inp defaultValue="Mahape, Navi Mumbai" /></Field></Grid>
+        <Grid>
+          <Field label="Account Holder Name">
+            <Inp value={bank.bank_account_name} onChange={e=>set('bank_account_name',e.target.value)} placeholder="As per bank records" />
+          </Field>
+          <Field label="Bank Name">
+            <Inp value={bank.bank_name} onChange={e=>set('bank_name',e.target.value)} placeholder="e.g. State Bank of India" />
+          </Field>
+        </Grid>
+        <Grid>
+          <Field label="Account Number">
+            <Inp value={bank.bank_account_number} onChange={e=>set('bank_account_number',e.target.value.replace(/\D/g,''))} placeholder="Account number" />
+          </Field>
+          <Field label="IFSC Code">
+            <Inp value={bank.bank_ifsc} onChange={e=>set('bank_ifsc',e.target.value.toUpperCase())} placeholder="e.g. SBIN0001234" />
+          </Field>
+        </Grid>
+        <Field label="Branch">
+          <Inp value={bank.bank_branch} onChange={e=>set('bank_branch',e.target.value)} placeholder="Branch name / location" />
+        </Field>
         <Field label="Cancelled Cheque / Passbook"><input type="file" style={{ padding:6 }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>💾 Save Bank Details</Btn></div>
+        {bankMsg && <div style={{ fontSize:12.5, color: bankMsg.includes('fail') ? '#dc2626':'#16a34a', marginTop:4 }}>{bankMsg}</div>}
+        <div style={{ textAlign:'right', marginTop:10 }}>
+          <Btn style={{ background:C.blue }} onClick={saveBank} disabled={bankSaving}>
+            {bankSaving ? 'Saving…' : '💾 Save Bank Details'}
+          </Btn>
+        </div>
       </Card>
     </>;
   }
@@ -529,96 +924,124 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelJobsActive() {
+    const active = myJobs.filter(j => j.status === 'open');
     return <>
       <Bc parts={['Job Postings','Active Jobs']} />
       <SectionHead title="Active Jobs 📋" />
-      <div style={{ display:'flex', gap:10, marginBottom:14 }}><input style={{ flex:1, padding:'8px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13 }} placeholder="Search jobs…" /><Btn style={{ background:C.blue }}>+ Post New Job</Btn></div>
+      <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+        <Btn style={{ background:C.blue }} onClick={() => go('jobs-post')}>+ Post New Job</Btn>
+      </div>
       <Card>
-        <Table head={['Job Title','Employer','Location','Vacancies','Applied','Deadline','Action']} rows={[
-          ['Data Entry Operator','TechNova Ltd','Pune','10','22',<Badge color="green">Jul 31</Badge>,<Btn sm outline>View</Btn>],
-          ['Sales Executive','RetailMart','Mumbai','15','18',<Badge color="gold">Jul 25</Badge>,<Btn sm outline>View</Btn>],
-          ['Housekeeping Staff','GreenHotel','Goa','8','11',<Badge color="green">Aug 5</Badge>,<Btn sm outline>View</Btn>],
-          ['Healthcare Worker','MediCare','Nagpur','5','6',<Badge color="gold">Jul 20</Badge>,<Btn sm outline>View</Btn>],
-          ['BPO Associate','CallFirst','Hyderabad','20','31',<Badge color="green">Aug 10</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         active.length === 0 ? <div style={{ color:'#888', padding:16 }}>No active jobs.</div> :
+        <Table head={['Job Title','Location','Type','Action']} rows={active.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          <Btn sm outline onClick={() => api.updateJob(j.id, { status:'closed' }).then(() => api.myJobs().then(jobs => { setMyJobs(jobs); }))}>Close</Btn>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelJobsDraft() {
+    const drafts = myJobs.filter(j => j.status === 'draft');
     return <>
       <Bc parts={['Job Postings','Drafts']} />
       <SectionHead title="Draft Jobs" />
       <Card>
-        <Table head={['Job Title','Employer','Last Edited','Action']} rows={[
-          ['Forklift Operator','LogiCo','Jul 3, 2026',<><Btn sm outline>Edit</Btn> <Btn sm style={{ background:C.blue }}>Publish</Btn></>],
-          ['Lab Technician','PharmaCo','Jun 28, 2026',<><Btn sm outline>Edit</Btn> <Btn sm style={{ background:C.blue }}>Publish</Btn></>],
-        ]} />
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         drafts.length === 0 ? <div style={{ color:'#888', padding:16 }}>No draft jobs.</div> :
+        <Table head={['Job Title','Location','Type','Action']} rows={drafts.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          <><Btn sm outline onClick={() => api.deleteJob(j.id).then(() => api.myJobs().then(setMyJobs))}>Delete</Btn>{' '}
+            <Btn sm style={{ background:C.blue }} onClick={() => api.updateJob(j.id, { status:'open' }).then(() => api.myJobs().then(setMyJobs))}>Publish</Btn></>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelJobsClosed() {
+    const closed = myJobs.filter(j => j.status === 'closed');
     return <>
       <Bc parts={['Job Postings','Closed Jobs']} />
       <SectionHead title="Closed Jobs" />
       <Card>
-        <Table head={['Job Title','Employer','Closed On','Placed','Action']} rows={[
-          ['BPO Voice Process','CallFirst','Jun 30, 2026','12',<Btn sm outline>Repost</Btn>],
-          ['Floor Manager','RetailMart','Jun 15, 2026','8',<Btn sm outline>Repost</Btn>],
-          ['Data Analyst','InfoSys','May 31, 2026','3',<Btn sm outline>Repost</Btn>],
-        ]} />
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         closed.length === 0 ? <div style={{ color:'#888', padding:16 }}>No closed jobs.</div> :
+        <Table head={['Job Title','Location','Type','Action']} rows={closed.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          <Btn sm outline onClick={() => api.updateJob(j.id, { status:'open' }).then(() => api.myJobs().then(setMyJobs))}>Repost</Btn>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelCandSearch() {
+    const sf = k => e => setSearchFilters(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Search Candidates']} />
       <SectionHead title="Search Candidates 🔍" />
       <Card>
         <CardTitle>Filters</CardTitle>
-        <Grid><Field label="Sector / Trade"><Sel options={['All','IT-ITES','Retail','Hospitality','Healthcare','Logistics','BPO']} /></Field><Field label="NSQF Level"><Sel options={['All','Level 2','Level 3','Level 4','Level 5']} /></Field></Grid>
-        <Grid><Field label="Location"><Inp placeholder="City or State" /></Field><Field label="Qualification"><Sel options={['Any','10th Pass','12th Pass','Diploma','Graduate']} /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>🔍 Search</Btn></div>
+        <Grid>
+          <Field label="Sector / Trade"><Sel options={['All','IT-ITES','Retail','Hospitality','Healthcare','Logistics','BPO']} value={searchFilters.sector} onChange={sf('sector')} /></Field>
+          <Field label="NSQF Level"><Sel options={['All','Level 2','Level 3','Level 4','Level 5']} value={searchFilters.nsqf} onChange={sf('nsqf')} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Location"><Inp placeholder="City or State" value={searchFilters.location} onChange={sf('location')} /></Field>
+          <Field label="Qualification"><Sel options={['Any','10th Pass','12th Pass','Diploma','Graduate']} value={searchFilters.qualification} onChange={sf('qualification')} /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background:C.blue, opacity: searching ? .7 : 1 }} onClick={searchCandidates}>{searching ? 'Searching…' : '🔍 Search'}</Btn>
+        </div>
       </Card>
       <Card>
-        <CardTitle>Search Results (147 candidates)</CardTitle>
-        <Table head={['Name','Sector','NSQF Level','Location','Training Status','Action']} rows={[
-          ['Priya Mehta','IT-ITES','Level 4','Pune',<Badge color="green">Certified</Badge>,<Btn sm style={{ background:C.blue }}>Shortlist</Btn>],
-          ['Raju Yadav','Retail','Level 3','Mumbai',<Badge color="green">Certified</Badge>,<Btn sm style={{ background:C.blue }}>Shortlist</Btn>],
-          ['Anita Desai','Hospitality','Level 3','Goa',<Badge color="blue">In Training</Badge>,<Btn sm style={{ background:C.blue }}>Shortlist</Btn>],
-          ['Suresh Kumar','Logistics','Level 2','Nagpur',<Badge color="green">Certified</Badge>,<Btn sm style={{ background:C.blue }}>Shortlist</Btn>],
-          ['Deepa Nair','BPO','Level 4','Chennai',<Badge color="green">Certified</Badge>,<Btn sm style={{ background:C.blue }}>Shortlist</Btn>],
-        ]} />
+        <CardTitle>Search Results {searchResults !== null ? `(${searchResults.length} candidates)` : ''}</CardTitle>
+        {searchResults === null
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>Use filters above to search candidates.</div>
+          : searchResults.length === 0
+            ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No candidates found matching your filters.</div>
+            : <Table head={['Name','Location','Skills','Action']} rows={searchResults.map(c => [
+                c.name || c.email || '—',
+                c.city || c.location || '—',
+                (c.skills || []).slice(0,3).join(', ') || '—',
+                <Btn sm style={{ background:C.blue }}>Shortlist</Btn>,
+              ])} />}
       </Card>
     </>;
   }
 
   function PanelCandShortlisted() {
+    const rows = myPlacements.map(p=>[
+      p.candidate_name || '—',
+      p.job_title      || '—',
+      p.company        || '—',
+      p.placement_date ? new Date(p.placement_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—',
+      <Badge color={p.status==='joined'?'green':p.status==='placed'?'teal':'gold'}>{p.status}</Badge>,
+      <Btn sm outline>View</Btn>,
+    ]);
     return <>
       <Bc parts={['Candidates','Shortlisted']} />
       <SectionHead title="Shortlisted Candidates" />
       <Card>
-        <Table head={['Name','Job Role','Employer','Shortlisted On','Status','Action']} rows={[
-          ['Priya Mehta','Data Entry Operator','TechNova','Jul 1, 2026',<Badge color="gold">Awaiting Interview</Badge>,<Btn sm style={{ background:C.blue }}>Schedule</Btn>],
-          ['Raju Yadav','Sales Executive','RetailMart','Jul 2, 2026',<Badge color="blue">Interview Scheduled</Badge>,<Btn sm outline>View</Btn>],
-          ['Suresh Kumar','Forklift Operator','LogiCo','Jul 3, 2026',<Badge color="gold">Awaiting Interview</Badge>,<Btn sm style={{ background:C.blue }}>Schedule</Btn>],
-          ['Deepa Nair','BPO Associate','CallFirst','Jul 3, 2026',<Badge color="teal">Interview Done</Badge>,<Btn sm outline>Update</Btn>],
-        ]} />
+        {rows.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No shortlisted candidates</div>
+          : <Table head={['Name','Job Role','Employer','Date','Status','Action']} rows={rows} />
+        }
       </Card>
     </>;
   }
 
   function PanelCandApplications() {
+    const total    = myPlacements.length;
+    const placed   = myPlacements.filter(p=>['placed','joined'].includes(p.status)).length;
+    const pending  = myPlacements.filter(p=>!['placed','joined'].includes(p.status)).length;
     return <>
       <Bc parts={['Candidates','Applications Received']} />
       <SectionHead title="Applications Received 📥" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="214" label="Total Applications" sub="This month" />
-        <KpiCard val="148" label="Reviewed" sub="Screened" color={C.blue} />
-        <KpiCard val="87" label="Shortlisted" sub="Moved to interview" color={C.green} />
-        <KpiCard val="66" label="Pending Review" sub="Action needed" color={C.red} />
+        <KpiCard val={total}   label="Total Candidates" sub="All time" />
+        <KpiCard val={placed}  label="Placed / Joined"  sub="Confirmed"      color={C.green} />
+        <KpiCard val={pending} label="In Progress"      sub="Active cases"   color={C.blue} />
       </div>
       <Card>
         <Table head={['Candidate','Job Applied','Applied On','Experience','Status','Action']} rows={[
@@ -632,183 +1055,296 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelCandInterview() {
+    const inProgress = myPlacements.filter(p=>!['placed','joined'].includes(p.status));
+    const si = k => e => setPpInterview(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Interview Pipeline']} />
       <SectionHead title="Interview Pipeline 🗓️" />
       <Card>
-        <CardTitle>Scheduled Interviews</CardTitle>
-        <Table head={['Candidate','Job Role','Employer','Date & Time','Mode','Status','Action']} rows={[
-          ['Raju Yadav','Sales Executive','RetailMart','Jul 5, 2026 10:00 AM','In-person',<Badge color="blue">Upcoming</Badge>,<Btn sm style={{ background:C.blue }}>Confirm</Btn>],
-          ['Deepa Nair','BPO Associate','CallFirst','Jul 5, 2026 2:00 PM','Video Call',<Badge color="blue">Upcoming</Badge>,<Btn sm style={{ background:C.blue }}>Confirm</Btn>],
-          ['Priya Mehta','Data Entry','TechNova','Jul 6, 2026 11:00 AM','In-person',<Badge color="gold">Upcoming</Badge>,<Btn sm outline>Reschedule</Btn>],
-        ]} />
+        <CardTitle>Active Candidates in Pipeline</CardTitle>
+        {inProgress.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No candidates in pipeline</div>
+          : <Table head={['Candidate','Job Role','Employer','Status','Action']} rows={inProgress.map(p=>[
+              p.candidate_name || '—', p.job_title || '—', p.company || '—',
+              <Badge color="blue">{p.status}</Badge>,
+              <Btn sm outline>View</Btn>,
+            ])} />}
       </Card>
       <Card>
-        <CardTitle>Schedule New Interview</CardTitle>
-        <Grid><Field label="Candidate"><Sel options={['Select candidate','Amit Sharma','Kavita Joshi','Mohan Das']} /></Field><Field label="Job Role"><Sel options={['Select job','Data Entry Operator','Sales Executive','BPO Associate']} /></Field></Grid>
-        <Grid><Field label="Interview Date"><input type="date" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field><Field label="Interview Time"><input type="time" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field></Grid>
-        <Grid><Field label="Mode"><Sel options={['In-person','Video Call','Phone Call']} /></Field><Field label="Interviewer Name"><Inp placeholder="" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>📅 Schedule Interview</Btn></div>
+        <CardTitle>📅 Schedule New Interview</CardTitle>
+        {ppInterviewMsg && <Alert type={ppInterviewMsg.startsWith('✅') ? 'info' : 'red'}>{ppInterviewMsg}</Alert>}
+        <Grid>
+          <Field label="Candidate Name *"><Inp value={ppInterview.candidate_name} onChange={si('candidate_name')} placeholder="Candidate name" /></Field>
+          <Field label="Job Role"><Inp value={ppInterview.job_role} onChange={si('job_role')} placeholder="e.g. Sales Executive" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Interview Date *"><Inp type="date" value={ppInterview.date} onChange={si('date')} /></Field>
+          <Field label="Interview Time *"><Inp type="time" value={ppInterview.time} onChange={si('time')} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Mode"><Sel options={['In-person','Video Call','Phone Call']} value={ppInterview.mode} onChange={si('mode')} /></Field>
+          <Field label="Interviewer Name"><Inp value={ppInterview.interviewer} onChange={si('interviewer')} placeholder="Interviewer name" /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background:C.blue }} onClick={scheduleInterview}>📅 Schedule Interview</Btn>
+        </div>
       </Card>
+      {scheduledInterviews.length > 0 && (
+        <Card>
+          <CardTitle>Scheduled Interviews</CardTitle>
+          <Table head={['Candidate','Role','Date','Time','Mode']} rows={scheduledInterviews.map(i=>[
+            i.candidate_name, i.job_role||'—', i.date, i.time, i.mode,
+          ])} />
+        </Card>
+      )}
     </>;
   }
 
   function PanelCandOffer() {
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status));
+    const so = k => e => setPpOffer(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Offer Letters']} />
       <SectionHead title="Offer Letters 📩" />
       <Card>
-        <Table head={['Candidate','Job Role','Employer','Offer Date','Salary','Status','Action']} rows={[
-          ['Riya Sharma','Data Entry Operator','TechNova Ltd','Jun 28, 2026','₹14,000/mo',<Badge color="green">Accepted</Badge>,<Btn sm outline>View</Btn>],
-          ['Mohan Das','BPO Associate','CallFirst','Jun 30, 2026','₹16,000/mo',<Badge color="gold">Pending</Badge>,<Btn sm style={{ background:C.blue }}>Follow up</Btn>],
-          ['Lata Rao','Housekeeping','GreenHotel','Jul 1, 2026','₹11,000/mo',<Badge color="green">Accepted</Badge>,<Btn sm outline>View</Btn>],
-          ['Suresh V','Forklift Operator','LogiCo','Jul 2, 2026','₹18,000/mo',<Badge color="red">Rejected</Badge>,<Btn sm outline>Reassign</Btn>],
-        ]} />
+        <CardTitle>📋 Placement Offers Tracker</CardTitle>
+        {placed.length === 0 && generatedOffers.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No offer letters yet</div>
+          : <Table head={['Candidate','Job Role','Joining Date','CTC','Status']} rows={[
+              ...placed.map(p=>[
+                p.candidate_name||'—', p.job_title||'—',
+                p.placement_date ? new Date(p.placement_date).toLocaleDateString('en-IN') : '—',
+                p.ctc ? `₹${Number(p.ctc).toLocaleString('en-IN')}/mo` : '—',
+                <Badge color={p.status==='joined'?'green':'teal'}>{p.status}</Badge>,
+              ]),
+              ...generatedOffers.map(o=>[
+                o.candidate_name, o.job_role, o.joining_date||'—',
+                o.ctc ? `₹${Number(o.ctc).toLocaleString('en-IN')}/mo` : '—',
+                <Badge color="blue">{o.status}</Badge>,
+              ]),
+            ]} />
+        }
       </Card>
       <Card>
-        <CardTitle>Generate Offer Letter</CardTitle>
-        <Grid><Field label="Candidate"><Sel options={['Select','Amit Sharma','Kavita Joshi']} /></Field><Field label="Job Role"><Sel options={['Select','Data Entry Operator','Sales Executive']} /></Field></Grid>
-        <Grid><Field label="Joining Date"><input type="date" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field><Field label="Offered CTC (₹/month)"><Inp placeholder="e.g., 15000" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>📄 Generate & Send</Btn></div>
+        <CardTitle>📝 Generate Offer Letter</CardTitle>
+        {ppOfferMsg && <Alert type={ppOfferMsg.startsWith('✅') ? 'info' : 'red'}>{ppOfferMsg}</Alert>}
+        <Grid>
+          <Field label="Candidate Name *"><Inp value={ppOffer.candidate_name} onChange={so('candidate_name')} placeholder="Candidate name" /></Field>
+          <Field label="Job Role *"><Inp value={ppOffer.job_role} onChange={so('job_role')} placeholder="e.g. Sales Executive" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Joining Date"><Inp type="date" value={ppOffer.joining_date} onChange={so('joining_date')} /></Field>
+          <Field label="Offered CTC (₹/month)"><Inp value={ppOffer.ctc} onChange={so('ctc')} placeholder="e.g. 15000" /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background:C.blue }} onClick={generateOffer}>📄 Generate & Send</Btn>
+        </div>
       </Card>
     </>;
   }
 
   function PanelPlActive() {
+    const active = myPlacements.filter(p => ['placed','joined'].includes(p.status));
     return <>
       <Bc parts={['Placement Tracker','Active Placements']} />
       <SectionHead title="Active Placements 🎯" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="58" label="Currently Placed" sub="In employment" />
-        <KpiCard val="42" label="< 30 Days" sub="Recent joins" color={C.green} />
-        <KpiCard val="11" label="30–90 Days" sub="Stable" color={C.blue} />
-        <KpiCard val="5" label="> 90 Days" sub="Long-term" color={C.purple} />
+        <KpiCard val={active.length || dbStats.totalPlacements || 0} label="Currently Placed" sub="In employment" />
+        <KpiCard val={dbStats.placedThisYear || 0} label="This Year" sub="New placements" color={C.green} />
+        <KpiCard val={dbStats.joinedCount || 0} label="Joined" sub="Confirmed joining" color={C.blue} />
+        <KpiCard val={dbStats.avgCTC ? `₹${(dbStats.avgCTC/100000).toFixed(1)}L` : '—'} label="Avg CTC" sub="Per annum" color={C.purple} />
       </div>
       <Card>
-        <Table head={['Candidate','Employer','Role','Joined On','Days','Status','Action']} rows={[
-          ['Riya Sharma','TechNova Ltd','Data Entry Operator','Jul 1, 2026','3',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['Lata Rao','GreenHotel','Housekeeping','Jun 20, 2026','14',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['Mohan Das','CallFirst','BPO Associate','Jun 10, 2026','24',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['Anita Desai','RetailMart','Sales Executive','May 5, 2026','60',<Badge color="blue">Stable</Badge>,<Btn sm outline>View</Btn>],
-          ['Raju Yadav','LogiCo','Forklift Operator','Apr 1, 2026','94',<Badge color="purple">Long-term</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
+        {!placementsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         active.length === 0 ? <div style={{ color:'#888', padding:16 }}>No active placements yet.</div> :
+        <Table head={['Candidate','Company','Role','Location','Joined','CTC','Status','Action']} rows={active.map(p => [
+          p.candidate_name || `Candidate #${p.candidate_id}`,
+          p.company || p.org_name || '—',
+          p.job_title,
+          p.location || '—',
+          p.placement_date || '—',
+          p.ctc ? `₹${(p.ctc/100000).toFixed(1)}L` : '—',
+          <Badge color={p.status==='joined'?'green':'blue'}>{p.status}</Badge>,
+          <select style={{ fontSize:11, padding:'2px 5px', borderRadius:5, border:'1px solid #dde2eb' }}
+            value={p.status}
+            onChange={e => api.updatePlacement(p.id, { status: e.target.value }).then(refreshPlacements)}>
+            {['placed','joined','dropped'].map(s=><option key={s} value={s}>{s}</option>)}
+          </select>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelPlCompleted() {
+    const completed = myPlacements.filter(p => ['placed','joined','dropped'].includes(p.status));
+    const total = myPlacements.length;
     return <>
       <Bc parts={['Placement Tracker','Completed Placements']} />
       <SectionHead title="Completed Placements ✅" />
       <Card>
-        <CardTitle>This Year: 142 Placements</CardTitle>
-        <Table head={['Candidate','Employer','Role','Start Date','End Date','Duration','Incentive']} rows={[
-          ['Kavita Nair','InfoSys','Data Analyst','Jan 10, 2026','Jun 30, 2026','6 months',<Badge color="green">₹6,000 Claimed</Badge>],
-          ['Vijay Kumar','RetailMart','Store Manager','Feb 1, 2026','May 31, 2026','4 months',<Badge color="green">₹4,000 Claimed</Badge>],
-          ['Smita Joshi','PharmaCo','Lab Technician','Mar 15, 2026','Jun 15, 2026','3 months',<Badge color="gold">Pending</Badge>],
-        ]} />
+        <CardTitle>Total: {total} Placements</CardTitle>
+        {!placementsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         myPlacements.length === 0 ? <div style={{ color:'#888', padding:16 }}>No placements recorded yet.</div> :
+        <Table head={['Candidate','Company','Role','Placed On','CTC','Status']} rows={myPlacements.map(p => [
+          p.candidate_name || `Candidate #${p.candidate_id}`,
+          p.company || '—', p.job_title, p.placement_date || '—',
+          p.ctc ? `₹${(p.ctc/100000).toFixed(1)}L` : '—',
+          <Badge color={p.status==='joined'?'green':p.status==='dropped'?'red':'blue'}>{p.status}</Badge>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelPlDropout() {
+    const dropouts = myPlacements.filter(p => p.status === 'dropped');
     return <>
       <Bc parts={['Placement Tracker','Dropout / Withdrawn']} />
       <SectionHead title="Dropout / Withdrawn ⚠️" />
       <Alert icon="ℹ️" type="info">Documenting dropout reasons helps improve future matching and scheme compliance.</Alert>
       <Card>
-        <Table head={['Candidate','Employer','Role','Joined','Left On','Reason','Action']} rows={[
-          ['Suresh V','LogiCo','Forklift Operator','Jun 1, 2026','Jun 15, 2026',<Badge color="gold">Personal Reason</Badge>,<Btn sm outline>Update</Btn>],
-          ['Deepa Nair','CallFirst','BPO Associate','May 10, 2026','May 25, 2026',<Badge color="red">Health Issue</Badge>,<Btn sm outline>Update</Btn>],
-          ['Rahul Das','GreenHotel','Housekeeping','Apr 1, 2026','Apr 20, 2026',<Badge color="teal">Relocation</Badge>,<Btn sm outline>Update</Btn>],
-        ]} />
+        {!placementsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         dropouts.length === 0 ? <div style={{ color:'#888', padding:16 }}>No dropouts recorded.</div> :
+        <Table head={['Candidate','Company','Role','Placed On','Action']} rows={dropouts.map(p => [
+          p.candidate_name || `Candidate #${p.candidate_id}`,
+          p.company || '—', p.job_title, p.placement_date || '—',
+          <Btn sm outline onClick={() => api.updatePlacement(p.id, { status:'placed' }).then(refreshPlacements)}>Reactivate</Btn>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelPlIncentive() {
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status));
+    const candOptions = ['Select Candidate', ...placed.map(p=>p.candidate_name).filter(Boolean)];
+    const empOptions  = ['Select Employer',  ...[...new Set(placed.map(p=>p.company).filter(Boolean))]];
     return <>
       <Bc parts={['Placement Tracker','Incentive Claims']} />
       <SectionHead title="Incentive Claims 💰" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="₹4.2L" label="Total Earned" sub="This year" color={C.green} />
-        <KpiCard val="₹1.1L" label="Pending Disbursal" sub="Under review" color={C.gold} />
-        <KpiCard val="₹3.1L" label="Disbursed" sub="Received" color={C.blue} />
-        <KpiCard val="22" label="Claims Filed" sub="This year" />
+        <KpiCard val={placed.length} label="Eligible Placements" sub="Placed / Joined" color={C.green} />
       </div>
       <Card>
         <CardTitle>Claims History</CardTitle>
-        <Table head={['Claim ID','Scheme','Candidate','Amount','Filed On','Status']} rows={[
-          ['IC-2026-022','PMKVY PLI','Riya Sharma','₹12,000','Jul 2, 2026',<Badge color="gold">Under Review</Badge>],
-          ['IC-2026-021','PMKVY PLI','Lata Rao','₹12,000','Jun 28, 2026',<Badge color="green">Approved</Badge>],
-          ['IC-2026-019','DDU-GKY','Raju Yadav','₹15,000','Jun 20, 2026',<Badge color="teal">Disbursed</Badge>],
-          ['IC-2026-015','NAPS','Mohan Das','₹8,000','Jun 10, 2026',<Badge color="teal">Disbursed</Badge>],
-          ['IC-2026-010','PMKVY PLI','Anita Desai','₹12,000','May 15, 2026',<Badge color="red">Rejected</Badge>],
-        ]} />
+        {claims.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No claims filed yet</div>
+          : <Table head={['Scheme','Candidate','Employer','Joining Date','Status']} rows={claims.map(c=>[
+              c.scheme, c.candidate, c.employer||'—', c.joining_date||'—',
+              <Badge color="blue">{c.status}</Badge>,
+            ])} />}
       </Card>
       <Card>
         <CardTitle>File New Claim</CardTitle>
-        <Grid><Field label="Scheme"><Sel options={['PMKVY Placement Linked Incentive','DDU-GKY','NAPS','PLI']} /></Field><Field label="Candidate"><Sel options={['Select Candidate','Riya Sharma','Lata Rao','Suresh Kumar']} /></Field></Grid>
-        <Grid><Field label="Employer"><Sel options={['Select Employer','TechNova Ltd','RetailMart','GreenHotel']} /></Field><Field label="Joining Date"><input type="date" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field></Grid>
+        {claimMsg && <Alert type={claimMsg.startsWith('✅') ? 'info' : 'red'}>{claimMsg}</Alert>}
+        <Grid>
+          <Field label="Scheme"><Sel options={['PMKVY Placement Linked Incentive','DDU-GKY','NAPS','PLI']} value={claimForm.scheme} onChange={e=>setClaimForm(f=>({...f,scheme:e.target.value}))} /></Field>
+          <Field label="Candidate"><Sel options={candOptions} value={claimForm.candidate} onChange={e=>setClaimForm(f=>({...f,candidate:e.target.value}))} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Employer"><Sel options={empOptions} value={claimForm.employer} onChange={e=>setClaimForm(f=>({...f,employer:e.target.value}))} /></Field>
+          <Field label="Joining Date"><Inp type="date" value={claimForm.joining_date} onChange={e=>setClaimForm(f=>({...f,joining_date:e.target.value}))} /></Field>
+        </Grid>
         <Field label="Upload Joining Letter / Appointment Letter"><input type="file" style={{ padding:6 }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>📤 Submit Claim</Btn></div>
+        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }} onClick={submitClaim}>📤 Submit Claim</Btn></div>
       </Card>
     </>;
   }
 
   function PanelEmpList() {
+    const employers = [...new Set(myPlacements.map(p=>p.company).filter(Boolean))];
+    const rows = employers.map(emp => {
+      const count = myPlacements.filter(p=>p.company===emp && ['placed','joined'].includes(p.status)).length;
+      return [emp, count, <Badge color="green">Active</Badge>];
+    });
     return <>
       <Bc parts={['Employers','Registered Employers']} />
       <SectionHead title="Registered Employers 🏭" />
-      <div style={{ display:'flex', gap:10, marginBottom:14 }}><input style={{ flex:1, padding:'8px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13 }} placeholder="Search employers…" /><Btn style={{ background:C.blue }}>+ Add Employer</Btn></div>
+      <div style={{ display:'flex', gap:10, marginBottom:14 }}><input style={{ flex:1, padding:'8px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13 }} placeholder="Search employers…" /><Btn style={{ background:C.blue }} onClick={()=>go('emp-add')}>+ Add Employer</Btn></div>
       <Card>
-        <Table head={['Employer','Sector','City','MoU','Open Jobs','Placements','Status']} rows={[
-          ['TechNova Ltd','IT-ITES','Pune',<Badge color="green">Active</Badge>,'5','28',<Badge color="green">Active</Badge>],
-          ['RetailMart','Retail','Mumbai',<Badge color="green">Active</Badge>,'4','22',<Badge color="green">Active</Badge>],
-          ['GreenHotel','Hospitality','Goa',<Badge color="green">Active</Badge>,'3','18',<Badge color="green">Active</Badge>],
-          ['LogiCo','Logistics','Nagpur',<Badge color="green">Active</Badge>,'2','14',<Badge color="green">Active</Badge>],
-          ['CallFirst','BPO','Hyderabad',<Badge color="red">Expired</Badge>,'1','12',<Badge color="red">Inactive</Badge>],
-          ['PharmaCo','Healthcare','Pune',<Badge color="gold">Pending</Badge>,'0','0',<Badge color="gold">Pending</Badge>],
-        ]} />
+        {rows.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No employers added yet</div>
+          : <Table head={['Employer','Placements','Status']} rows={rows} />
+        }
       </Card>
     </>;
   }
 
   function PanelEmpAdd() {
+    const se = k => e => setEmpForm(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['Employers','Add Employer']} />
       <SectionHead title="Add Employer 🏭" />
+      {addedEmployers.length > 0 && (
+        <Card>
+          <CardTitle>Recently Added</CardTitle>
+          <Table head={['Company','Sector','Contact','City','Vacancies']} rows={addedEmployers.slice(0,5).map(e=>[
+            e.company_name, e.sector, e.contact_person||'—', e.city||'—', e.vacancies||'—'
+          ])} />
+        </Card>
+      )}
       <Card>
-        <Grid><Field label="Company Name"><Inp placeholder="" /></Field><Field label="Industry / Sector"><Sel options={['IT-ITES','Retail','Hospitality','Logistics','BPO','Healthcare','Manufacturing']} /></Field></Grid>
-        <Grid><Field label="Contact Person"><Inp placeholder="" /></Field><Field label="Designation"><Inp placeholder="" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp placeholder="" validate="mobile" /></Field><Field label="Email"><ValidInp placeholder="" validate="email" /></Field></Grid>
-        <Grid><Field label="City"><Inp placeholder="" /></Field><Field label="State"><Sel options={['Maharashtra','Karnataka','Tamil Nadu','Telangana','Delhi']} /></Field></Grid>
-        <Grid><Field label="Number of Vacancies (Approx.)"><Inp placeholder="" /></Field><Field label="Preferred NSQF Level"><Sel options={['Level 2','Level 3','Level 4','Level 5','Any']} /></Field></Grid>
-        <Field label="Notes / Demand Details"><textarea rows={3} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontFamily:'inherit', fontSize:13.5 }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>➕ Add Employer</Btn></div>
+        {empMsg && <Alert type={empMsg.startsWith('✅') ? 'info' : 'red'}>{empMsg}</Alert>}
+        <Grid>
+          <Field label="Company Name *"><Inp value={empForm.company_name} onChange={se('company_name')} placeholder="Full company name" /></Field>
+          <Field label="Industry / Sector"><Sel value={empForm.sector} onChange={se('sector')} options={['IT-ITES','Retail','Hospitality','Logistics','BPO','Healthcare','Manufacturing']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Contact Person"><Inp value={empForm.contact_person} onChange={se('contact_person')} placeholder="HR / Recruiter name" /></Field>
+          <Field label="Designation"><Inp value={empForm.designation} onChange={se('designation')} placeholder="e.g. HR Manager" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Mobile"><Inp value={empForm.mobile} onChange={se('mobile')} placeholder="10-digit mobile" /></Field>
+          <Field label="Email"><Inp value={empForm.email} onChange={se('email')} placeholder="email@company.com" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="City"><Inp value={empForm.city} onChange={se('city')} placeholder="City" /></Field>
+          <Field label="State"><Sel value={empForm.state_name} onChange={se('state_name')} options={['Maharashtra','Karnataka','Tamil Nadu','Telangana','Delhi','Gujarat','Rajasthan','West Bengal','Other']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Number of Vacancies"><Inp value={empForm.vacancies} onChange={se('vacancies')} placeholder="e.g. 10" /></Field>
+          <Field label="Preferred NSQF Level"><Sel value={empForm.nsqf_level} onChange={se('nsqf_level')} options={['Level 2','Level 3','Level 4','Level 5','Any']} /></Field>
+        </Grid>
+        <Field label="Notes / Demand Details">
+          <textarea value={empForm.notes} onChange={se('notes')} rows={3} placeholder="Any specific requirements…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontFamily:'inherit', fontSize:13.5 }} />
+        </Field>
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background:C.blue, opacity: empSaving ? .7 : 1 }} onClick={addEmployer}>{empSaving ? 'Adding…' : '➕ Add Employer'}</Btn>
+        </div>
       </Card>
     </>;
   }
 
   function PanelEmpMou() {
+    const empOptions = ['Select Employer', ...[...new Set([...myPlacements.map(p=>p.company), ...addedEmployers.map(e=>e.company_name)].filter(Boolean))]];
+    const sm = k => e => setMouForm(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['Employers','MoU / Agreements']} />
       <SectionHead title="MoU / Agreements 📑" />
       <Card>
         <CardTitle>Active Agreements</CardTitle>
-        <Table head={['Employer','MoU Date','Expiry','Positions','Status','Action']} rows={[
-          ['TechNova Ltd','Jan 15, 2026','Jan 14, 2027','50',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['RetailMart','Mar 1, 2026','Feb 28, 2027','60',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['GreenHotel','Jun 30, 2026','Jun 29, 2027','20',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['CallFirst','Dec 1, 2025','Nov 30, 2026','40',<Badge color="gold">Expiring Soon</Badge>,<Btn sm style={{ background:C.blue }}>Renew</Btn>],
-        ]} />
+        {uploadedMous.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No MoU agreements uploaded yet</div>
+          : <Table head={['Employer','MoU Date','Validity','Positions','Status']} rows={uploadedMous.map(m=>[
+              m.employer, m.mou_date, `${m.validity} months`, m.positions||'—',
+              <Badge color="green">{m.status}</Badge>,
+            ])} />}
       </Card>
       <Card>
-        <CardTitle>Upload New MoU</CardTitle>
-        <Grid><Field label="Employer"><Sel options={['Select Employer','TechNova Ltd','RetailMart']} /></Field><Field label="MoU Date"><input type="date" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field></Grid>
-        <Grid><Field label="Validity (months)"><Inp defaultValue="12" /></Field><Field label="No. of Positions"><Inp placeholder="" /></Field></Grid>
-        <Field label="Upload Signed MoU (PDF)"><input type="file" style={{ padding:6 }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>📤 Upload MoU</Btn></div>
+        <CardTitle>📤 Upload New MoU</CardTitle>
+        {mouMsg && <Alert type={mouMsg.startsWith('✅') ? 'info' : 'red'}>{mouMsg}</Alert>}
+        <Grid>
+          <Field label="Employer *"><Sel value={mouForm.employer} onChange={sm('employer')} options={empOptions} /></Field>
+          <Field label="MoU Date *"><Inp type="date" value={mouForm.mou_date} onChange={sm('mou_date')} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Validity (months)"><Inp value={mouForm.validity} onChange={sm('validity')} placeholder="12" /></Field>
+          <Field label="No. of Positions"><Inp value={mouForm.positions} onChange={sm('positions')} placeholder="e.g. 20" /></Field>
+        </Grid>
+        <Field label="Upload Signed MoU (PDF)">
+          <input type="file" accept=".pdf" onChange={e => setMouForm(f => ({ ...f, file_name: e.target.files[0]?.name || '' }))} style={{ padding:6 }} />
+        </Field>
+        <div style={{ textAlign:'right' }}>
+          <Btn style={{ background:C.blue }} onClick={uploadMou}>📤 Upload MoU</Btn>
+        </div>
       </Card>
     </>;
   }
@@ -817,19 +1353,15 @@ export default function PlacementPartnerPortal() {
     return <>
       <Bc parts={['Employers','Demand Requests']} />
       <SectionHead title="Demand Requests 📬" />
-      <Alert icon="🔔" type="warn">3 new demand requests from employers require your response.</Alert>
       <Card>
-        <Table head={['Employer','Role Required','Quantity','Sector','Received','Action']} rows={[
-          ['LogiCo','Forklift Operator','10','Logistics','Jul 3, 2026',<Btn sm style={{ background:C.blue }}>Respond</Btn>],
-          ['PharmaCo','Lab Technician','5','Healthcare','Jul 2, 2026',<Btn sm style={{ background:C.blue }}>Respond</Btn>],
-          ['NewAge BPO','Voice Associate','20','BPO','Jul 1, 2026',<Btn sm style={{ background:C.blue }}>Respond</Btn>],
-          ['GreenHotel','Kitchen Staff','8','Hospitality','Jun 30, 2026',<Badge color="teal">Responded</Badge>],
-        ]} />
+        <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No demand requests received yet</div>
       </Card>
     </>;
   }
 
   function PanelSchemePmkvy() {
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status));
+    const today = new Date();
     return <>
       <Bc parts={['Govt Schemes','PMKVY Placement']} />
       <SectionHead title="PMKVY Placement 🏛️" />
@@ -844,21 +1376,32 @@ export default function PlacementPartnerPortal() {
         <Card>
           <CardTitle>Your PMKVY Stats</CardTitle>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            <KpiCard val="38" label="Placed under PMKVY" sub="This year" color={C.blue} />
-            <KpiCard val="₹4.56L" label="Incentives Claimed" sub="Total" color={C.green} />
-            <KpiCard val="31" label="Claims Approved" sub="Out of 38" />
-            <KpiCard val="7" label="Pending Claims" sub="Under review" color={C.gold} />
+            <KpiCard val={placed.length} label="Total Placements" sub="All time" color={C.blue} />
+            <KpiCard val={dbStats.placedThisYear ?? 0} label="This Year" sub={new Date().getFullYear()} color={C.green} />
           </div>
         </Card>
       </Grid>
       <Card>
-        <CardTitle>PMKVY Placed Candidates</CardTitle>
-        <Table head={['Candidate','Employer','Role','Joined','90-Day Check','Incentive']} rows={[
-          ['Riya Sharma','TechNova','Data Entry','Jul 1, 2026','Sep 29, 2026',<Badge color="gold">Pending</Badge>],
-          ['Lata Rao','GreenHotel','Housekeeping','Jun 20, 2026','Sep 18, 2026',<Badge color="gold">Pending</Badge>],
-          ['Anita Desai','RetailMart','Sales Executive','May 5, 2026','Aug 3, 2026',<Badge color="blue">Filed</Badge>],
-          ['Kavita Nair','InfoSys','Data Analyst','Jan 10, 2026','Apr 10, 2026',<Badge color="teal">Disbursed</Badge>],
-        ]} />
+        <CardTitle>Placed Candidates</CardTitle>
+        {placed.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No placements recorded yet</div>
+          : <Table head={['Candidate','Employer','Role','Joined','90-Day Check','Status']} rows={placed.map(p => {
+              const joined = p.placement_date ? new Date(p.placement_date) : null;
+              const check90 = joined ? new Date(joined.getTime() + 90*24*60*60*1000) : null;
+              const daysLeft = check90 ? Math.ceil((check90 - today) / (24*60*60*1000)) : null;
+              const badge = daysLeft === null ? <Badge color="gold">—</Badge>
+                : daysLeft > 0 ? <Badge color="gold">{daysLeft}d left</Badge>
+                : <Badge color="green">Eligible</Badge>;
+              return [
+                p.candidate_name || '—',
+                p.company        || '—',
+                p.job_title      || '—',
+                joined ? joined.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—',
+                check90 ? check90.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—',
+                badge,
+              ];
+            })} />
+        }
       </Card>
     </>;
   }
@@ -875,7 +1418,7 @@ export default function PlacementPartnerPortal() {
               <tr key={k}><td style={{ color:'#64748b', fontSize:12, padding:'6px 0' }}>{k}</td><td style={{ fontWeight:700 }}>{v}</td></tr>
             ))}
           </tbody></table>
-          <div style={{ marginTop:10 }}><Badge color="green">8 apprentices under NAPS</Badge></div>
+          <div style={{ marginTop:10 }}><Badge color="gold">Contact your NSDC partner for enrollment details</Badge></div>
         </Card>
         <Card>
           <CardTitle>NATS — National Apprenticeship Training Scheme</CardTitle>
@@ -884,13 +1427,15 @@ export default function PlacementPartnerPortal() {
               <tr key={k}><td style={{ color:'#64748b', fontSize:12, padding:'6px 0' }}>{k}</td><td style={{ fontWeight:700 }}>{v}</td></tr>
             ))}
           </tbody></table>
-          <div style={{ marginTop:10 }}><Badge color="teal">3 apprentices under NATS</Badge></div>
+          <div style={{ marginTop:10 }}><Badge color="gold">Contact BOAT for enrollment details</Badge></div>
         </Card>
       </Grid>
     </>;
   }
 
   function PanelSchemeDdugky() {
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status));
+    const today = new Date();
     return <>
       <Bc parts={['Govt Schemes','DDU-GKY']} />
       <SectionHead title="DDU-GKY 🏛️" />
@@ -905,15 +1450,30 @@ export default function PlacementPartnerPortal() {
       </Card>
       <Card>
         <CardTitle>Your DDU-GKY Placements</CardTitle>
-        <Table head={['Candidate','Employer','Role','Wage','Status','Incentive']} rows={[
-          ['Raju Yadav','LogiCo','Forklift Operator','₹18,000/mo',<Badge color="green">3-Month Completed</Badge>,<Badge color="green">₹15,000 Claimed</Badge>],
-          ['Suresh Kumar','RetailMart','Floor Staff','₹9,000/mo',<Badge color="blue">Under Tracking</Badge>,<Badge color="gold">Pending</Badge>],
-        ]} />
+        {placed.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No placements recorded yet</div>
+          : <Table head={['Candidate','Employer','Role','CTC','3-Month Status']} rows={placed.map(p => {
+              const joined = p.placement_date ? new Date(p.placement_date) : null;
+              const days = joined ? Math.floor((today - joined) / (24*60*60*1000)) : null;
+              const badge = days === null ? <Badge color="gold">—</Badge>
+                : days >= 90 ? <Badge color="green">Completed</Badge>
+                : <Badge color="blue">Day {days} of 90</Badge>;
+              return [
+                p.candidate_name || '—',
+                p.company        || '—',
+                p.job_title      || '—',
+                p.ctc ? `₹${Number(p.ctc).toLocaleString('en-IN')}/mo` : '—',
+                badge,
+              ];
+            })} />
+        }
       </Card>
     </>;
   }
 
   function PanelSchemePli() {
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status));
+    const today = new Date();
     return <>
       <Bc parts={['Govt Schemes','PLI — Placement Linked']} />
       <SectionHead title="PLI — Placement Linked Incentive 💰" />
@@ -931,49 +1491,72 @@ export default function PlacementPartnerPortal() {
       </Card>
       <Card>
         <CardTitle>PLI Tracker</CardTitle>
-        <Table head={['Candidate','Employer','Join Date','90-Day Date','Days Left','Claim Status']} rows={[
-          ['Riya Sharma','TechNova','Jul 1, 2026','Sep 29, 2026','87 days',<Badge color="gold">Not Yet Eligible</Badge>],
-          ['Lata Rao','GreenHotel','Jun 20, 2026','Sep 18, 2026','76 days',<Badge color="gold">Not Yet Eligible</Badge>],
-          ['Anita Desai','RetailMart','May 5, 2026','Aug 3, 2026','30 days',<Badge color="blue">Almost Ready</Badge>],
-          ['Kavita Nair','InfoSys','Jan 10, 2026','Apr 10, 2026','0 days',<Badge color="green">Claim Filed</Badge>],
-        ]} />
+        {placed.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No placements to track yet</div>
+          : <Table head={['Candidate','Employer','Join Date','90-Day Date','Days Left','Status']} rows={placed.map(p => {
+              const joined = p.placement_date ? new Date(p.placement_date) : null;
+              const check90 = joined ? new Date(joined.getTime() + 90*24*60*60*1000) : null;
+              const daysLeft = check90 ? Math.ceil((check90 - today) / (24*60*60*1000)) : null;
+              const badge = daysLeft === null ? <Badge color="gold">—</Badge>
+                : daysLeft > 30 ? <Badge color="gold">Not Yet Eligible</Badge>
+                : daysLeft > 0  ? <Badge color="blue">Almost Ready</Badge>
+                : <Badge color="green">Eligible</Badge>;
+              return [
+                p.candidate_name || '—',
+                p.company        || '—',
+                joined    ? joined.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})   : '—',
+                check90   ? check90.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})  : '—',
+                daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} days` : '0 days') : '—',
+                badge,
+              ];
+            })} />
+        }
       </Card>
     </>;
   }
 
   function PanelRepPlacement() {
+    const total  = myPlacements.length;
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status)).length;
+    const rate   = total > 0 ? Math.round(placed/total*100) : 0;
+    const empCounts = {};
+    myPlacements.filter(p=>['placed','joined'].includes(p.status)).forEach(p=>{
+      if (p.company) empCounts[p.company] = (empCounts[p.company]||0)+1;
+    });
+    const empRows = Object.entries(empCounts).sort((a,b)=>b[1]-a[1])
+      .map(([emp,n])=>[emp, n, `${total>0?Math.round(n/total*100):0}%`]);
     return <>
       <Bc parts={['Reports','Placement Reports']} />
       <SectionHead title="Placement Reports 📊" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="142" label="Total Placements" sub="Jan–Jun 2026" />
-        <KpiCard val="89%" label="Placement Rate" sub="Offer accepted" color={C.green} />
-        <KpiCard val="78%" label="30-day Retention" sub="Still employed" color={C.blue} />
-        <KpiCard val="65%" label="90-day Retention" sub="PLI eligible" color={C.purple} />
+        <KpiCard val={dbStats.totalPlacements ?? total} label="Total Placements" sub="All time" />
+        <KpiCard val={dbStats.placedThisYear ?? 0}      label="This Year"        sub={new Date().getFullYear()} color={C.green} />
+        <KpiCard val={`${rate}%`}                       label="Placement Rate"   sub="Placed vs total"         color={C.blue} />
       </div>
       <Card>
-        <CardTitle>Placements by Sector</CardTitle>
-        <Table head={['Sector','Placed','% Share','Avg. Salary']} rows={[
-          ['IT-ITES','38','26.8%','₹16,200'],
-          ['Retail','32','22.5%','₹11,500'],
-          ['Hospitality','28','19.7%','₹10,800'],
-          ['Logistics','22','15.5%','₹14,000'],
-          ['BPO','22','15.5%','₹15,500'],
-        ]} />
+        <CardTitle>Placements by Employer</CardTitle>
+        {empRows.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No placement data yet</div>
+          : <Table head={['Employer','Placed','% Share']} rows={empRows} />
+        }
       </Card>
       <div style={{ textAlign:'right', marginTop:10 }}><Btn style={{ background:C.blue }}>📥 Download PDF</Btn> <Btn outline>📊 Download Excel</Btn></div>
     </>;
   }
 
   function PanelRepCandidate() {
+    const total  = myPlacements.length;
+    const placed = myPlacements.filter(p=>['placed','joined'].includes(p.status)).length;
+    const pct = n => total > 0 ? `${Math.round(n/total*100)}%` : '—';
     return <>
       <Bc parts={['Reports','Candidate Reports']} />
       <SectionHead title="Candidate Reports 👥" />
       <Card>
         <CardTitle>Candidate Pipeline Summary</CardTitle>
         <Table head={['Stage','Count','% of Total']} rows={[
-          ['Applications Received','214','100%'],['Screened','148','69.2%'],['Shortlisted','87','40.7%'],
-          ['Interviewed','54','25.2%'],['Offered','42','19.6%'],['Joined','38','17.8%'],
+          ['Total Candidates', total,  '100%'],
+          ['Placed / Joined',  placed, pct(placed)],
+          ['In Progress',      total-placed, pct(total-placed)],
         ]} />
       </Card>
       <Card>
@@ -1005,40 +1588,50 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelRepEmployer() {
+    const counts = {};
+    myPlacements.filter(p=>['placed','joined'].includes(p.status)).forEach(p=>{
+      if (p.company) counts[p.company] = (counts[p.company]||0)+1;
+    });
+    const rows = Object.entries(counts).sort((a,b)=>b[1]-a[1])
+      .map(([emp,n])=>[emp, n]);
     return <>
       <Bc parts={['Reports','Employer Reports']} />
       <SectionHead title="Employer Reports 🏭" />
       <Card>
-        <Table head={['Employer','Vacancies','Placed','Fill Rate','Avg. Days to Fill','Retention 90d']} rows={[
-          ['TechNova Ltd','50','28','56%','12 days',<Badge color="green">82%</Badge>],
-          ['RetailMart','60','22','37%','18 days',<Badge color="gold">68%</Badge>],
-          ['GreenHotel','20','18','90%','8 days',<Badge color="green">89%</Badge>],
-          ['LogiCo','30','14','47%','21 days',<Badge color="gold">71%</Badge>],
-          ['CallFirst','40','12','30%','25 days',<Badge color="red">50%</Badge>],
-        ]} />
+        {rows.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No employer data yet</div>
+          : <Table head={['Employer','Placements']} rows={rows} />
+        }
       </Card>
     </>;
   }
 
   function PanelRepMonthly() {
+    const now = new Date();
+    const thisMonth = myPlacements.filter(p=>{
+      if (!p.placement_date) return false;
+      const d = new Date(p.placement_date);
+      return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+    });
+    const monthName = now.toLocaleString('en-IN',{month:'long',year:'numeric'});
     return <>
       <Bc parts={['Reports','Monthly Summary']} />
       <SectionHead title="Monthly Summary 📅" />
       <Card>
-        <CardTitle>June 2026 Summary</CardTitle>
+        <CardTitle>{monthName} Summary</CardTitle>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:16 }}>
-          <KpiCard val="42" label="Placements" sub="Jun 2026" color={C.green} />
-          <KpiCard val="214" label="New Applications" sub="Jun 2026" />
-          <KpiCard val="7" label="New Employers" sub="Added" color={C.blue} />
-          <KpiCard val="₹84,000" label="Incentives Filed" sub="PMKVY + PLI" color={C.gold} />
+          <KpiCard val={thisMonth.length}  label="Placements"    sub={monthName}    color={C.green} />
+          <KpiCard val={myPlacements.length} label="Total All Time" sub="Cumulative" />
         </div>
-        <Table head={['Metric','Jun 2026','May 2026','Change']} rows={[
-          ['Placements','42','38',<Badge color="green">+10.5%</Badge>],
-          ['Applications','214','188',<Badge color="green">+13.8%</Badge>],
-          ['Shortlisting Rate','40.7%','38.2%',<Badge color="green">+2.5pp</Badge>],
-          ['Offer Acceptance Rate','90.5%','89.2%',<Badge color="green">+1.3pp</Badge>],
-          ['90-day Retention','65%','61%',<Badge color="green">+4pp</Badge>],
-        ]} />
+        {thisMonth.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'12px 0', textAlign:'center' }}>No placements recorded this month</div>
+          : <Table head={['Candidate','Employer','Role','Date']} rows={thisMonth.map(p=>[
+              p.candidate_name || '—',
+              p.company        || '—',
+              p.job_title      || '—',
+              p.placement_date ? new Date(p.placement_date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '—',
+            ])} />
+        }
       </Card>
     </>;
   }
@@ -1048,18 +1641,10 @@ export default function PlacementPartnerPortal() {
       <Bc parts={['Reports','Incentive Reports']} />
       <SectionHead title="Incentive Reports 💰" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val="₹4.2L" label="Total Earned" sub="2026" color={C.green} />
-        <KpiCard val="₹3.1L" label="Disbursed" sub="Received" color={C.blue} />
-        <KpiCard val="₹1.1L" label="Pending" sub="Under review" color={C.gold} />
-        <KpiCard val="₹18K" label="Rejected" sub="Need resubmission" color={C.red} />
+        <KpiCard val={myPlacements.filter(p=>['placed','joined'].includes(p.status)).length} label="Eligible Placements" sub="For incentive" color={C.green} />
       </div>
       <Card>
-        <Table head={['Scheme','Claims','Approved','Amount Disbursed','Pending']} rows={[
-          ['PMKVY PLI','14','11','₹1,32,000','₹36,000'],
-          ['DDU-GKY','5','4','₹60,000','₹15,000'],
-          ['NAPS','3','3','₹24,000','₹0'],
-          ['PLI (Other)','0','0','₹0','₹0'],
-        ]} />
+        <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No incentive claims filed yet. Use Placement Tracker → Incentive Claims to file.</div>
       </Card>
     </>;
   }
@@ -1078,10 +1663,7 @@ export default function PlacementPartnerPortal() {
       </Card>
       <Card>
         <CardTitle>My Tickets</CardTitle>
-        <Table head={['Ticket ID','Subject','Status','Created','Action']} rows={[
-          ['TKT-2026-041','Incentive claim IC-2026-010 rejected query',<Badge color="blue">Open</Badge>,'Jul 3, 2026',<Btn sm outline>View</Btn>],
-          ['TKT-2026-035','MoU upload not reflecting',<Badge color="green">Resolved</Badge>,'Jun 28, 2026',<Btn sm outline>View</Btn>],
-        ]} />
+        <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No tickets raised yet</div>
       </Card>
     </>;
   }
@@ -1100,10 +1682,7 @@ export default function PlacementPartnerPortal() {
       </Card>
       <Card>
         <CardTitle>My Grievances</CardTitle>
-        <Table head={['GRV ID','Category','Status','Submitted','Resolution']} rows={[
-          ['GRV-2026-012','Incentive Not Disbursed',<Badge color="gold">Under Review</Badge>,'Jun 25, 2026','—'],
-          ['GRV-2026-008','Portal Technical Issue',<Badge color="green">Resolved</Badge>,'Jun 10, 2026','Jun 15, 2026'],
-        ]} />
+        <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No grievances raised yet</div>
       </Card>
     </>;
   }
@@ -1132,38 +1711,7 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelSettings() {
-    return <>
-      <Bc parts={['Account','Account Preferences']} />
-      <SectionHead title="Account Preferences ⚙️" />
-      <Card style={{ marginBottom:18 }}>
-        <CardTitle>👤 Account Information</CardTitle>
-        <Grid><Field label="Agency Name"><Inp defaultValue="Pioneer Placements Pvt. Ltd." /></Field><Field label="Email / Username"><ValidInp defaultValue="pioneer@placements.in" validate="email" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp defaultValue="9876543210" validate="mobile" /></Field><Field label="State"><Sel options={['Maharashtra','Karnataka','Tamil Nadu']} /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>💾 Save Changes</Btn></div>
-      </Card>
-      <Card style={{ marginBottom:18 }}>
-        <CardTitle>🔒 Change Password</CardTitle>
-        <Grid><Field label="Current Password"><Inp type="password" placeholder="Current password" /></Field><Field label="New Password"><Inp type="password" placeholder="New password" /></Field></Grid>
-        <Field label="Confirm New Password"><Inp type="password" placeholder="Confirm new password" /></Field>
-        <div style={{ textAlign:'right' }}><Btn style={{ background:C.blue }}>🔐 Update Password</Btn></div>
-      </Card>
-      <Card style={{ marginBottom:18 }}>
-        <CardTitle>🔔 Notification Preferences</CardTitle>
-        <Toggle label="New candidate application" sub="Notify when a candidate applies to your jobs" defaultChecked={true} />
-        <Toggle label="Interview reminders" sub="Remind 24 hours before scheduled interviews" defaultChecked={true} />
-        <Toggle label="Placement confirmed" sub="Notify when employer confirms a placement" defaultChecked={true} />
-        <Toggle label="Incentive status updates" sub="Notify on claim approval / disbursal" defaultChecked={true} />
-        <Toggle label="Employer demand requests" sub="Alert on new demand from employers" defaultChecked={true} />
-        <Toggle label="Monthly report ready" sub="Notify when monthly report is generated" defaultChecked={false} />
-      </Card>
-      <Card>
-        <CardTitle>⚠️ Account Actions</CardTitle>
-        <div style={{ display:'flex', gap:12 }}>
-          <Btn danger>🗑️ Delete Account</Btn>
-          <Btn outline onClick={handleLogout}>🚪 Sign Out</Btn>
-        </div>
-      </Card>
-    </>;
+    return <AccountPreferences onLogout={handleLogout} />;
   }
 
   function renderPanel() {

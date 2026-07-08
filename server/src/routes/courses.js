@@ -46,6 +46,23 @@ router.get('/mine/enrollments', authRequired, requireRole('candidate'), (req, re
   res.json(rows);
 });
 
+router.get('/mine/certificates', authRequired, requireRole('candidate'), (req, res) => {
+  const rows = db.prepare(`SELECT * FROM candidate_certificates WHERE candidate_id=? ORDER BY issued_date DESC`).all(req.user.id);
+  res.json(rows);
+});
+
+router.get('/mine/grievances', authRequired, requireRole('candidate'), (req, res) => {
+  const rows = db.prepare(`SELECT * FROM candidate_grievances WHERE candidate_id=? ORDER BY created_at DESC`).all(req.user.id);
+  res.json(rows);
+});
+
+router.post('/mine/grievances', authRequired, requireRole('candidate'), (req, res) => {
+  const { category, subject, description } = req.body;
+  if (!subject || !description) return res.status(400).json({ error: 'subject and description are required' });
+  const info = db.prepare(`INSERT INTO candidate_grievances (candidate_id,category,subject,description) VALUES (?,?,?,?)`).run(req.user.id, category || 'Other', subject, description);
+  res.status(201).json(db.prepare('SELECT * FROM candidate_grievances WHERE id=?').get(info.lastInsertRowid));
+});
+
 // Recommend courses that close the candidate's biggest skill gaps vs open jobs
 router.get('/recommendations/for-me', authRequired, requireRole('candidate'), (req, res) => {
   const me = db.prepare('SELECT skills FROM users WHERE id = ?').get(req.user.id);

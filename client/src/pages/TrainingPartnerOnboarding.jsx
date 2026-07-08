@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { validate as fieldValidate } from '../utils/validators.js';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
@@ -39,9 +40,9 @@ function F({ label, required, hint, children }) {
   );
 }
 
-function Inp({ id, value, onChange, placeholder, type='text', maxLength, disabled, readOnly }) {
+function Inp({ id, value, onChange, onBlur, placeholder, type='text', maxLength, disabled, readOnly }) {
   return (
-    <input id={id} type={type} value={value||''} onChange={onChange}
+    <input id={id} type={type} value={value||''} onChange={onChange} onBlur={onBlur}
       placeholder={placeholder} maxLength={maxLength}
       disabled={disabled} readOnly={readOnly}
       style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDE3EE', borderRadius:9,
@@ -128,6 +129,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [dateIncorp, setDateIncorp] = useState('');
   const [cinReg, setCinReg]       = useState('');
   const [website, setWebsite]     = useState('');
+  const [websiteError, setWebsiteError] = useState('');
   const [headAddr, setHeadAddr]   = useState('');
   const [headState, setHeadState] = useState('');
   const [headDistrict, setHeadDistrict] = useState('');
@@ -140,11 +142,15 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [altName, setAltName]     = useState('');
   const [altMobile, setAltMobile] = useState('');
   const [altEmail, setAltEmail]   = useState('');
+  const [altEmailError, setAltEmailError] = useState('');
 
   /* Step 3 */
   const [panNo, setPanNo]   = useState(user?.pan || '');
+  const [panError, setPanError] = useState('');
   const [tanNo, setTanNo]   = useState('');
+  const [tanError, setTanError] = useState('');
   const [gstNo, setGstNo]   = useState(user?.gstin || '');
+  const [gstError, setGstError] = useState('');
   const [msme, setMsme]     = useState('');
   const [udyam, setUdyam]   = useState('');
 
@@ -244,8 +250,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       if (!spocDesig.trim()) return 'SPOC Designation is required';
     }
     if (step === 3) {
-      if (!panNo.trim() || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo))
+      if (!panNo.trim() || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo)) {
+        setPanError('Invalid PAN — format: ABCDE1234F (10 chars)');
         return 'Valid PAN is required (e.g. ABCDE1234F)';
+      }
     }
     if (step === 5) {
       if (sectors.length === 0) return 'Select at least one Sector';
@@ -558,7 +566,13 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   <Inp value={cinReg} onChange={e => setCinReg(e.target.value.toUpperCase())} placeholder="e.g. U74999MH2020PTC123456" maxLength={21} />
                 </F>
                 <F label="Website URL">
-                  <Inp type="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://www.example.com" />
+                  <div style={{ width:'100%' }}>
+                    <Inp type="url" value={website}
+                      onChange={e => { setWebsite(e.target.value); setWebsiteError(''); }}
+                      onBlur={() => { if (website) setWebsiteError(fieldValidate('website', website)); }}
+                      placeholder="https://www.example.com" />
+                    {websiteError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {websiteError}</div>}
+                  </div>
                 </F>
               </G2>
               <SBox title="🏠 Head Office Address">
@@ -622,7 +636,13 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   </F>
                 </G2>
                 <F label="Email">
-                  <Inp type="email" value={altEmail} onChange={e => setAltEmail(e.target.value)} placeholder="alternate@organisation.com" />
+                  <div style={{ width:'100%' }}>
+                    <Inp type="email" value={altEmail}
+                      onChange={e => { setAltEmail(e.target.value); setAltEmailError(''); }}
+                      onBlur={() => { if (altEmail) setAltEmailError(fieldValidate('email', altEmail)); }}
+                      placeholder="alternate@organisation.com" />
+                    {altEmailError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {altEmailError}</div>}
+                  </div>
                 </F>
               </SBox>
             </>
@@ -638,14 +658,32 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               )}
               <G2>
                 <F label="PAN Number" required hint="10-character Permanent Account Number">
-                  <Inp value={panNo} onChange={e => setPanNo(e.target.value.toUpperCase().slice(0,10))} placeholder="ABCDE1234F" maxLength={10} />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={panNo}
+                      onChange={e => { setPanNo(e.target.value.toUpperCase().slice(0,10)); setPanError(''); }}
+                      onBlur={() => { if (panNo) setPanError(/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo) ? '' : 'Invalid PAN — format: ABCDE1234F (10 chars)'); }}
+                      placeholder="ABCDE1234F" maxLength={10} />
+                    {panError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {panError}</div>}
+                  </div>
                 </F>
                 <F label="TAN Number" hint="Tax Deduction Account Number">
-                  <Inp value={tanNo} onChange={e => setTanNo(e.target.value.toUpperCase().slice(0,10))} placeholder="MUMB12345A" maxLength={10} />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={tanNo}
+                      onChange={e => { setTanNo(e.target.value.toUpperCase().slice(0,10)); setTanError(''); }}
+                      onBlur={() => { if (tanNo) setTanError(/^[A-Z]{4}\d{5}[A-Z]$/.test(tanNo) ? '' : 'Invalid TAN — format: PDES03028F (10 chars)'); }}
+                      placeholder="MUMB12345A" maxLength={10} />
+                    {tanError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {tanError}</div>}
+                  </div>
                 </F>
               </G2>
               <F label="GSTIN" hint="15-character GST Identification Number">
-                <Inp value={gstNo} onChange={e => setGstNo(e.target.value.toUpperCase().slice(0,15))} placeholder="27AABCU9603R1ZX" maxLength={15} />
+                <div style={{ width:'100%' }}>
+                  <Inp value={gstNo}
+                    onChange={e => { setGstNo(e.target.value.toUpperCase().slice(0,15)); setGstError(''); }}
+                    onBlur={() => { if (gstNo) setGstError(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(gstNo) ? '' : 'Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)'); }}
+                    placeholder="27AABCU9603R1ZX" maxLength={15} />
+                  {gstError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {gstError}</div>}
+                </div>
               </F>
               <G2>
                 <F label="MSME Registration Number" hint="If applicable">

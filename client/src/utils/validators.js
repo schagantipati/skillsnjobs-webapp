@@ -2,7 +2,7 @@
 
 export const PATTERNS = {
   mobile:  /^[6-9]\d{9}$/,
-  email:   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+  email:   /^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/,
   pincode: /^\d{6}$/,
   gst:     /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/,
   pan:     /^[A-Z]{5}\d{4}[A-Z]{1}$/,
@@ -16,7 +16,7 @@ export const PATTERNS = {
 
 export const MESSAGES = {
   mobile:  'Must be a 10-digit number starting with 6–9',
-  email:   'Enter a valid email address',
+  email:   'Enter a valid email address (e.g. name@example.com)',
   pincode: 'Must be a 6-digit PIN code',
   gst:     'Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)',
   pan:     'Invalid PAN — format: ABCDE1234F (10 chars)',
@@ -34,5 +34,9 @@ export const UPPERCASE_FIELDS = new Set(['gst', 'pan', 'tan', 'cin', 'ifsc']);
 export function validate(type, value) {
   if (!value || !value.trim()) return '';
   const v = UPPERCASE_FIELDS.has(type) ? value.trim().toUpperCase() : value.trim();
+  if (type === 'email') {
+    if (v.length > 254) return 'Email must be 254 characters or fewer';
+    if (/\.\./.test(v)) return 'Email must not contain consecutive dots';
+  }
   return PATTERNS[type]?.test(v) ? '' : (MESSAGES[type] || 'Invalid value');
 }

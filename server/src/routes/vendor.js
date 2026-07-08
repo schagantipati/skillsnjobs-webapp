@@ -16,8 +16,8 @@ router.get('/stats', auth, (req, res) => {
   const vid = req.user.id;
   const centres = db.prepare('SELECT COUNT(*) c FROM vendor_centres WHERE vendor_id=? AND status!=?').get(vid, 'deleted').c;
   const trainers = db.prepare('SELECT COUNT(*) c FROM vendor_trainers WHERE vendor_id=? AND status=?').get(vid, 'active').c;
-  const batches  = db.prepare('SELECT COUNT(*) c FROM vendor_batches WHERE vendor_id=? AND status=?').get(vid, 'ongoing').c;
-  const candidates = db.prepare('SELECT COUNT(*) c FROM vendor_candidates WHERE vendor_id=? AND status=?').get(vid, 'enrolled').c;
+  const batches  = db.prepare("SELECT COUNT(*) c FROM vendor_batches WHERE vendor_id=? AND status IN ('active','upcoming')").get(vid).c;
+  const candidates = db.prepare("SELECT COUNT(*) c FROM vendor_candidates WHERE vendor_id=? AND status='active'").get(vid).c;
   const docs_pending = db.prepare("SELECT COUNT(*) c FROM vendor_documents WHERE vendor_id=? AND status='expiring'").get(vid).c;
   const tickets_open = db.prepare("SELECT COUNT(*) c FROM vendor_grievances WHERE vendor_id=? AND status='open'").get(vid).c;
   res.json({ centres, trainers, batches, candidates, docs_pending, tickets_open });

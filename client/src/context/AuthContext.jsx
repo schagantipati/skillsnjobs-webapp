@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
   function logout() {
     setToken(null);
     setUser(null);
+    window.location.href = '/';
   }
 
   function refresh() {
@@ -36,7 +37,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

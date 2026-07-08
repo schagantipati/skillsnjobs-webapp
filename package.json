@@ -1,0 +1,9 @@
+{
+  "name": "skillsnjobs",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && npm install && node src/index.js",
+    "install:all": "cd client && npm install && cd ../server && npm install"
+  }
+}

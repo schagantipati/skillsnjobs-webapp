@@ -24,6 +24,7 @@ import StateGovtPortal from './pages/StateGovtPortal.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import LandingPage from './pages/LandingPage.jsx';
+import ContactUs from './pages/ContactUs.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
 
 function Protected({ children, roles, vendorOk }) {
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
             <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
             <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPassword />} />
+            <Route path="/contact" element={<ContactUs />} />
             <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPassword />} />
 
             <Route path="/vendor-portal" element={<Protected roles={['training_vendor']} vendorOk><TrainingVendorPortal /></Protected>} />

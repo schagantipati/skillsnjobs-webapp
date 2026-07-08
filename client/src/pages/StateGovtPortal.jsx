@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 
 const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
 .sg-shell{font-family:'Segoe UI',Arial,sans-serif;background:#F0F4F8;color:#1A2B4A;display:flex;height:100vh;overflow:hidden}
 /* SIDEBAR */
-.sg-sidebar{width:260px;min-width:260px;background:linear-gradient(180deg,#003087 0%,#005BAA 100%);display:block;height:100vh;overflow-y:auto;transition:.25s;flex-shrink:0}
-.sg-sidebar::-webkit-scrollbar{width:4px}
-.sg-sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
-.sg-brand{padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,.12)}
+.sg-sidebar{width:220px;min-width:220px;background:#010E3C;display:flex;flex-direction:column;height:100vh;overflow:hidden;transition:.25s;flex-shrink:0}
+.sg-sidebar-nav{flex:1;overflow-y:auto;padding-bottom:8px}
+.sg-sidebar-nav::-webkit-scrollbar{width:4px}
+.sg-sidebar-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
+.sg-brand{padding:0 16px;height:58px;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid rgba(255,255,255,.12)}
 .sg-brand-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .sg-logo{width:36px;height:36px;background:#FF6B00;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;color:#fff;flex-shrink:0}
 .sg-brand-name{font-size:13px;font-weight:800;color:#fff;line-height:1.2}
@@ -36,7 +39,7 @@ const CSS = `
 .sg-child.active{color:#FF6B00;font-weight:600}
 .sg-child .dot{width:5px;height:5px;background:rgba(255,255,255,.3);border-radius:50%;flex-shrink:0}
 .sg-child.active .dot{background:#FF6B00}
-.sg-footer{padding:12px;border-top:1px solid rgba(255,255,255,.12);margin-top:auto}
+.sg-footer{padding:12px;border-top:1px solid rgba(255,255,255,.12);flex-shrink:0}
 .sg-user{display:flex;align-items:center;gap:10px}
 .sg-avatar{width:34px;height:34px;background:#FF6B00;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
 .sg-uname{font-size:12px;font-weight:700;color:#fff}
@@ -168,6 +171,7 @@ function Modal({ title, onClose, children }) {
 
 export default function StateGovtPortal() {
   const { user, logout } = useAuth();
+  const routerNavigate = useNavigate();
   const [activePanel, setActivePanel] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
   const [stats, setStats] = useState(null);
@@ -585,19 +589,7 @@ export default function StateGovtPortal() {
     );
   };
 
-  const renderSettings = () => (
-    <>
-      <div className="sg-ph"><h1>Settings</h1><p>State portal configuration and preferences</p></div>
-      <div className="sg-card" style={{ maxWidth: 600 }}>
-        <div className="sg-card-title">👤 Profile</div>
-        <div className="sg-form-grid">
-          {[['Name', user?.name || ''], ['Email', user?.email || ''], ['Organisation', user?.org_name || ''], ['Location', user?.location || '']].map(([lbl, val]) => (
-            <div className="sg-form-group" key={lbl}><label>{lbl}</label><input defaultValue={val} readOnly /></div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
+  const renderSettings = () => <AccountPreferences onLogout={() => { logout(); window.location.href = '/'; }} />;
 
   // ── 1. LIVE ANALYTICS ──
   const renderLiveAnalytics = () => {
@@ -1684,7 +1676,7 @@ export default function StateGovtPortal() {
         <nav className="sg-sidebar">
           <div className="sg-brand">
             <div className="sg-brand-top">
-              <div className="sg-logo">SI</div>
+              <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
               <div><div className="sg-brand-name">Skill India Digital</div><div className="sg-brand-sub">State Government Portal</div></div>
             </div>
             <div className="sg-state-badge">
@@ -1697,6 +1689,7 @@ export default function StateGovtPortal() {
             </div>
           </div>
 
+          <div className="sg-sidebar-nav">
           <div className="sg-section">MAIN</div>
           <Nav id="dashboard" icon="🏠" label="Dashboard" />
           <Nav id="notifications" icon="🔔" label="Notifications" badge={stats?.notifUnread} />
@@ -1743,16 +1736,7 @@ export default function StateGovtPortal() {
           <Nav id="users" icon="👥" label="User Management" />
           <Nav id="settings" icon="⚙️" label="Settings" />
 
-          <div className="sg-footer">
-            <div className="sg-user">
-              <div className="sg-avatar">{initials(user?.name)}</div>
-              <div>
-                <div className="sg-uname">{user?.name || 'State Officer'}</div>
-                <div className="sg-urole">State Govt · {user?.location || '—'}</div>
-              </div>
-            </div>
-            <button onClick={logout} style={{ marginTop: 8, width: '100%', background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 6, color: 'rgba(255,255,255,.7)', padding: '6px 0', cursor: 'pointer', fontSize: 12 }}>⏻ Sign Out</button>
-          </div>
+          </div>{/* end sg-sidebar-nav */}
         </nav>
 
         {/* MAIN */}
@@ -1762,6 +1746,14 @@ export default function StateGovtPortal() {
               <span>State Portal</span><span>›</span>
               <span className="sg-tb-crumb">{CRUMBS[activePanel] || activePanel}</span>
             </div>
+            <div style={{ flex:1, maxWidth:380, margin:'0 16px', position:'relative' }}>
+              <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:'#94A3B8', pointerEvents:'none' }}>🔍</span>
+              <input
+                type="search"
+                placeholder="Search schemes, districts, reports…"
+                style={{ width:'100%', padding:'7px 12px 7px 32px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:13, color:'#1A2B4A', outline:'none', background:'#F8FAFC', boxSizing:'border-box' }}
+              />
+            </div>
             <div className="sg-tb-right">
               <div className="sg-scheme-tag">{user?.org_name || 'State Skill Mission'}</div>
               <button className="sg-tb-btn" onClick={() => navigate('mis-scheme')}>📥 MIS Report</button>
@@ -1769,6 +1761,7 @@ export default function StateGovtPortal() {
                 🔔{stats?.notifUnread > 0 && <span className="notif-dot" />}
               </div>
               <div className="sg-tb-icon">👤</div>
+              <button onClick={() => { logout(); routerNavigate('/'); }} style={{ padding:'7px 16px', borderRadius:8, border:'none', background:'#1E5FBF', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>⏻ Sign Out</button>
             </div>
           </div>
 

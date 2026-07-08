@@ -1,8 +1,10 @@
 import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 import TrainingPartnerOnboarding from './TrainingPartnerOnboarding.jsx';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 
 // ── tiny helpers ─────────────────────────────────────────────────────────────
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -27,8 +29,8 @@ const ASSESSMENT_AGENCIES = ['Wheebox','NSDC Assessment','Ernst & Young','MERIT-
 const S = {
   shell: { display:'flex', height:'100vh', overflow:'hidden', background:'#F1F5F9' },
   // sidebar
-  sidebar: { width:230, flexShrink:0, background:'#1A56C4', display:'flex', flexDirection:'column', overflow:'hidden' },
-  sbLogo: { padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,.15)', display:'flex', alignItems:'center', gap:10 },
+  sidebar: { width:220, flexShrink:0, background:'#010E3C', display:'flex', flexDirection:'column', overflow:'hidden' },
+  sbLogo: { padding:'0 16px', height:58, borderBottom:'1px solid rgba(255,255,255,.15)', display:'flex', alignItems:'center', gap:10, flexShrink:0 },
   sbMark: { width:32, height:32, background:'rgba(255,255,255,.18)', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 },
   sbScroll: { flex:1, overflowY:'auto', padding:'6px 0' },
   sbSection: { padding:'8px 14px 3px', color:'rgba(255,255,255,.5)', fontSize:10, fontWeight:700, letterSpacing:'.8px', textTransform:'uppercase' },
@@ -387,6 +389,9 @@ function Centres({ activeSection, onNav }) {
 function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, inline }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
+  const [errors, setErrors] = useState({});
+  const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
+  const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
   const save = async () => {
     if (!form.name) { alert('Centre name is required'); return; }
     setSaving(true);
@@ -402,7 +407,13 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, inline
         <div style={S.fGroup}><label style={S.label}>State</label><input style={S.input} value={fv('state_name')} onChange={f('state_name')} placeholder="State" /></div>
         <div style={S.fGroup}><label style={S.label}>District</label><input style={S.input} value={fv('district')} onChange={f('district')} /></div>
         <div style={S.fGroup}><label style={S.label}>City</label><input style={S.input} value={fv('city')} onChange={f('city')} /></div>
-        <div style={S.fGroup}><label style={S.label}>PIN code</label><input style={S.input} value={fv('pincode')} onChange={f('pincode')} /></div>
+        <div style={S.fGroup}><label style={S.label}>PIN code</label>
+          <input style={{ ...S.input, ...(errors.pincode ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+            value={fv('pincode')}
+            onChange={e => { f('pincode')(e); clearErr('pincode'); }}
+            onBlur={() => { const v = fv('pincode'); if (v) setErr('pincode', /^\d{6}$/.test(v) ? '' : 'Must be a 6-digit PIN code'); }} />
+          {errors.pincode && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.pincode}</div>}
+        </div>
         <div style={S.fGroup}><label style={S.label}>Geo-location (lat, long or Maps link)</label><input style={S.input} value={fv('geo')} onChange={f('geo')} placeholder="19.1136, 72.8697" /></div>
         <div style={S.fGroup}><label style={S.label}>Seating capacity</label><input style={S.input} type="number" value={fv('seating_capacity')} onChange={f('seating_capacity')} /></div>
         <div style={S.fGroup}><label style={S.label}>Classrooms</label><input style={S.input} type="number" value={fv('classrooms')} onChange={f('classrooms')} /></div>
@@ -442,8 +453,11 @@ function TrainersList({ activeSection, onNav }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
+  const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
+  const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
 
   const save = async () => {
     if (!form.name) { alert('Trainer name required'); return; }
@@ -501,8 +515,20 @@ function TrainersList({ activeSection, onNav }) {
         <Modal title={modal === 'add' ? 'Add Trainer' : 'Edit Trainer'} onClose={() => setModal(null)}>
           <div style={S.fGrid(2)}>
             <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Full name *</label><input style={S.input} value={fv('name')} onChange={f('name')} /></div>
-            <div style={S.fGroup}><label style={S.label}>Email</label><input style={S.input} type="email" value={fv('email')} onChange={f('email')} /></div>
-            <div style={S.fGroup}><label style={S.label}>Mobile</label><input style={S.input} value={fv('mobile')} onChange={f('mobile')} /></div>
+            <div style={S.fGroup}><label style={S.label}>Email</label>
+              <input style={{ ...S.input, ...(errors.email ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                type="email" value={fv('email')}
+                onChange={e => { f('email')(e); clearErr('email'); }}
+                onBlur={() => { const v = fv('email'); if (v) setErr('email', fieldValidate('email', v)); }} />
+              {errors.email && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.email}</div>}
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Mobile</label>
+              <input style={{ ...S.input, ...(errors.mobile ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                value={fv('mobile')}
+                onChange={e => { f('mobile')(e); clearErr('mobile'); }}
+                onBlur={() => { const v = fv('mobile'); if (v) setErr('mobile', /^[6-9]\d{9}$/.test(v) ? '' : 'Must be a 10-digit number starting with 6–9'); }} />
+              {errors.mobile && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.mobile}</div>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Qualification</label><input style={S.input} value={fv('qualification')} onChange={f('qualification')} placeholder="B.Tech, MBA…" /></div>
             <div style={S.fGroup}><label style={S.label}>Sector</label>
               <select style={S.select} value={fv('sector')} onChange={f('sector')}>
@@ -762,8 +788,11 @@ function Candidates() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [batchFilter, setBatchFilter] = useState('');
+  const [errors, setErrors] = useState({});
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
+  const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
+  const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
 
   const save = async () => {
     if (!form.name) { alert('Candidate name required'); return; }
@@ -827,8 +856,20 @@ function Candidates() {
         <Modal title={modal === 'add' ? 'Enrol Candidate' : 'Edit Candidate'} onClose={() => setModal(null)} wide>
           <div style={S.fGrid(2)}>
             <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Full name *</label><input style={S.input} value={fv('name')} onChange={f('name')} /></div>
-            <div style={S.fGroup}><label style={S.label}>Mobile</label><input style={S.input} value={fv('mobile')} onChange={f('mobile')} /></div>
-            <div style={S.fGroup}><label style={S.label}>Aadhaar (masked)</label><input style={S.input} value={fv('aadhaar_masked')} onChange={f('aadhaar_masked')} placeholder="XXXX-XXXX-1234" /></div>
+            <div style={S.fGroup}><label style={S.label}>Mobile</label>
+              <input style={{ ...S.input, ...(errors.mobile ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                value={fv('mobile')}
+                onChange={e => { f('mobile')(e); clearErr('mobile'); }}
+                onBlur={() => { const v = fv('mobile'); if (v) setErr('mobile', /^[6-9]\d{9}$/.test(v) ? '' : 'Must be a 10-digit number starting with 6–9'); }} />
+              {errors.mobile && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.mobile}</div>}
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Aadhaar (masked)</label>
+              <input style={{ ...S.input, ...(errors.aadhaar_masked ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                value={fv('aadhaar_masked')} placeholder="XXXX-XXXX-1234"
+                onChange={e => { f('aadhaar_masked')(e); clearErr('aadhaar_masked'); }}
+                onBlur={() => { const v = fv('aadhaar_masked'); if (v) setErr('aadhaar_masked', /^\d{4}-\d{4}-\d{4}$/.test(v) ? '' : 'Format must be XXXX-XXXX-1234'); }} />
+              {errors.aadhaar_masked && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.aadhaar_masked}</div>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Date of birth</label><input style={S.input} type="date" value={fv('dob')} onChange={f('dob')} /></div>
             <div style={S.fGroup}><label style={S.label}>Gender</label>
               <select style={S.select} value={fv('gender')} onChange={f('gender')}>
@@ -1207,6 +1248,7 @@ function Grievances() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIDEBAR DEFINITION
 // ═══════════════════════════════════════════════════════════════════════════════
+
 const NAV = [
   { section: 'Main' },
   { key:'dashboard', icon:'🏠', label:'Dashboard' },
@@ -1249,16 +1291,34 @@ const NAV = [
 
   { section: '' },
   { key:'onboarding', icon:'✏️', label:'Complete Profile' },
+  { key:'settings', icon:'⚙️', label:'Account Preferences' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PORTAL SHELL
 // ═══════════════════════════════════════════════════════════════════════════════
+// Flat list of all navigable pages for search
+const SEARCH_INDEX = NAV.flatMap(item => {
+  if (item.section !== undefined) return [];
+  if (item.children) return item.children.map(c => ({ key: c.key, label: c.label, parent: item.label, icon: item.icon }));
+  return [{ key: item.key, label: item.label, parent: null, icon: item.icon }];
+});
+
 export default function TrainingVendorPortal() {
   const { user, logout } = useAuth();
+  const routerNavigate = useNavigate();
   const [activeKey, setActiveKey] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
-  const navigate = (key) => { setActiveKey(key); };
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const navigate = (key) => { setActiveKey(key); setSearchQuery(''); setSearchFocused(false); };
+
+  const searchResults = searchQuery.trim().length > 0
+    ? SEARCH_INDEX.filter(item =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.parent || '').toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
 
   const toggleMenu = (label) => setOpenMenus(p => ({ ...p, [label]: !p[label] }));
 
@@ -1275,6 +1335,7 @@ export default function TrainingVendorPortal() {
     if (activeKey === 'docs') return <Documents />;
     if (activeKey === 'grievance') return <Grievances />;
     if (activeKey === 'onboarding') return <TrainingPartnerOnboarding standalone={false} onDone={() => setActiveKey('dashboard')} />;
+    if (activeKey === 'settings') return <AccountPreferences onLogout={() => { logout(); window.location.href = '/'; }} />;
     return <Dashboard user={user} onNav={navigate} />;
   };
 
@@ -1294,7 +1355,7 @@ export default function TrainingVendorPortal() {
       {/* SIDEBAR */}
       <nav style={S.sidebar}>
         <div style={S.sbLogo}>
-          <div style={S.sbMark}>🎓</div>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
             <div style={{ color:'#fff', fontSize:12, fontWeight:700 }}>{user?.org_name || 'My Organisation'}</div>
             <div style={{ color:'rgba(255,255,255,.5)', fontSize:10 }}>Training Partner</div>
@@ -1361,16 +1422,52 @@ export default function TrainingVendorPortal() {
       <div style={S.main}>
         <div style={{ ...S.topbar, position:'relative' }}>
           <span style={{ fontSize:12, color:'#94A3B8' }}>{breadcrumb}</span>
+          <div style={{ flex:1, maxWidth:380, margin:'0 16px', position:'relative' }}>
+            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:'#94A3B8', pointerEvents:'none' }}>🔍</span>
+            <input
+              type="search"
+              placeholder="Search courses, batches, learners…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+              style={{ width:'100%', padding:'7px 12px 7px 32px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:13, color:'#1A2B4A', outline:'none', background:'#F8FAFC', boxSizing:'border-box' }}
+            />
+            {searchFocused && searchResults.length > 0 && (
+              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1.5px solid #E2E8F0', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:1000, overflow:'hidden' }}>
+                {searchResults.map(item => (
+                  <div
+                    key={item.key}
+                    onMouseDown={() => navigate(item.key)}
+                    style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid #F1F5F9' }}
+                    onMouseEnter={e => e.currentTarget.style.background='#F8FAFC'}
+                    onMouseLeave={e => e.currentTarget.style.background='#fff'}
+                  >
+                    <span style={{ fontSize:16 }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:'#0B1E3D' }}>{item.label}</div>
+                      {item.parent && <div style={{ fontSize:11, color:'#94A3B8' }}>{item.parent}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchFocused && searchQuery.trim().length > 0 && searchResults.length === 0 && (
+              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1.5px solid #E2E8F0', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:1000, padding:'12px 14px', fontSize:13, color:'#94A3B8' }}>
+                No results for "{searchQuery}"
+              </div>
+            )}
+          </div>
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:12, color:'#94A3B8' }}>TP-{user?.id || '—'}</span>
             <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#0A2D6E,#1A56C4)', border:'2px solid #E2E8F0', color:'#fff', fontWeight:700, fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               {(user?.org_name || user?.name || 'TP').slice(0,2).toUpperCase()}
             </div>
             <button
-              onClick={() => { logout(); window.location.href = '/login'; }}
-              style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1px solid #E2E8F0', background:'#fff', color:'#64748B', fontSize:12, fontWeight:600, cursor:'pointer' }}
+              onClick={() => { logout(); routerNavigate('/'); }}
+              style={{ display:'flex', alignItems:'center', gap:5, padding:'7px 16px', borderRadius:8, border:'none', background:'#1E5FBF', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}
             >
-              <span>⏻</span> Sign Out
+              ⏻ Sign Out
             </button>
           </div>
         </div>

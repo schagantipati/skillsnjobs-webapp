@@ -1,6 +1,7 @@
 import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 
@@ -12,7 +13,7 @@ const C = {
   green:'#28A745', greenPale:'#E8F5E9',
   blue:'#0057A8', bluePale:'#E8F0FB',
   gold:'#F4A900', goldPale:'#FEF8E7',
-  sidebar:'#1A56C4',
+  sidebar:'#010E3C',
   surface:'#F4F6F9', card:'#FFFFFF',
   border:'#E0E6EF', ink:'#1A2B4A', ink2:'#3D5170', ink3:'#6B7FA3',
 };
@@ -231,12 +232,74 @@ export default function CandidatePortal() {
   const [courses,     setCourses]   = useState([]);
   const [myApps,      setMyApps]    = useState([]);
   const [myEnroll,    setMyEnroll]  = useState([]);
+  const [dbStats,     setDbStats]   = useState({});
   const [loading,     setLoading]   = useState(true);
   const [applyingId,  setApplyingId]= useState(null);
   const [enrollingId, setEnrollingId]=useState(null);
   const [toast,       setToast]     = useState(null);
   const [searchQ,     setSearchQ]   = useState('');
   const [searchOpen,  setSearchOpen]= useState(false);
+  const [myCerts,     setMyCerts]   = useState([]);
+  const [grievances,  setGrievances]= useState([]);
+  const [grievForm,   setGrievForm] = useState({ category:'', subject:'', description:'' });
+  const [grievSaving, setGrievSaving]= useState(false);
+  const [grievMsg,    setGrievMsg]  = useState('');
+  const [jobAlertsSaved, setJobAlertsSaved] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('snj_job_alerts') || 'null'); } catch { return null; }
+  });
+  const [jobAlertsForm, setJobAlertsForm] = useState({ role:'', sector:'', location:'', frequency:'Daily' });
+
+  const [profileDraft, setProfileDraft] = useState(() => ({
+    first_name: '', last_name: '', dob: '', gender: '', phone: '', bio: '',
+    address_line1: '', address_line2: '', city: '', state_name: '', pincode: '', category: '',
+    bank_account_number: '', bank_ifsc: '',
+  }));
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+
+  useEffect(() => {
+    if (user) setProfileDraft(d => ({
+      ...d,
+      first_name:  user.first_name  || user.name?.split(' ')[0] || '',
+      last_name:   user.last_name   || user.name?.split(' ').slice(1).join(' ') || '',
+      dob:         user.dob         || '',
+      gender:      user.gender      || '',
+      phone:       (user.phone || '').replace(/^\+91/, ''),
+      bio:         user.bio         || '',
+      address_line1: user.address_line1 || '',
+      address_line2: user.address_line2 || '',
+      city:          user.city          || '',
+      state_name:    user.state_name    || '',
+      pincode:       user.pincode       || '',
+      category:      user.category      || '',
+      bank_account_number: user.bank_account_number || '',
+      bank_ifsc:           user.bank_ifsc           || '',
+    }));
+  }, [user]);
+
+  async function saveProfileDraft() {
+    setProfileSaving(true); setProfileMsg('');
+    try {
+      await api.updateMe({
+        first_name:    profileDraft.first_name   || null,
+        last_name:     profileDraft.last_name    || null,
+        dob:           profileDraft.dob          || null,
+        gender:        profileDraft.gender       || null,
+        phone:         profileDraft.phone ? '+91' + profileDraft.phone : null,
+        bio:           profileDraft.bio          || null,
+        address_line1: profileDraft.address_line1 || null,
+        address_line2: profileDraft.address_line2 || null,
+        city:          profileDraft.city          || null,
+        state_name:    profileDraft.state_name    || null,
+        pincode:       profileDraft.pincode       || null,
+        category:      profileDraft.category      || null,
+        bank_account_number: profileDraft.bank_account_number || null,
+        bank_ifsc:     profileDraft.bank_ifsc     || null,
+      });
+      setProfileMsg('Draft saved successfully.');
+    } catch { setProfileMsg('Save failed. Please try again.'); }
+    setProfileSaving(false);
+  }
 
   const u        = user || {};
   const fields   = [u.name, u.email, u.phone, u.location, u.bio, u.skills];
@@ -246,13 +309,17 @@ export default function CandidatePortal() {
   useEffect(() => {
     (async () => {
       try {
-        const [j, c, apps, enroll] = await Promise.allSettled([
-          api.jobs(), api.courses(), api.myApplications(), api.myEnrollments(),
+        const [j, c, apps, enroll, stats, certs, grievs] = await Promise.allSettled([
+          api.jobs(), api.courses(), api.myApplications(), api.myEnrollments(), api.dashboardStats(),
+          api.myCertificates(), api.myGrievances(),
         ]);
         if (j.status      === 'fulfilled') setJobs(j.value || []);
         if (c.status      === 'fulfilled') setCourses(c.value || []);
         if (apps.status   === 'fulfilled') setMyApps(apps.value || []);
         if (enroll.status === 'fulfilled') setMyEnroll(enroll.value || []);
+        if (stats.status  === 'fulfilled') setDbStats(stats.value || {});
+        if (certs.status  === 'fulfilled') setMyCerts(certs.value || []);
+        if (grievs.status === 'fulfilled') setGrievances(grievs.value || []);
       } finally { setLoading(false); }
     })();
   }, []);
@@ -290,7 +357,7 @@ export default function CandidatePortal() {
 
   function go(id) { setActive(id); window.scrollTo(0,0); }
   function toggleMenu(id) { setOpenMenus(m => ({ ...m, [id]: !m[id] })); }
-  function signOut() { logout(); navigate('/login'); }
+  function signOut() { logout(); navigate('/'); }
 
   const appliedIds  = new Set(myApps.map(a => a.job_id));
   const enrolledIds = new Set(myEnroll.map(e => e.course_id));
@@ -299,14 +366,12 @@ export default function CandidatePortal() {
   function Sidebar() {
     return (
       <aside style={{ width:SW, background:C.sidebar, display:'flex', flexDirection:'column',
-        position:'fixed', top:0, left:0, bottom:0, zIndex:200, overflowY:'auto' }}>
+        position:'fixed', top:0, left:0, bottom:0, zIndex:200, overflowY:'hidden' }}>
 
         {/* Brand */}
-        <div style={{ padding:'14px 16px', borderBottom:'1px solid rgba(255,255,255,.08)',
+        <div style={{ padding:'0 16px', height:58, borderBottom:'1px solid rgba(255,255,255,.08)',
           display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-          <div style={{ width:36, height:36, borderRadius:8,
-            background:'linear-gradient(135deg,#FF6B00,#FFB347)',
-            display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🎓</div>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
             <div style={{ color:'#fff', fontSize:13, fontWeight:800 }}>SkillsnJobs</div>
             <div style={{ color:'rgba(255,255,255,.45)', fontSize:9.5 }}>Candidate Portal</div>
@@ -314,7 +379,7 @@ export default function CandidatePortal() {
         </div>
 
         {/* Nav items */}
-        <nav style={{ flex:1, padding:'4px 0' }}>
+        <nav style={{ flex:1, padding:'4px 0', overflowY:'auto' }}>
           {NAV.map(sec => (
             <div key={sec.section}>
               <div style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.28)',
@@ -376,13 +441,6 @@ export default function CandidatePortal() {
           ))}
         </nav>
 
-        {/* Footer */}
-        <div style={{ padding:'10px 14px', borderTop:'1px solid rgba(255,255,255,.07)', flexShrink:0,
-          display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <button onClick={() => go('settings')} style={{ display:'flex', alignItems:'center', gap:7,
-            background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,.45)',
-            fontSize:12, padding:0, fontFamily:'inherit' }}>⚙️ Account Preferences</button>
-        </div>
       </aside>
     );
   }
@@ -463,7 +521,7 @@ export default function CandidatePortal() {
             </div>
           </div>
           <button onClick={signOut} style={{ display:'flex', alignItems:'center', gap:5,
-            padding:'10px 18px', borderRadius:7, border:'none',
+            padding:'7px 16px', borderRadius:8, border:'none',
             background:C.blue, color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>⏻ Sign Out</button>
         </div>
       </div>
@@ -496,10 +554,10 @@ export default function CandidatePortal() {
         )}
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, marginBottom:20 }}>
-          <KpiCard icon="📚" value={myEnroll.length} label="Enrolled Courses" sub="Active learning" accent={C.saffron} />
-          <KpiCard icon="💼" value={myApps.length}   label="Job Applications" sub={`${myApps.filter(a=>a.status==='shortlisted').length} Shortlisted`} accent={C.blue} />
-          <KpiCard icon="🏆" value={0}               label="Certificates" sub="Keep going!" accent={C.teal} />
-          <KpiCard icon="🏛️" value={3}               label="Govt Schemes" sub="PMKVY Available" accent={C.green} />
+          <KpiCard icon="📚" value={dbStats.myEnrollments ?? myEnroll.length} label="Enrolled Courses" sub="Active learning" accent={C.saffron} />
+          <KpiCard icon="💼" value={dbStats.myApplications ?? myApps.length} label="Job Applications" sub={`${dbStats.myShortlisted ?? myApps.filter(a=>a.status==='shortlisted').length} Shortlisted`} accent={C.blue} />
+          <KpiCard icon="🏆" value={dbStats.myCertificates ?? 0} label="Certificates" sub="Keep going!" accent={C.teal} />
+          <KpiCard icon="🏛️" value={dbStats.openJobs ?? 0} label="Open Jobs" sub="Available now" accent={C.green} />
         </div>
 
         {/* Quick actions */}
@@ -677,9 +735,9 @@ export default function CandidatePortal() {
                   <tbody>
                     {myApps.map(a => (
                       <tr key={a.id}>
-                        <Td bold>{a.job_title || '—'}</Td>
-                        <Td>{a.company || a.employer_name || '—'}</Td>
-                        <Td>{a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-IN') : '—'}</Td>
+                        <Td bold>{a.title || '—'}</Td>
+                        <Td>{a.org_name || a.employer_name || '—'}</Td>
+                        <Td>{a.created_at ? new Date(a.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                         <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
                           <StatusTag status={a.status} />
                         </td>
@@ -755,25 +813,36 @@ export default function CandidatePortal() {
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
                   <thead><tr><Th>Course</Th><Th>Provider</Th><Th>Progress</Th><Th>Status</Th><Th>Action</Th></tr></thead>
                   <tbody>
-                    {myEnroll.map(e => (
-                      <tr key={e.course_id || e.id}>
-                        <Td bold>{e.title}</Td>
-                        <Td>{e.provider || 'SIDH'}</Td>
-                        <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                            <div style={{ flex:1 }}><ProgBar pct={50} color={C.saffron} /></div>
-                            <span style={{ fontSize:11, fontWeight:700 }}>50%</span>
-                          </div>
-                        </td>
-                        <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
-                          <span style={{ display:'inline-flex', padding:'3px 8px', borderRadius:20,
-                            fontSize:10.5, fontWeight:700, background:C.saffronPale, color:C.saffron }}>In Progress</span>
-                        </td>
-                        <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
-                          <Btn primary sm>Continue</Btn>
-                        </td>
-                      </tr>
-                    ))}
+                    {myEnroll.map(e => {
+                      const pctE = e.progress || 0;
+                      const isComplete = e.status === 'completed' || pctE >= 100;
+                      return (
+                        <tr key={e.course_id || e.id}>
+                          <Td bold>{e.title}</Td>
+                          <Td>{e.provider || 'SIDH'}</Td>
+                          <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <div style={{ flex:1 }}><ProgBar pct={pctE} color={isComplete ? C.green : C.saffron} /></div>
+                              <span style={{ fontSize:11, fontWeight:700 }}>{pctE}%</span>
+                            </div>
+                          </td>
+                          <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+                            <span style={{ display:'inline-flex', padding:'3px 8px', borderRadius:20,
+                              fontSize:10.5, fontWeight:700,
+                              background: isComplete ? C.greenPale : C.saffronPale,
+                              color: isComplete ? C.green : C.saffron }}>
+                              {isComplete ? 'Completed' : 'In Progress'}
+                            </span>
+                          </td>
+                          <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+                            {isComplete
+                              ? <Btn sm onClick={() => go('certificates')}>View Certificate</Btn>
+                              : <Btn primary sm>Continue</Btn>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </Card>
@@ -797,8 +866,8 @@ export default function CandidatePortal() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16, marginBottom:20 }}>
                 {[
                   { icon:'📚', label:'Enrolled', value:myEnroll.length, color:C.blue },
-                  { icon:'⏳', label:'In Progress', value:myEnroll.length, color:C.saffron },
-                  { icon:'✅', label:'Completed', value:0, color:C.green },
+                  { icon:'⏳', label:'In Progress', value:myEnroll.filter(e => e.status!=='completed' && (e.progress||0)<100).length, color:C.saffron },
+                  { icon:'✅', label:'Completed', value:myEnroll.filter(e => e.status==='completed' || (e.progress||0)>=100).length, color:C.green },
                 ].map(k => (
                   <div key={k.label} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:'16px 18px' }}>
                     <div style={{ fontSize:22, marginBottom:6 }}>{k.icon}</div>
@@ -809,24 +878,28 @@ export default function CandidatePortal() {
               </div>
               <Card>
                 <CardTitle>📋 Course-wise Progress</CardTitle>
-                {myEnroll.map(e => (
-                  <div key={e.course_id||e.id} style={{ padding:'14px 0', borderBottom:`1px solid ${C.border}` }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                      <div>
-                        <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{e.title}</div>
-                        <div style={{ fontSize:11.5, color:C.ink3, marginTop:2 }}>{e.provider || 'SIDH'} · {e.duration || '—'} hrs</div>
+                {myEnroll.map(e => {
+                  const pctE = e.progress || 0;
+                  const isComplete = e.status === 'completed' || pctE >= 100;
+                  return (
+                    <div key={e.course_id||e.id} style={{ padding:'14px 0', borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{e.title}</div>
+                          <div style={{ fontSize:11.5, color:C.ink3, marginTop:2 }}>{e.provider || 'SIDH'} · {e.duration_weeks ? e.duration_weeks + ' weeks' : '—'}</div>
+                        </div>
+                        <span style={{ fontSize:12, fontWeight:700, color: isComplete ? C.green : C.saffron }}>{pctE}%</span>
                       </div>
-                      <span style={{ fontSize:12, fontWeight:700, color:C.saffron }}>50%</span>
+                      <div style={{ height:8, background:C.surface, borderRadius:8, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${pctE}%`, background:`linear-gradient(90deg,${isComplete ? C.green : C.saffron},${isComplete ? '#52C97A' : '#FFB347'})`, borderRadius:8 }} />
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:C.ink3, marginTop:5 }}>
+                        <span>Enrolled {e.created_at ? new Date(e.created_at).toLocaleDateString('en-IN') : ''}</span>
+                        <span style={{ color: isComplete ? C.green : C.saffron, fontWeight:600 }}>{isComplete ? 'Completed' : 'In Progress'}</span>
+                      </div>
                     </div>
-                    <div style={{ height:8, background:C.surface, borderRadius:8, overflow:'hidden' }}>
-                      <div style={{ height:'100%', width:'50%', background:`linear-gradient(90deg,${C.saffron},#FFB347)`, borderRadius:8 }} />
-                    </div>
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:C.ink3, marginTop:5 }}>
-                      <span>5 of 10 modules done</span>
-                      <span style={{ color:C.saffron, fontWeight:600 }}>In Progress</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </Card>
             </>
         }
@@ -839,34 +912,45 @@ export default function CandidatePortal() {
       <div>
         <div style={{ marginBottom:6, fontSize:12, color:C.ink3 }}>📚 Courses › <span style={{ color:C.saffron }}>My Certificates</span></div>
         <SectionHead title="My Certificates 🏆" />
-        <Card>
-          <div style={{ textAlign:'center', padding:'50px 0' }}>
-            <div style={{ fontSize:52 }}>🏆</div>
-            <div style={{ fontWeight:700, fontSize:16, color:C.navy, marginTop:14 }}>No Certificates Yet</div>
-            <p style={{ color:C.ink3, marginTop:8, lineHeight:1.7 }}>
-              Complete enrolled courses to earn NSQF-linked certificates.<br />
-              Certificates can be downloaded and shared with employers.
-            </p>
-            <div style={{ display:'flex', gap:12, justifyContent:'center', marginTop:18 }}>
-              <Btn primary onClick={() => go('browse-courses')}>Browse Courses</Btn>
-              <Btn onClick={() => go('my-courses')}>My Courses</Btn>
-            </div>
-          </div>
-        </Card>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginTop:18 }}>
-          {[
-            { icon:'🎓', title:'PMKVY Certificates', desc:'Certificates awarded on completion of PMKVY-funded training programmes.' },
-            { icon:'🏅', title:'NSQF Skill Certificates', desc:'National Skills Qualifications Framework certificates by Sector Skill Councils.' },
-            { icon:'📄', title:'Course Completion', desc:'Certificates for SkillsnJobs platform courses completed online.' },
-            { icon:'🔗', title:'Linked Credentials', desc:'Blockchain-verified digital badges linked to your Skill Passport.' },
-          ].map(c => (
-            <Card key={c.title}>
-              <div style={{ fontSize:28, marginBottom:8 }}>{c.icon}</div>
-              <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:6 }}>{c.title}</div>
-              <div style={{ fontSize:12.5, color:C.ink3, lineHeight:1.6 }}>{c.desc}</div>
+        {myCerts.length === 0
+          ? <Card>
+              <div style={{ textAlign:'center', padding:'50px 0' }}>
+                <div style={{ fontSize:52 }}>🏆</div>
+                <div style={{ fontWeight:700, fontSize:16, color:C.navy, marginTop:14 }}>No Certificates Yet</div>
+                <p style={{ color:C.ink3, marginTop:8, lineHeight:1.7 }}>
+                  Complete enrolled courses to earn NSQF-linked certificates.<br />
+                  Certificates can be downloaded and shared with employers.
+                </p>
+                <div style={{ display:'flex', gap:12, justifyContent:'center', marginTop:18 }}>
+                  <Btn primary onClick={() => go('browse-courses')}>Browse Courses</Btn>
+                  <Btn onClick={() => go('my-courses')}>My Courses</Btn>
+                </div>
+              </div>
             </Card>
-          ))}
-        </div>
+          : <Card>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <thead><tr><Th>Course</Th><Th>Issuer</Th><Th>NSQF Level</Th><Th>Cert No.</Th><Th>Issued On</Th><Th>Status</Th></tr></thead>
+                <tbody>
+                  {myCerts.map(cert => (
+                    <tr key={cert.id}>
+                      <Td bold>{cert.course_title}</Td>
+                      <Td>{cert.issuer || 'SIDH / NSDC'}</Td>
+                      <Td>{cert.nsqf_level || 'Level 4'}</Td>
+                      <Td>{cert.cert_no || '—'}</Td>
+                      <Td>{cert.issued_date ? new Date(cert.issued_date).toLocaleDateString('en-IN') : '—'}</Td>
+                      <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+                        <span style={{ display:'inline-flex', padding:'3px 8px', borderRadius:20, fontSize:10.5, fontWeight:700,
+                          background: cert.status==='valid' ? C.greenPale : '#FEE2E2',
+                          color: cert.status==='valid' ? C.green : '#DC2626' }}>
+                          {cert.status === 'valid' ? '✓ Valid' : 'Revoked'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+        }
       </div>
     );
   }
@@ -984,29 +1068,57 @@ export default function CandidatePortal() {
   }
 
   function PanelJobAlerts() {
+    function saveAlerts() {
+      if (!jobAlertsForm.role && !jobAlertsForm.sector && !jobAlertsForm.location) {
+        toast3('Please fill in at least one preference.', false); return;
+      }
+      localStorage.setItem('snj_job_alerts', JSON.stringify(jobAlertsForm));
+      setJobAlertsSaved(jobAlertsForm);
+      toast3('Job alerts activated!');
+    }
+    const f = jobAlertsSaved || jobAlertsForm;
     return (
       <div>
         <div style={{ marginBottom:6, fontSize:12, color:C.ink3 }}>💼 Jobs › <span style={{ color:C.saffron }}>Job Alerts</span></div>
         <SectionHead title="Job Alerts 🔔" />
+        {jobAlertsSaved && (
+          <div style={{ padding:'12px 16px', background:C.greenPale, border:`1px solid ${C.green}33`, borderRadius:9, marginBottom:16, fontSize:13, color:C.green, fontWeight:600 }}>
+            ✅ Job alerts are active for: {[jobAlertsSaved.role, jobAlertsSaved.sector, jobAlertsSaved.location].filter(Boolean).join(' · ')}
+          </div>
+        )}
         <Card>
           <CardTitle>Set Up Job Alerts</CardTitle>
           <p style={{ fontSize:13, color:C.ink2, lineHeight:1.7, marginBottom:16 }}>
-            Get notified via SMS and email when new jobs matching your profile are posted.
+            Get notified when new jobs matching your profile are posted.
           </p>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
             {[
-              ['Preferred Job Role','e.g. Data Analyst, Electrician'],
-              ['Preferred Sector','e.g. IT, Healthcare, Retail'],
-              ['Preferred Location','State / City'],
-              ['Alert Frequency','Daily / Weekly'],
-            ].map(([l, p]) => (
+              ['Preferred Job Role','role','e.g. Data Analyst, Electrician'],
+              ['Preferred Sector','sector','e.g. IT, Healthcare, Retail'],
+              ['Preferred Location','location','State / City'],
+            ].map(([l, k, p]) => (
               <div key={l}>
                 <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>{l}</label>
-                <input placeholder={p} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, background:'#fff', outline:'none', boxSizing:'border-box' }} />
+                <input value={jobAlertsSaved ? (jobAlertsSaved[k]||'') : (jobAlertsForm[k]||'')} placeholder={p}
+                  onChange={e => setJobAlertsForm(s => ({ ...s, [k]: e.target.value }))}
+                  readOnly={!!jobAlertsSaved}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, background: jobAlertsSaved ? C.surface : '#fff', outline:'none', boxSizing:'border-box' }} />
               </div>
             ))}
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>Alert Frequency</label>
+              <select value={jobAlertsSaved ? (jobAlertsSaved.frequency||'Daily') : jobAlertsForm.frequency}
+                onChange={e => setJobAlertsForm(s => ({ ...s, frequency: e.target.value }))}
+                disabled={!!jobAlertsSaved}
+                style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, background: jobAlertsSaved ? C.surface : '#fff', outline:'none', boxSizing:'border-box' }}>
+                <option>Daily</option><option>Weekly</option>
+              </select>
+            </div>
           </div>
-          <Btn primary>🔔 Activate Job Alerts</Btn>
+          {jobAlertsSaved
+            ? <Btn onClick={() => setJobAlertsSaved(null)}>✏️ Edit Preferences</Btn>
+            : <Btn primary onClick={saveAlerts}>🔔 Activate Job Alerts</Btn>
+          }
         </Card>
       </div>
     );
@@ -1134,6 +1246,21 @@ export default function CandidatePortal() {
   }
 
   function PanelGrievance() {
+    async function submitGrievance() {
+      if (!grievForm.subject || !grievForm.description) {
+        setGrievMsg('❌ Subject and description are required.'); return;
+      }
+      setGrievSaving(true); setGrievMsg('');
+      try {
+        const newG = await api.submitGrievance(grievForm);
+        setGrievances(g => [newG, ...g]);
+        setGrievForm({ category:'', subject:'', description:'' });
+        setGrievMsg('✅ Grievance submitted successfully.');
+      } catch (e) {
+        setGrievMsg('❌ ' + e.message);
+      } finally { setGrievSaving(false); }
+    }
+    const inp = { width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, background:'#fff', outline:'none', boxSizing:'border-box' };
     return (
       <div>
         <div style={{ marginBottom:6, fontSize:12, color:C.ink3 }}>📣 <span style={{ color:C.saffron }}>Grievance</span></div>
@@ -1141,24 +1268,50 @@ export default function CandidatePortal() {
         <Card>
           <CardTitle>Submit a Grievance</CardTitle>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
-            {[['Category','Training Issue / Job Issue / Technical / Other'],['Subject','Brief subject of the grievance']].map(([l,p]) => (
-              <div key={l}>
-                <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>{l}</label>
-                <input placeholder={p} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, background:'#fff', outline:'none', boxSizing:'border-box' }} />
-              </div>
-            ))}
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>Category</label>
+              <select value={grievForm.category} onChange={e => setGrievForm(f => ({ ...f, category:e.target.value }))} style={inp}>
+                <option value="">Select Category</option>
+                {['Training Issue','Job Issue','Technical','Payment / Stipend','Other'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>Subject</label>
+              <input placeholder="Brief subject of the grievance" value={grievForm.subject}
+                onChange={e => setGrievForm(f => ({ ...f, subject:e.target.value }))} style={inp} />
+            </div>
           </div>
           <div style={{ marginBottom:16 }}>
             <label style={{ fontSize:12, fontWeight:600, color:C.ink2, display:'block', marginBottom:5 }}>Description</label>
-            <textarea placeholder="Describe your grievance in detail…" rows={4} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} />
+            <textarea placeholder="Describe your grievance in detail…" rows={4} value={grievForm.description}
+              onChange={e => setGrievForm(f => ({ ...f, description:e.target.value }))}
+              style={{ ...inp, resize:'vertical', fontFamily:'inherit' }} />
           </div>
-          <Btn primary>📤 Submit Grievance</Btn>
+          {grievMsg && <div style={{ marginBottom:12, fontSize:13, color: grievMsg.startsWith('✅') ? C.green : '#DC2626' }}>{grievMsg}</div>}
+          <Btn primary onClick={submitGrievance}>{grievSaving ? 'Submitting…' : '📤 Submit Grievance'}</Btn>
         </Card>
         <Card style={{ marginTop:18 }}>
           <CardTitle>📋 My Grievances</CardTitle>
-          <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}>
-            <p style={{ fontSize:13 }}>No grievances submitted yet.</p>
-          </div>
+          {grievances.length === 0
+            ? <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}><p style={{ fontSize:13 }}>No grievances submitted yet.</p></div>
+            : <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+                <thead><tr><Th>Subject</Th><Th>Category</Th><Th>Submitted On</Th><Th>Status</Th></tr></thead>
+                <tbody>
+                  {grievances.map(g => (
+                    <tr key={g.id}>
+                      <Td bold>{g.subject}</Td>
+                      <Td>{g.category}</Td>
+                      <Td>{new Date(g.created_at).toLocaleDateString('en-IN')}</Td>
+                      <td style={{ padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+                        <span style={{ display:'inline-flex', padding:'3px 8px', borderRadius:20, fontSize:10.5, fontWeight:700,
+                          background: g.status==='Resolved' ? C.greenPale : C.saffronPale,
+                          color: g.status==='Resolved' ? C.green : C.saffron }}>{g.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+          }
         </Card>
       </div>
     );
@@ -1271,16 +1424,22 @@ export default function CandidatePortal() {
         {children}{req && <span style={{ color:'#DC2626', marginLeft:2 }}>*</span>}
       </label>
     );
-    const Inp = ({ placeholder, type='text', value, wide }) => (
-      <input type={type} defaultValue={value||''} placeholder={placeholder}
+    const pd = profileDraft;
+    const setPd = k => e => setProfileDraft(d => ({ ...d, [k]: e.target.value }));
+    const Inp = ({ placeholder, type='text', value, draftKey, wide }) => (
+      <input type={type}
+        {...(draftKey ? { value: pd[draftKey], onChange: setPd(draftKey) } : { defaultValue: value||'' })}
+        placeholder={placeholder}
         style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
           border:`1px solid ${C.border}`, background:'#fff', color:C.ink,
           outline:'none', boxSizing:'border-box' }} />
     );
-    const Sel = ({ opts, placeholder }) => (
-      <select defaultValue="" style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
-        border:`1px solid ${C.border}`, background:'#fff', color:C.ink,
-        outline:'none', appearance:'none', boxSizing:'border-box' }}>
+    const Sel = ({ opts, placeholder, draftKey }) => (
+      <select
+        {...(draftKey ? { value: pd[draftKey] || '', onChange: setPd(draftKey) } : { defaultValue: '' })}
+        style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
+          border:`1px solid ${C.border}`, background:'#fff', color:C.ink,
+          outline:'none', appearance:'none', boxSizing:'border-box' }}>
         <option value="" disabled>{placeholder || 'Select'}</option>
         {opts.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -1307,18 +1466,18 @@ export default function CandidatePortal() {
       if (active === 'profile-basic') return (
         <div>
           <Divider title="Personal Information" />
-          <Row><Field label="First Name" req><Inp placeholder="Enter first name" value={u.name?.split(' ')[0]} /></Field><Field label="Last Name" req><Inp placeholder="Enter last name" value={u.name?.split(' ').slice(1).join(' ')} /></Field></Row>
-          <Row><Field label="Date of Birth" req><Inp type="date" /></Field><Field label="Gender" req><Sel opts={['Male','Female','Transgender','Prefer not to say']} placeholder="Select gender" /></Field></Row>
-          <Row><Field label="Mobile Number" req><ValidInp placeholder="10-digit mobile number" value={u.phone} validate="mobile" /></Field><Field label="Email Address" req><ValidInp type="email" placeholder="Email address" value={u.email} validate="email" /></Field></Row>
-          <Row><Field label="Aadhaar Number"><ValidInp placeholder="12-digit Aadhaar number" validate="aadhaar" /></Field><Field label="Category" req><Sel opts={['General','SC','ST','OBC','EWS']} placeholder="Select category" /></Field></Row>
+          <Row><Field label="First Name" req><Inp placeholder="Enter first name" draftKey="first_name" /></Field><Field label="Last Name" req><Inp placeholder="Enter last name" draftKey="last_name" /></Field></Row>
+          <Row><Field label="Date of Birth" req><Inp type="date" draftKey="dob" /></Field><Field label="Gender" req><Sel opts={['Male','Female','Transgender','Prefer not to say']} placeholder="Select gender" draftKey="gender" /></Field></Row>
+          <Row><Field label="Mobile Number" req><Inp placeholder="10-digit mobile number" draftKey="phone" /></Field><Field label="Email Address" req><ValidInp type="email" placeholder="Email address" value={u.email} validate="email" /></Field></Row>
+          <Row><Field label="Aadhaar Number"><ValidInp placeholder="12-digit Aadhaar number" validate="aadhaar" /></Field><Field label="Category" req><Sel opts={['General','SC','ST','OBC','EWS']} placeholder="Select category" draftKey="category" /></Field></Row>
           <Row><Field label="Religion"><Sel opts={['Hindu','Muslim','Christian','Sikh','Buddhist','Jain','Others','Prefer not to say']} placeholder="Select religion" /></Field><Field label="Differently Abled"><Sel opts={['No','Yes — Locomotor','Yes — Visual','Yes — Hearing','Yes — Others']} placeholder="Select" /></Field></Row>
-          <Row cols="1fr"><Field label="About / Bio"><textarea defaultValue={u.bio||''} placeholder="Write a short bio about yourself, your goals and interests…" rows={3} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} /></Field></Row>
+          <Row cols="1fr"><Field label="About / Bio"><textarea value={pd.bio} onChange={e => setProfileDraft(d => ({ ...d, bio: e.target.value }))} placeholder="Write a short bio about yourself, your goals and interests…" rows={3} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} /></Field></Row>
 
           <Divider title="Current Address" />
-          <Row cols="1fr"><Field label="Address Line 1" req><Inp placeholder="House/Flat No., Street, Area" /></Field></Row>
-          <Row cols="1fr"><Field label="Address Line 2"><Inp placeholder="Landmark, Colony (optional)" /></Field></Row>
-          <Row><Field label="State" req><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Other']} placeholder="Select state" /></Field><Field label="District" req><Inp placeholder="Enter district" /></Field></Row>
-          <Row><Field label="City / Town" req><Inp placeholder="Enter city or town" /></Field><Field label="PIN Code" req><ValidInp placeholder="6-digit PIN code" validate="pincode" /></Field></Row>
+          <Row cols="1fr"><Field label="Address Line 1" req><Inp placeholder="House/Flat No., Street, Area" draftKey="address_line1" /></Field></Row>
+          <Row cols="1fr"><Field label="Address Line 2"><Inp placeholder="Landmark, Colony (optional)" draftKey="address_line2" /></Field></Row>
+          <Row><Field label="State" req><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Other']} placeholder="Select state" draftKey="state_name" /></Field><Field label="District" req><Inp placeholder="Enter district" /></Field></Row>
+          <Row><Field label="City / Town" req><Inp placeholder="Enter city or town" draftKey="city" /></Field><Field label="PIN Code" req><Inp placeholder="6-digit PIN code" draftKey="pincode" /></Field></Row>
           <Row>
             <Field label="Same as Permanent Address">
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:4 }}>
@@ -1486,8 +1645,8 @@ export default function CandidatePortal() {
           ))}
 
           <Divider title="Bank / Financial Details (for scheme benefits)" />
-          <Row><Field label="Bank Account Number"><Inp placeholder="Enter account number" /></Field><Field label="Confirm Account Number"><Inp placeholder="Re-enter account number" /></Field></Row>
-          <Row><Field label="IFSC Code"><ValidInp placeholder="e.g. SBIN0001234" validate="ifsc" /></Field><Field label="Bank Name"><Inp placeholder="Name of bank" /></Field></Row>
+          <Row><Field label="Bank Account Number"><Inp placeholder="Enter account number" draftKey="bank_account_number" /></Field><Field label="Confirm Account Number"><Inp placeholder="Re-enter account number" /></Field></Row>
+          <Row><Field label="IFSC Code"><Inp placeholder="e.g. SBIN0001234" draftKey="bank_ifsc" /></Field><Field label="Bank Name"><Inp placeholder="Name of bank" /></Field></Row>
           <Row cols="1fr"><Field label="Branch Name & Address"><Inp placeholder="Branch name and city" /></Field></Row>
           <Row><Field label="Passbook / Cancelled Cheque"><div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:11, color:C.ink3 }}>No file chosen</span>
@@ -1632,11 +1791,14 @@ export default function CandidatePortal() {
               style={{ opacity: cur===0 ? .4 : 1, pointerEvents: cur===0 ? 'none':'auto' }}>
               ← Previous
             </Btn>
-            <div style={{ display:'flex', gap:10 }}>
-              <Btn style={{ borderColor:C.teal, color:C.teal }}>💾 Save Draft</Btn>
+            <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+              {profileMsg && <span style={{ fontSize:12, color: profileMsg.includes('failed') ? '#DC2626' : C.teal }}>{profileMsg}</span>}
+              <Btn onClick={saveProfileDraft} style={{ borderColor:C.teal, color:C.teal, opacity: profileSaving ? .7 : 1 }}>
+                {profileSaving ? 'Saving…' : '💾 Save Draft'}
+              </Btn>
               {cur < STEPS.length-1
-                ? <Btn primary onClick={() => go(STEPS[cur+1].id)}>Save & Continue →</Btn>
-                : <Btn primary style={{ background:C.blue }}>✅ Submit Profile</Btn>
+                ? <Btn primary onClick={async () => { await saveProfileDraft(); go(STEPS[cur+1].id); }}>Save & Continue →</Btn>
+                : <Btn primary onClick={async () => { await saveProfileDraft(); setProfileMsg('Profile submitted successfully!'); }} style={{ background:C.blue }}>✅ Submit Profile</Btn>
               }
             </div>
           </div>
@@ -1678,6 +1840,10 @@ export default function CandidatePortal() {
   }
 
   function PanelSettings() {
+    return <AccountPreferences onLogout={signOut} />;
+  }
+
+  function PanelSettingsOld() {
     const Row = ({ children, cols='1fr 1fr' }) => (
       <div style={{ display:'grid', gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
     );

@@ -1,11 +1,13 @@
 import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 
-const SW = 252, TH = 58;
+const SW = 220, TH = 58;
 const C = {
-  navy:'#0D2137', sidebar:'#1A56C4', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
+  navy:'#0D2137', sidebar:'#010E3C', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
   gold:'#C8860A', red:'#C0392B', purple:'#6B3FA0', orange:'#C05621',
   pBlue:'#EBF1FB', pGreen:'#E8F5EE', pGold:'#FEF6E4',
   pRed:'#FDECEA', pPurple:'#F0EAFB', pTeal:'#E6F4F6',
@@ -93,8 +95,10 @@ function Table({ head, rows }) {
 function Field({ label, children }) {
   return <div style={{ marginBottom:14 }}><label style={{ display:'block', fontSize:12, fontWeight:600, color:'#374151', marginBottom:5 }}>{label}</label>{children}</div>;
 }
-function Inp({ placeholder, defaultValue, type='text' }) {
-  return <input type={type} placeholder={placeholder} defaultValue={defaultValue}
+function Inp({ placeholder, defaultValue, value, onChange, type='text' }) {
+  const controlled = value !== undefined;
+  return <input type={type} placeholder={placeholder}
+    {...(controlled ? { value, onChange } : { defaultValue })}
     style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} />;
 }
 
@@ -125,8 +129,9 @@ function ValidInp({ placeholder, defaultValue, value: valueProp, type='text', va
     </div>
   );
 }
-function Sel({ options, defaultValue }) {
-  return <select defaultValue={defaultValue} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }}>
+function Sel({ options, defaultValue, value, onChange }) {
+  const controlled = value !== undefined;
+  return <select {...(controlled ? { value, onChange } : { defaultValue })} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }}>
     {options.map(o=><option key={o}>{o}</option>)}
   </select>;
 }
@@ -196,11 +201,174 @@ export default function EmployerPortal() {
   const [openMenus, setOpenMenus] = useState({});
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [dbStats, setDbStats] = useState({});
   const searchRef = useRef(null);
 
+  // ── Job management state ──
+  const [myJobs, setMyJobs] = useState([]);
+  const [jobsLoaded, setJobsLoaded] = useState(false);
+  const [allApps, setAllApps] = useState([]);
+  const [appsLoaded, setAppsLoaded] = useState(false);
+  const [jobForm, setJobForm] = useState({ title:'', description:'', required_skills:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'' });
+  const [jobSaving, setJobSaving] = useState(false);
+  const [jobMsg, setJobMsg] = useState('');
+  const [candidateList, setCandidateList] = useState([]);
+  const [candidateLoading, setCandidateLoading] = useState(false);
+
+  // ── Interview scheduling state ──
+  const [interview, setInterview] = useState({ candidate_name:'', job_role:'', round:'Technical Round 1', date:'', time:'', mode:'Video Call', interviewers:'', link:'' });
+  const [interviewSaving, setInterviewSaving] = useState(false);
+  const [interviewMsg, setInterviewMsg] = useState('');
+  const [scheduledInterviews, setScheduledInterviews] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('snj_interviews') || '[]'); } catch { return []; }
+  });
+
+  async function scheduleInterview() {
+    if (!interview.candidate_name.trim() || !interview.date || !interview.time) {
+      setInterviewMsg('Candidate name, date and time are required.'); return;
+    }
+    setInterviewSaving(true); setInterviewMsg('');
+    const entry = { ...interview, id: Date.now(), scheduled_at: new Date().toISOString() };
+    const updated = [entry, ...scheduledInterviews];
+    setScheduledInterviews(updated);
+    localStorage.setItem('snj_interviews', JSON.stringify(updated));
+    setInterview({ candidate_name:'', job_role:'', round:'Technical Round 1', date:'', time:'', mode:'Video Call', interviewers:'', link:'' });
+    setInterviewMsg('✅ Interview scheduled successfully.');
+    setInterviewSaving(false);
+  }
+
+  // ── Offer letter state ──
+  const [offer, setOffer] = useState({ candidate_name:'', job_role:'', ctc:'', joining_date:'', probation:'3 Months', special_terms:'' });
+  const [offerSaving, setOfferSaving] = useState(false);
+  const [offerMsg, setOfferMsg] = useState('');
+  const [sentOffers, setSentOffers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('snj_offers') || '[]'); } catch { return []; }
+  });
+
+  async function generateOffer(send) {
+    if (!offer.candidate_name.trim() || !offer.job_role.trim() || !offer.ctc) {
+      setOfferMsg('Candidate name, job role and CTC are required.'); return;
+    }
+    setOfferSaving(true); setOfferMsg('');
+    const entry = { ...offer, id: Date.now(), status: send ? 'Sent' : 'Generated', created_at: new Date().toISOString() };
+    const updated = [entry, ...sentOffers];
+    setSentOffers(updated);
+    localStorage.setItem('snj_offers', JSON.stringify(updated));
+    setOffer({ candidate_name:'', job_role:'', ctc:'', joining_date:'', probation:'3 Months', special_terms:'' });
+    setOfferMsg(send ? '✅ Offer letter sent successfully.' : '✅ Offer letter generated.');
+    setOfferSaving(false);
+  }
+
+  // ── HR Contacts state ──
+  const [hrContacts, setHrContacts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('snj_hr_contacts') || '[]'); } catch { return []; }
+  });
+  const [hrForm, setHrForm] = useState({ name:'', designation:'', email:'', phone:'' });
+  const [hrSaving, setHrSaving] = useState(false);
+  const [hrMsg, setHrMsg] = useState('');
+  const [showHrForm, setShowHrForm] = useState(false);
+
+  function saveHrContact() {
+    if (!hrForm.name.trim()) { setHrMsg('Name is required.'); return; }
+    setHrSaving(true);
+    const entry = { ...hrForm, id: Date.now() };
+    const updated = [...hrContacts, entry];
+    setHrContacts(updated);
+    localStorage.setItem('snj_hr_contacts', JSON.stringify(updated));
+    setHrForm({ name:'', designation:'', email:'', phone:'' });
+    setShowHrForm(false); setHrMsg(''); setHrSaving(false);
+  }
+  function removeHrContact(id) {
+    const updated = hrContacts.filter(c => c.id !== id);
+    setHrContacts(updated);
+    localStorage.setItem('snj_hr_contacts', JSON.stringify(updated));
+  }
+
+  // ── Bank state ──
+  const [bank, setBank] = useState({ bank_account_name: user?.bank_account_name||'', bank_account_number: user?.bank_account_number||'', bank_ifsc: user?.bank_ifsc||'' });
+  const [bankSaving, setBankSaving] = useState(false);
+  const [bankMsg, setBankMsg] = useState('');
+  // ── Docs state (lifted from PanelProfileDocs to avoid hooks-in-conditional violation) ──
+  const [empDocs, setEmpDocs] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_emp_docs') || '[]'); } catch { return []; } });
+  // ── Candidate search query (lifted from PanelCandSearch) ──
+  const [candSearchQ, setCandSearchQ] = useState('');
+
+  async function saveBank() {
+    setBankSaving(true); setBankMsg('');
+    try {
+      await api.updateMe({ bank_account_name: bank.bank_account_name||null, bank_account_number: bank.bank_account_number||null, bank_ifsc: bank.bank_ifsc.toUpperCase()||null });
+      setBankMsg('Saved successfully');
+    } catch { setBankMsg('Save failed. Please try again.'); }
+    setBankSaving(false);
+  }
+
+  // ── Profile form state (controlled) ──
+  const [profileInfo, setProfileInfo] = useState(() => ({
+    org_name: user?.org_name || '',
+    phone: (user?.phone || '').replace(/^\+91/, ''),
+    location: user?.location || '',
+    pan: user?.pan || '',
+    gstin: user?.gstin || '',
+    cin: user?.cin || '',
+    website: user?.website || '',
+    bio: user?.bio || '',
+    spoc_name: user?.spoc_name || '',
+    address_line1: user?.address_line1 || '',
+    address_line2: user?.address_line2 || '',
+    city: user?.city || '',
+    state_name: user?.state_name || '',
+    pincode: user?.pincode || '',
+  }));
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+  const [panError, setPanError] = useState('');
+  const [cinError, setCinError] = useState('');
+  const [gstError, setGstError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [websiteError, setWebsiteError] = useState('');
+  const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
+  const CIN_RE = /^[A-Z]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/;
+  const GST_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+
+  useEffect(() => {
+    api.dashboardStats().then(setDbStats).catch(() => {});
+    // Load jobs and apps eagerly for dashboard
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+    api.myJobs().then(jobs =>
+      Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(a => ({ ...a, job_title: j.title }))).catch(() => [])))
+        .then(all => { setAllApps(all.flat()); setAppsLoaded(true); })
+    ).catch(() => {});
+  }, []);
+
+  function loadJobs() {
+    if (jobsLoaded) return;
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+  }
+  function refreshJobs() {
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+  }
+  function loadApps() {
+    if (appsLoaded) return;
+    // Load applicants for all my jobs
+    api.myJobs().then(jobs => {
+      Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(a => ({ ...a, job_title: j.title }))).catch(() => [])))
+        .then(all => { setAllApps(all.flat()); setAppsLoaded(true); });
+    }).catch(() => {});
+  }
+  function loadCandidates() {
+    if (candidateList.length) return;
+    setCandidateLoading(true);
+    api.candidates().then(c => { setCandidateList(c); setCandidateLoading(false); }).catch(() => setCandidateLoading(false));
+  }
+
   function toggleMenu(id) { setOpenMenus(m => ({ ...m, [id]: !m[id] })); }
-  function go(key) { setPanel(key); window.scrollTo(0,0); }
-  function handleLogout() { logout(); navigate('/login'); }
+  function go(key) {
+    setPanel(key); window.scrollTo(0,0);
+    if (['job-active','job-draft','job-closed','job-post'].includes(key)) loadJobs();
+    if (key === 'job-applications') { loadApps(); }
+    if (key === 'cand-search') loadCandidates();
+  }
+  function handleLogout() { logout(); navigate('/'); }
 
   const searchResults = searchQ.trim()
     ? NAV.filter(n => n.label.toLowerCase().includes(searchQ.toLowerCase()) || n.section.toLowerCase().includes(searchQ.toLowerCase())).slice(0,8)
@@ -229,15 +397,16 @@ export default function EmployerPortal() {
     const lbl = s => <div style={{ padding:'16px 16px 4px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.32)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
 
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'auto', zIndex:200, display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'0 16px', height:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
-          <div style={{ width:34, height:34, background:C.blue, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>💼</div>
+      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'0 16px', height:TH, minHeight:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
             <div style={{ color:'#fff', fontWeight:800, fontSize:14, lineHeight:1.2 }}>SkillsNJobs</div>
             <div style={{ color:'rgba(255,255,255,.45)', fontSize:9.5 }}>EMPLOYER PORTAL</div>
           </div>
         </div>
 
+        <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
         {lbl('Main')}
         <NavItem icon="🏠" label="Dashboard" active={panel==='dashboard'} onClick={()=>go('dashboard')} />
         <NavItem icon="🔔" label="Notifications" badge="4" active={panel==='notifications'} onClick={()=>go('notifications')} />
@@ -325,6 +494,8 @@ export default function EmployerPortal() {
 
         {lbl('Account')}
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />
+        <NavItem icon="🚪" label="Sign Out" active={panel==='signout'} onClick={()=>go('signout')} />
+        </div>
       </div>
     );
   }
@@ -354,14 +525,19 @@ export default function EmployerPortal() {
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
           <div style={{ cursor:'pointer', padding:6, position:'relative', fontSize:18 }} onClick={()=>go('notifications')}>
-            🔔<span style={{ position:'absolute', top:2, right:2, width:17, height:17, borderRadius:'50%', background:C.red, color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>4</span>
+            🔔
           </div>
-          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>TN</div>
+          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>
+            {(user?.org_name || 'EM').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+          </div>
           <div style={{ lineHeight:1.25 }}>
-            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || 'TechNova Pvt Ltd'}</div>
-            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: EMP-000012</div>
+            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || '—'}</div>
+            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: EMP-{String(user?.id||'').padStart(6,'0')}</div>
           </div>
-          <button onClick={handleLogout} style={{ background:C.blue, color:'#fff', border:'none', padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>⏻ Sign Out</button>
+          <button onClick={handleLogout}
+            style={{ marginLeft:8, padding:'7px 16px', borderRadius:8, border:'none', background:C.blue, color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+            ⏻ Sign Out
+          </button>
         </div>
       </div>
     );
@@ -371,12 +547,12 @@ export default function EmployerPortal() {
   function PanelDashboard() {
     return <>
       <Alert icon="⚡" type="warn"><strong>Action required:</strong> 3 job applications are awaiting your review. <strong>Review Now →</strong></Alert>
-      <SectionHead title={`Welcome, ${user?.org_name || 'TechNova Pvt Ltd'}! 💼`} />
+      <SectionHead title={`Welcome, ${user?.org_name || ''}! 💼`} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard val="18" label="Active Job Postings" sub="Across 6 locations" color={C.blue} />
-        <KpiCard val="342" label="Total Applications" sub="This month" color={C.teal} />
-        <KpiCard val="47" label="Candidates Shortlisted" sub="Pending interview" color={C.green} />
-        <KpiCard val="12" label="Hires This Month" sub="84% offer acceptance" color={C.gold} />
+        <KpiCard val={dbStats.myOpenJobs ?? '—'} label="Active Job Postings" sub="My open roles" color={C.blue} />
+        <KpiCard val={dbStats.myApplicants ?? '—'} label="Total Applications" sub="All my jobs" color={C.teal} />
+        <KpiCard val={dbStats.myShortlisted ?? '—'} label="Candidates Shortlisted" sub="Pending interview" color={C.green} />
+        <KpiCard val={dbStats.myHired ?? '—'} label="Total Hired" sub="All time" color={C.gold} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[['📋','Post a Job','job-post'],['🔍','Search Candidates','cand-search'],['🗓️','Schedule Interview','cand-interview'],['🎓','Register Apprentice','appren-register']].map(([icon,lbl,k])=>(
@@ -390,334 +566,622 @@ export default function EmployerPortal() {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>📊 Hiring Funnel — This Month</CardTitle>
-          <StatRow n="342" label="Applications Received" pct={100} color={C.blue} />
-          <StatRow n="210" label="Screened" pct={61} color={C.teal} />
-          <StatRow n="98"  label="Shortlisted" pct={29} color={C.green} />
-          <StatRow n="47"  label="Interview Scheduled" pct={14} color={C.gold} />
-          <StatRow n="12"  label="Offers Extended" pct={4}  color={C.purple} />
+          <CardTitle>📊 Hiring Funnel — All Time</CardTitle>
+          {(() => {
+            const total = allApps.length;
+            const screened = allApps.filter(a => a.status !== 'applied').length;
+            const shortlisted = allApps.filter(a => ['shortlisted','interview','hired'].includes(a.status)).length;
+            const interview = allApps.filter(a => ['interview','hired'].includes(a.status)).length;
+            const hired = allApps.filter(a => a.status === 'hired').length;
+            const pct = n => total ? Math.round(n / total * 100) : 0;
+            return <>
+              <StatRow n={total}      label="Applications Received" pct={100}        color={C.blue} />
+              <StatRow n={screened}   label="Screened"              pct={pct(screened)}   color={C.teal} />
+              <StatRow n={shortlisted} label="Shortlisted"          pct={pct(shortlisted)} color={C.green} />
+              <StatRow n={interview}  label="Interview Scheduled"   pct={pct(interview)}  color={C.gold} />
+              <StatRow n={hired}      label="Offers / Hired"        pct={pct(hired)}      color={C.purple} />
+            </>;
+          })()}
         </Card>
         <Card style={{ marginBottom:0 }}>
           <CardTitle>🏆 Top Active Jobs</CardTitle>
-          <Table head={['Job Title','Applications','Status']} rows={[
-            ['Senior React Developer','48',<Badge color="green">Active</Badge>],
-            ['Data Analyst','37',<Badge color="green">Active</Badge>],
-            ['QA Engineer','29',<Badge color="blue">Active</Badge>],
-            ['Product Manager','55',<Badge color="teal">Active</Badge>],
-            ['DevOps Engineer','21',<Badge color="gold">Closing</Badge>],
-          ]} />
+          {myJobs.filter(j => j.status==='open').length === 0
+            ? <div style={{ color:'#888', padding:'20px 0' }}>No active jobs. <span style={{ color:C.blue, cursor:'pointer' }} onClick={() => go('job-post')}>Post one →</span></div>
+            : <Table head={['Job Title','Applications','Status']} rows={myJobs.filter(j=>j.status==='open').slice(0,5).map(j => [
+                j.title,
+                String(allApps.filter(a=>a.job_id===j.id||a.job_title===j.title).length),
+                <Badge color="green">Active</Badge>
+              ])} />
+          }
         </Card>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         <Card style={{ marginBottom:0 }}>
           <CardTitle>🔔 Recent Activity</CardTitle>
-          <TlItem dot={C.green} title="Priya Verma accepted offer for Senior React Developer" meta="Today · 11:30 AM" />
-          <TlItem dot={C.blue}  title="34 new applications for Data Analyst role" meta="Today · 9:00 AM" />
-          <TlItem dot={C.gold}  title="Interview scheduled: Rahul Kumar — Product Manager" meta="Yesterday · 4:30 PM" />
-          <TlItem dot={C.purple} title="NAPS apprenticeship batch of 15 approved" meta="Jul 3, 2026" />
-          <TlItem dot={C.teal}  title="Skill Gap Analysis report generated" meta="Jul 2, 2026" />
+          {allApps.length === 0
+            ? <div style={{ color:'#888', padding:'20px 0', fontSize:13 }}>No recent activity. Post a job to get started.</div>
+            : allApps.slice(0,5).map((a,i) => (
+                <TlItem key={i} dot={C.blue}
+                  title={`${a.candidate_name || `Candidate #${a.candidate_id}`} applied for ${a.job_title || 'a role'}`}
+                  meta={a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-IN') : new Date(a.created_at).toLocaleDateString('en-IN')} />
+              ))
+          }
         </Card>
         <Card style={{ marginBottom:0 }}>
           <CardTitle>👥 Recent Applications</CardTitle>
-          <Table head={['Candidate','Role','Match','Status']} rows={[
-            ['Aisha Khan','Data Analyst','⭐ 92%',<Badge color="blue">New</Badge>],
-            ['Rahul Verma','React Developer','⭐ 87%',<Badge color="green">Shortlisted</Badge>],
-            ['Sneha Iyer','QA Engineer','⭐ 79%',<Badge color="teal">Interview</Badge>],
-            ['Amit Sharma','DevOps Eng.','⭐ 83%',<Badge color="gold">Review</Badge>],
-          ]} />
+          {allApps.length === 0
+            ? <div style={{ color:'#888', padding:'20px 0', fontSize:13 }}>No applications yet.</div>
+            : <Table head={['Candidate','Role','Status']} rows={allApps.slice(0,5).map(a => [
+                a.candidate_name || `Candidate #${a.candidate_id}`,
+                a.job_title || '—',
+                <Badge color={{ applied:'blue', shortlisted:'green', interview:'teal', hired:'purple', rejected:'red' }[a.status] || 'blue'}>{a.status}</Badge>
+              ])} />
+          }
         </Card>
       </div>
     </>;
   }
 
   function PanelNotifications() {
+    const pending = allApps.filter(a => a.status === 'pending');
     return <>
       <Bc parts={['Notifications']} />
       <SectionHead title="Notifications 🔔" />
       <Card>
-        {[
-          [C.gold,'⚠️ 3 applications pending review for Data Analyst','System · 2 hours ago'],
-          [C.green,'✅ Priya Verma accepted your offer — Senior React Developer','Today · 11:30 AM'],
-          [C.blue,'📋 34 new applications received for Data Analyst role','Today · 9:00 AM'],
-          [C.teal,'🎓 NAPS batch of 15 apprentices approved by MSDE','Jul 3, 2026'],
-          [C.purple,'📊 Skill Gap Analysis report is ready to download','Jul 3, 2026'],
-          [C.red,'⚠️ Job posting "DevOps Engineer" expiring in 3 days','Jul 2, 2026'],
-        ].map(([c,t,m])=><TlItem key={t} dot={c} title={t} meta={m} />)}
+        {pending.length > 0 && <TlItem dot={C.gold} title={`⚠️ ${pending.length} application${pending.length>1?'s':''} pending review`} meta="Action required" />}
+        {myJobs.filter(j=>j.status==='open').slice(0,3).map(j=>(
+          <TlItem key={j.id} dot={C.blue} title={`📋 Job "${j.title}" is active`} meta={j.location||'—'} />
+        ))}
+        {pending.length === 0 && myJobs.length === 0 && (
+          <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No notifications</div>
+        )}
       </Card>
     </>;
   }
 
   function PanelProfileInfo() {
+    const set = k => e => setProfileInfo(f => ({ ...f, [k]: e.target.value }));
+    const inp = { width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' };
+    async function saveInfo() {
+      if (profileInfo.pan) {
+        const pan = profileInfo.pan.toUpperCase().trim();
+        if (!PAN_RE.test(pan)) { setPanError('Invalid PAN — format: ABCDE1234F (10 chars)'); return; }
+      }
+      if (profileInfo.cin) {
+        const cin = profileInfo.cin.toUpperCase().trim();
+        if (!CIN_RE.test(cin)) { setCinError('Invalid CIN — format: U72200KA2015PTC082341 (21 chars)'); return; }
+      }
+      if (profileInfo.gstin) {
+        const gst = profileInfo.gstin.toUpperCase().trim();
+        if (!GST_RE.test(gst)) { setGstError('Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)'); return; }
+      }
+      if (profileInfo.website) {
+        const wErr = fieldValidate('website', profileInfo.website);
+        if (wErr) { setWebsiteError(wErr); return; }
+      }
+      setPanError(''); setCinError(''); setGstError(''); setWebsiteError('');
+      setProfileSaving(true); setProfileMsg('');
+      try {
+        await api.updateMe({
+          org_name: profileInfo.org_name || null,
+          pan: profileInfo.pan || null,
+          gstin: profileInfo.gstin || null,
+          cin: profileInfo.cin || null,
+          website: profileInfo.website || null,
+          bio: profileInfo.bio || null,
+        });
+        setProfileMsg('✅ Company information saved.');
+      } catch(e) { setProfileMsg('❌ ' + e.message); }
+      finally { setProfileSaving(false); }
+    }
     return <>
       <Bc parts={['Company Profile','Company Information']} />
       <SectionHead title="Company Information 🏢" />
       <Card>
         <CardTitle>🏛️ Basic Details</CardTitle>
-        <Grid><Field label="Company Name"><Inp defaultValue="TechNova Pvt Ltd" /></Field><Field label="CIN Number"><ValidInp defaultValue="U72200KA2015PTC082341" validate="cin" /></Field></Grid>
-        <Grid cols={3}><Field label="Company Type"><Sel options={['Private Limited','Public Limited','LLP','Proprietorship']} defaultValue="Private Limited" /></Field><Field label="Industry Sector"><Sel options={['Information Technology','Manufacturing','Healthcare','BFSI','Retail']} defaultValue="Information Technology" /></Field><Field label="Year Founded"><Inp defaultValue="2015" /></Field></Grid>
-        <Grid><Field label="PAN Number"><ValidInp defaultValue="AAACT1234A" validate="pan" /></Field><Field label="GSTIN"><ValidInp defaultValue="29AAACT1234A1ZK" validate="gst" /></Field></Grid>
-        <Field label="Company Description"><textarea className="inp" rows={3} defaultValue="Mid-size product company building cloud-native enterprise solutions for B2B clients across India and SEA." style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>📊 Workforce Overview</CardTitle>
-        <Grid cols={3}><Field label="Total Employees"><Inp defaultValue="420" /></Field><Field label="Open Positions"><Inp defaultValue="18" /></Field><Field label="Annual Hiring Target"><Inp defaultValue="60" /></Field></Grid>
-        <Alert icon="ℹ️" type="info">Keep your workforce numbers updated for accurate scheme eligibility and Skill India matching.</Alert>
+        <Grid>
+          <Field label="Company Name"><input value={profileInfo.org_name} onChange={set('org_name')} placeholder="Company name" style={inp} /></Field>
+          <Field label="CIN Number">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.cin}
+                onChange={e => { setProfileInfo(f => ({ ...f, cin: e.target.value.toUpperCase() })); setCinError(''); }}
+                onBlur={() => { if (profileInfo.cin) setCinError(CIN_RE.test(profileInfo.cin.toUpperCase()) ? '' : 'Invalid CIN — format: U72200KA2015PTC082341 (21 chars)'); }}
+                placeholder="e.g. U72200KA2015PTC082341"
+                style={{ ...inp, borderColor: cinError ? '#C0392B' : '#dde2eb', background: cinError ? '#FEF2F2' : '#fafbfc' }} />
+              {cinError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {cinError}</div>}
+            </div>
+          </Field>
+        </Grid>
+        <Grid>
+          <Field label="Website">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.website}
+                onChange={e => { setProfileInfo(f => ({ ...f, website: e.target.value })); setWebsiteError(''); }}
+                onBlur={() => { if (profileInfo.website) setWebsiteError(fieldValidate('website', profileInfo.website)); }}
+                placeholder="https://example.com"
+                style={{ ...inp, borderColor: websiteError ? '#C0392B' : '#dde2eb', background: websiteError ? '#FEF2F2' : '#fafbfc' }} />
+              {websiteError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {websiteError}</div>}
+            </div>
+          </Field>
+        </Grid>
+        <Grid>
+          <Field label="PAN Number">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.pan}
+                onChange={e => { setProfileInfo(f => ({ ...f, pan: e.target.value.toUpperCase().slice(0,10) })); setPanError(''); }}
+                onBlur={() => { if (profileInfo.pan) setPanError(PAN_RE.test(profileInfo.pan) ? '' : 'Invalid PAN — format: ABCDE1234F (10 chars)'); }}
+                placeholder="e.g. AAACT1234A" maxLength={10}
+                style={{ ...inp, borderColor: panError ? '#C0392B' : '#dde2eb', background: panError ? '#FEF2F2' : '#fafbfc' }} />
+              {panError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {panError}</div>}
+            </div>
+          </Field>
+          <Field label="GSTIN">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.gstin}
+                onChange={e => { setProfileInfo(f => ({ ...f, gstin: e.target.value.toUpperCase() })); setGstError(''); }}
+                onBlur={() => { if (profileInfo.gstin) setGstError(GST_RE.test(profileInfo.gstin.toUpperCase()) ? '' : 'Invalid GSTIN — format: 29AAACT1234A1ZK (15 chars)'); }}
+                placeholder="e.g. 29AAACT1234A1ZK"
+                style={{ ...inp, borderColor: gstError ? '#C0392B' : '#dde2eb', background: gstError ? '#FEF2F2' : '#fafbfc' }} />
+              {gstError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {gstError}</div>}
+            </div>
+          </Field>
+        </Grid>
+        <Field label="Company Description">
+          <textarea rows={3} value={profileInfo.bio} onChange={set('bio')} placeholder="Brief about your company…"
+            style={{ ...inp, resize:'vertical' }} />
+        </Field>
+        {profileMsg && <div style={{ marginBottom:10, fontSize:13, color: profileMsg.startsWith('✅') ? C.green : C.red }}>{profileMsg}</div>}
+        <div style={{ textAlign:'right' }}><Btn onClick={saveInfo}>{profileSaving ? 'Saving…' : '💾 Save Changes'}</Btn></div>
       </Card>
     </>;
   }
 
   function PanelProfileContact() {
+    const set = k => e => setProfileInfo(f => ({ ...f, [k]: e.target.value }));
+    const inp = { width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' };
+    const STATES = ['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Andaman & Nicobar','Chandigarh','Delhi','Dadra & Nagar Haveli','Daman & Diu','Jammu & Kashmir','Ladakh','Lakshadweep','Puducherry'];
+    async function saveContact() {
+      if (profileInfo.phone) {
+        const digits = profileInfo.phone.replace(/\D/g, '');
+        if (digits.length !== 10 || !/^[6-9]/.test(digits)) {
+          setPhoneError('Must be a 10-digit number starting with 6–9'); return;
+        }
+      }
+      setPhoneError('');
+      setProfileSaving(true); setProfileMsg('');
+      try {
+        await api.updateMe({
+          phone: profileInfo.phone ? '+91' + profileInfo.phone : null,
+          location: profileInfo.city || profileInfo.location || null,
+          spoc_name: profileInfo.spoc_name || null,
+          address_line1: profileInfo.address_line1 || null,
+          address_line2: profileInfo.address_line2 || null,
+          city: profileInfo.city || null,
+          state_name: profileInfo.state_name || null,
+          pincode: profileInfo.pincode || null,
+        });
+        setProfileMsg('✅ Contact details saved.');
+      } catch(e) { setProfileMsg('❌ ' + e.message); }
+      finally { setProfileSaving(false); }
+    }
     return <>
       <Bc parts={['Company Profile','Contact & Address']} />
       <SectionHead title="Contact & Address 📍" />
       <Card>
-        <CardTitle>🏢 Registered Office</CardTitle>
-        <Field label="Street Address"><Inp defaultValue="#42, 3rd Floor, Outer Ring Road, Marathahalli" /></Field>
-        <Grid cols={3}><Field label="City"><Inp defaultValue="Bengaluru" /></Field><Field label="State"><Sel options={['Karnataka','Maharashtra','Delhi','Tamil Nadu']} defaultValue="Karnataka" /></Field><Field label="PIN Code"><ValidInp defaultValue="560037" validate="pincode" /></Field></Grid>
-        <Grid><Field label="HR Email"><ValidInp defaultValue="hr@technova.com" validate="email" /></Field><Field label="HR Helpline"><ValidInp defaultValue="080-4567-8900" validate="phone" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>👤 Primary HR Contact</CardTitle>
-        <Grid><Field label="HR Manager Name"><Inp defaultValue="Kavitha Reddy" /></Field><Field label="Designation"><Inp defaultValue="Head of Talent Acquisition" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp defaultValue="9876543210" validate="mobile" /></Field><Field label="Email"><ValidInp defaultValue="kavitha.reddy@technova.com" validate="email" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Update Contact</Btn></div>
+        <CardTitle>📞 Contact Details</CardTitle>
+        <Grid>
+          <Field label="SPOC Name">
+            <input value={profileInfo.spoc_name} onChange={set('spoc_name')} placeholder="Single Point of Contact name" style={inp} />
+          </Field>
+          <Field label="Phone / Helpline">
+            <div style={{ width:'100%' }}>
+              <input value={profileInfo.phone}
+                onChange={e => { setProfileInfo(f => ({ ...f, phone: e.target.value.replace(/\D/g,'').slice(0,10) })); setPhoneError(''); }}
+                onBlur={() => { const v = profileInfo.phone; if (v) setPhoneError(/^[6-9]\d{9}$/.test(v) ? '' : 'Must be a 10-digit number starting with 6–9'); }}
+                placeholder="e.g. 9876543210" maxLength={10}
+                style={{ ...inp, borderColor: phoneError ? '#C0392B' : '#dde2eb', background: phoneError ? '#FEF2F2' : '#fafbfc' }} />
+              {phoneError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {phoneError}</div>}
+            </div>
+          </Field>
+        </Grid>
+        <CardTitle style={{ marginTop:16 }}>🏢 Address</CardTitle>
+        <Field label="Address Line 1">
+          <input value={profileInfo.address_line1} onChange={set('address_line1')} placeholder="House / Flat No., Street, Area" style={inp} />
+        </Field>
+        <Field label="Address Line 2">
+          <input value={profileInfo.address_line2} onChange={set('address_line2')} placeholder="Landmark, Colony (optional)" style={inp} />
+        </Field>
+        <Grid>
+          <Field label="City / Town">
+            <input value={profileInfo.city} onChange={set('city')} placeholder="City" style={inp} />
+          </Field>
+          <Field label="State">
+            <select value={profileInfo.state_name} onChange={set('state_name')} style={inp}>
+              <option value="">Select state</option>
+              {STATES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </Field>
+        </Grid>
+        <Field label="PIN Code">
+          <input value={profileInfo.pincode} onChange={e => setProfileInfo(f => ({ ...f, pincode: e.target.value.replace(/\D/g,'').slice(0,6) }))} placeholder="6-digit PIN" maxLength={6} style={inp} />
+        </Field>
+        {profileMsg && <div style={{ marginBottom:10, fontSize:13, color: profileMsg.startsWith('✅') ? C.green : C.red }}>{profileMsg}</div>}
+        <div style={{ textAlign:'right' }}><Btn onClick={saveContact}>{profileSaving ? 'Saving…' : '💾 Save Changes'}</Btn></div>
       </Card>
     </>;
   }
 
   function PanelProfileDocs() {
+    const docTypes = ['GST Certificate','PAN Card','Incorporation Certificate','Trade License','MSME Certificate','ISO Certificate'];
+    const docs = empDocs; const setDocs = setEmpDocs;
+    function handleUpload(type, file) {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return; }
+      const entry = { type, name: file.name, size: Math.round(file.size/1024) + ' KB', uploaded: new Date().toLocaleDateString('en-IN') };
+      const updated = [...docs.filter(d => d.type !== type), entry];
+      setDocs(updated);
+      localStorage.setItem('snj_emp_docs', JSON.stringify(updated));
+    }
     return <>
       <Bc parts={['Company Profile','Company Documents']} />
       <SectionHead title="Company Documents 📄" />
       <Card>
-        <Table head={['Document','Uploaded On','Status','Action']} rows={[
-          ['Certificate of Incorporation','Mar 10, 2015',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['GST Certificate','Apr 1, 2025',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['PAN Card','Mar 15, 2015',<Badge color="teal">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['MSME Registration','Jun 5, 2021',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['Shop & Establishments Act','Jan 10, 2024',<Badge color="gold">Under Review</Badge>,<Btn sm outline>Download</Btn>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>📤 Upload New Document</Btn></div>
+        <Alert icon="ℹ️" type="info">Upload clear scanned copies. Accepted: PDF, JPG, PNG. Max 2 MB per file.</Alert>
+        {docTypes.map(type => {
+          const uploaded = docs.find(d => d.type === type);
+          return (
+            <div key={type} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', border:'1px solid #dde2eb', borderRadius:9, marginBottom:10, background:'#fff' }}>
+              <div>
+                <div style={{ fontWeight:600, fontSize:13, color:'#0D2137' }}>{type}</div>
+                {uploaded && <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{uploaded.name} · {uploaded.size} · {uploaded.uploaded}</div>}
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                {uploaded
+                  ? <Badge color="green">Uploaded</Badge>
+                  : <span style={{ fontSize:11, color:'#94a3b8' }}>No file</span>}
+                <label style={{ padding:'6px 14px', borderRadius:7, background:'#1E5FBF', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📎 {uploaded ? 'Replace' : 'Upload'}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} onChange={e => handleUpload(type, e.target.files[0])} />
+                </label>
+              </div>
+            </div>
+          );
+        })}
       </Card>
     </>;
   }
 
   function PanelProfileBank() {
+    const set = k => e => setBank(b => ({ ...b, [k]: e.target.value }));
     return <>
       <Bc parts={['Company Profile','Bank & Billing']} />
       <SectionHead title="Bank & Billing 🏦" />
       <Card>
-        <Grid><Field label="Account Holder"><Inp defaultValue="TechNova Pvt Ltd" /></Field><Field label="Account Number"><Inp defaultValue="XXXX-XXXX-XXXX-5678" /></Field></Grid>
-        <Grid cols={3}><Field label="IFSC Code"><ValidInp defaultValue="ICIC0001234" validate="ifsc" /></Field><Field label="Bank Name"><Inp defaultValue="ICICI Bank" /></Field><Field label="Account Type"><Sel options={['Current','Savings']} defaultValue="Current" /></Field></Grid>
+        <Grid>
+          <Field label="Account Holder Name">
+            <Inp value={bank.bank_account_name} onChange={set('bank_account_name')} placeholder="As per bank records" />
+          </Field>
+          <Field label="Account Number">
+            <Inp value={bank.bank_account_number} onChange={e => setBank(b=>({...b, bank_account_number: e.target.value.replace(/\D/g,'')}))} placeholder="Account number" />
+          </Field>
+        </Grid>
+        <Field label="IFSC Code">
+          <Inp value={bank.bank_ifsc} onChange={e => setBank(b=>({...b, bank_ifsc: e.target.value.toUpperCase()}))} placeholder="e.g. ICIC0001234" />
+        </Field>
         <Alert icon="⚠️" type="warn">Bank details require OTP verification and admin approval before changes take effect.</Alert>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save & Verify</Btn></div>
+        {bankMsg && <div style={{ fontSize:12.5, color: bankMsg.includes('fail') ? '#dc2626':'#16a34a', marginTop:4 }}>{bankMsg}</div>}
+        <div style={{ textAlign:'right', marginTop:10 }}><Btn onClick={saveBank} disabled={bankSaving}>{bankSaving ? 'Saving…' : '💾 Save & Verify'}</Btn></div>
       </Card>
     </>;
   }
 
   function PanelProfileHr() {
+    const sh = k => e => setHrForm(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['Company Profile','HR Contacts']} />
       <SectionHead title="HR Contacts 👤" />
       <Card>
-        <Table head={['Name','Designation','Email','Mobile','Access']} rows={[
-          ['Kavitha Reddy','Head of TA','kavitha@technova.com','9876543210',<Badge color="blue">Admin</Badge>],
-          ['Arjun Nair','Recruiter','arjun@technova.com','9876543211',<Badge color="teal">Standard</Badge>],
-          ['Shalini Mehta','HR BP','shalini@technova.com','9876543212',<Badge color="teal">Standard</Badge>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Add HR Contact</Btn></div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+          <CardTitle>👤 HR Team</CardTitle>
+          <Btn onClick={() => { setShowHrForm(v => !v); setHrMsg(''); }}>+ Add HR Contact</Btn>
+        </div>
+        {showHrForm && (
+          <div style={{ background:'#f8fafc', border:'1px solid #dde2eb', borderRadius:10, padding:16, marginBottom:16 }}>
+            {hrMsg && <Alert type="red">{hrMsg}</Alert>}
+            <Grid>
+              <Field label="Name *"><Inp value={hrForm.name} onChange={sh('name')} placeholder="Full name" /></Field>
+              <Field label="Designation"><Inp value={hrForm.designation} onChange={sh('designation')} placeholder="e.g. HR Manager" /></Field>
+            </Grid>
+            <Grid>
+              <Field label="Email"><Inp value={hrForm.email} onChange={sh('email')} placeholder="email@company.com" /></Field>
+              <Field label="Phone"><Inp value={hrForm.phone} onChange={sh('phone')} placeholder="10-digit mobile" /></Field>
+            </Grid>
+            <div style={{ textAlign:'right', display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <Btn outline onClick={() => setShowHrForm(false)}>Cancel</Btn>
+              <Btn green onClick={saveHrContact}>Save Contact</Btn>
+            </div>
+          </div>
+        )}
+        {hrContacts.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'24px 0', textAlign:'center' }}>No HR contacts added yet.</div>
+          : <Table head={['Name','Designation','Email','Phone','Action']} rows={hrContacts.map(c => [
+              c.name, c.designation || '—', c.email || '—', c.phone || '—',
+              <Btn sm danger onClick={() => removeHrContact(c.id)}>Remove</Btn>,
+            ])} />}
       </Card>
     </>;
   }
 
   function PanelJobPost() {
+    const f = jobForm;
+    async function handlePost(status) {
+      if (!f.title.trim()) { setJobMsg('Job title is required.'); return; }
+      setJobSaving(true); setJobMsg('');
+      try {
+        const skills = f.required_skills.split(',').map(s => s.trim()).filter(Boolean);
+        await api.createJob({ title: f.title, description: f.description, required_skills: skills, location: f.location, job_type: f.job_type, salary_min: f.salary_min ? Number(f.salary_min) : null, salary_max: f.salary_max ? Number(f.salary_max) : null, status });
+        setJobMsg(status === 'open' ? '✅ Job published successfully!' : '✅ Saved as draft.');
+        setJobForm({ title:'', description:'', required_skills:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'' });
+        refreshJobs();
+      } catch(e) { setJobMsg('❌ ' + e.message); }
+      setJobSaving(false);
+    }
+    const set = k => e => setJobForm(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['Job Management','Post New Job']} />
       <SectionHead title="Post New Job 📋" />
+      {jobMsg && <Alert type={jobMsg.startsWith('✅') ? 'info' : 'red'}>{jobMsg}</Alert>}
       <Card>
         <CardTitle>📝 Job Details</CardTitle>
-        <Field label="Job Title"><Inp placeholder="e.g. Senior Frontend Developer" /></Field>
-        <Grid cols={3}><Field label="Department"><Sel options={['Engineering','Product','Design','Sales','Marketing','HR','Finance']} /></Field><Field label="Employment Type"><Sel options={['Full-time','Part-time','Contract','Internship','Apprenticeship']} /></Field><Field label="Work Mode"><Sel options={['On-site','Remote','Hybrid']} /></Field></Grid>
-        <Grid cols={3}><Field label="Location(s)"><Inp placeholder="e.g. Bengaluru, Remote" /></Field><Field label="Min Experience"><Sel options={['Fresher','1-2 Years','2-5 Years','5-8 Years','8+ Years']} /></Field><Field label="Min Education"><Sel options={['10th Pass','12th Pass','Diploma','Graduate','Post-Graduate']} /></Field></Grid>
-        <Field label="Job Description"><textarea className="inp" rows={5} placeholder="Describe roles, responsibilities…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
-        <Field label="Required Skills"><Inp placeholder="e.g. React, Node.js, SQL (comma separated)" /></Field>
+        <Field label="Job Title *"><input value={f.title} onChange={set('title')} placeholder="e.g. Senior Frontend Developer" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <Grid cols={3}><Field label="Employment Type"><select value={f.job_type} onChange={set('job_type')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>{['Full-time','Part-time','Contract','Internship','Apprenticeship'].map(o=><option key={o}>{o}</option>)}</select></Field><Field label="Location"><input value={f.location} onChange={set('location')} placeholder="e.g. Bengaluru, Remote" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field><Field label="Required Skills"><input value={f.required_skills} onChange={set('required_skills')} placeholder="e.g. React, Node.js, SQL (comma separated)" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field></Grid>
+        <Field label="Job Description"><textarea value={f.description} onChange={set('description')} rows={5} placeholder="Describe roles, responsibilities…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
       </Card>
       <Card>
         <CardTitle>💰 Compensation</CardTitle>
-        <Grid cols={3}><Field label="Min Salary (₹/year)"><Inp defaultValue="500000" /></Field><Field label="Max Salary (₹/year)"><Inp defaultValue="800000" /></Field><Field label="Salary Frequency"><Sel options={['Per Annum','Per Month']} /></Field></Grid>
-        <Field label="Additional Benefits"><Inp placeholder="e.g. Health insurance, ESOPs, Remote allowance" /></Field>
-        <Grid><Field label="Application Deadline"><Inp type="date" /></Field><Field label="Number of Openings"><Inp defaultValue="3" /></Field></Grid>
-        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}><Btn outline>Save Draft</Btn><Btn green>🚀 Publish Job</Btn></div>
+        <Grid cols={2}><Field label="Min Salary (₹/year)"><input value={f.salary_min} onChange={set('salary_min')} type="number" placeholder="500000" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field><Field label="Max Salary (₹/year)"><input value={f.salary_max} onChange={set('salary_max')} type="number" placeholder="800000" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field></Grid>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <Btn outline onClick={() => handlePost('draft')} disabled={jobSaving}>Save Draft</Btn>
+          <Btn green onClick={() => handlePost('open')} disabled={jobSaving}>🚀 Publish Job</Btn>
+        </div>
       </Card>
     </>;
   }
 
   function PanelJobActive() {
+    const active = myJobs.filter(j => j.status === 'open');
     return <>
       <Bc parts={['Job Management','Active Jobs']} />
       <SectionHead title="Active Jobs 🚀" />
       <Card>
-        <Table head={['Job Title','Location','Posted','Applications','Status','Action']} rows={[
-          ['Senior React Developer','Bengaluru','Jun 15','48 (+5 today)',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['Data Analyst','Hyderabad','Jun 18','37',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['QA Engineer','Pune','Jun 20','29',<Badge color="blue">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['Product Manager','Remote','Jun 25','55',<Badge color="teal">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['DevOps Engineer','Chennai','Jun 28','21',<Badge color="gold">Closing</Badge>,<Btn sm outline>Extend</Btn>],
-          ['UI/UX Designer','Bengaluru','Jul 1','16',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Post New Job</Btn></div>
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         active.length === 0 ? <div style={{ color:'#888', padding:16 }}>No active jobs. <span style={{ color:C.blue, cursor:'pointer' }} onClick={() => go('job-post')}>Post one now →</span></div> :
+        <Table head={['Job Title','Location','Type','Salary','Status','Action']} rows={active.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          j.salary_min ? `₹${(j.salary_min/100000).toFixed(1)}–${(j.salary_max/100000).toFixed(1)} LPA` : '—',
+          <Badge color="green">Active</Badge>,
+          <Btn sm outline onClick={() => { api.updateJob(j.id, { status:'closed' }).then(refreshJobs); }}>Close</Btn>
+        ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={() => go('job-post')}>+ Post New Job</Btn></div>
       </Card>
     </>;
   }
 
   function PanelJobDraft() {
+    const drafts = myJobs.filter(j => j.status === 'draft');
     return <>
       <Bc parts={['Job Management','Draft Jobs']} />
       <SectionHead title="Draft Jobs 📝" />
       <Card>
-        <Table head={['Job Title','Department','Last Edited','Action']} rows={[
-          ['ML Engineer','Engineering','Jul 3, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Publish</Btn></>],
-          ['Sales Executive','Sales','Jul 1, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Publish</Btn></>],
-          ['Business Analyst','Product','Jun 28, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Publish</Btn></>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Create New Draft</Btn></div>
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         drafts.length === 0 ? <div style={{ color:'#888', padding:16 }}>No draft jobs.</div> :
+        <Table head={['Job Title','Location','Type','Action']} rows={drafts.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          <><Btn sm outline onClick={() => api.deleteJob(j.id).then(refreshJobs)}>Delete</Btn>{' '}
+            <Btn sm green onClick={() => api.updateJob(j.id, { status:'open' }).then(refreshJobs)}>Publish</Btn></>
+        ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={() => go('job-post')}>+ Create New Draft</Btn></div>
       </Card>
     </>;
   }
 
   function PanelJobClosed() {
+    const closed = myJobs.filter(j => j.status === 'closed');
     return <>
       <Bc parts={['Job Management','Closed Jobs']} />
       <SectionHead title="Closed Jobs ✅" />
       <Card>
-        <Table head={['Job Title','Closed On','Applications','Hires','Outcome']} rows={[
-          ['Backend Developer','Mar 31, 2026','62','3',<Badge color="green">Filled</Badge>],
-          ['Data Scientist','Feb 28, 2026','48','1',<Badge color="green">Filled</Badge>],
-          ['Support Engineer','Jan 15, 2026','30','2',<Badge color="teal">Filled</Badge>],
-          ['Content Writer','Dec 20, 2025','25','0',<Badge color="red">Cancelled</Badge>],
-        ]} />
+        {!jobsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         closed.length === 0 ? <div style={{ color:'#888', padding:16 }}>No closed jobs.</div> :
+        <Table head={['Job Title','Location','Type','Action']} rows={closed.map(j => [
+          j.title, j.location || '—', j.job_type || '—',
+          <Btn sm outline onClick={() => api.updateJob(j.id, { status:'open' }).then(refreshJobs)}>Repost</Btn>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelJobApplications() {
+    const total = allApps.length;
+    const shortlisted = allApps.filter(a => a.status === 'shortlisted').length;
+    const hired = allApps.filter(a => a.status === 'hired').length;
+    const statusColor = { applied:'blue', shortlisted:'green', interview:'teal', hired:'purple', rejected:'red' };
     return <>
       <Bc parts={['Job Management','All Applications']} />
       <SectionHead title="All Applications 📬" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard val="342" label="Total Applications" sub="This month" color={C.blue} />
-        <KpiCard val="210" label="Screened" sub="61% of total" color={C.teal} />
-        <KpiCard val="47"  label="Shortlisted" sub="14% of total" color={C.green} />
-        <KpiCard val="12"  label="Offers Extended" sub="4% of total" color={C.gold} />
+        <KpiCard val={total} label="Total Applications" sub="Across all jobs" color={C.blue} />
+        <KpiCard val={shortlisted} label="Shortlisted" sub={`${total ? Math.round(shortlisted/total*100) : 0}% of total`} color={C.green} />
+        <KpiCard val={hired} label="Hired" sub="Offer accepted" color={C.teal} />
+        <KpiCard val={allApps.filter(a=>a.status==='applied').length} label="New / Pending" sub="Awaiting review" color={C.gold} />
       </div>
       <Card>
-        <Table head={['Candidate','Job Applied','Applied On','Match','Status','Action']} rows={[
-          ['Aisha Khan','Data Analyst','Jul 4','⭐ 92%',<Badge color="blue">New</Badge>,<Btn sm outline>Review</Btn>],
-          ['Rahul Verma','React Developer','Jul 4','⭐ 87%',<Badge color="green">Shortlisted</Badge>,<Btn sm outline>Schedule</Btn>],
-          ['Sneha Iyer','QA Engineer','Jul 3','⭐ 79%',<Badge color="teal">Interview</Badge>,<Btn sm outline>View</Btn>],
-          ['Amit Sharma','DevOps Eng.','Jul 3','⭐ 83%',<Badge color="gold">Under Review</Badge>,<Btn sm outline>Review</Btn>],
-          ['Priya Verma','React Developer','Jul 1','⭐ 91%',<Badge color="green">Offer Accepted</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
+        {!appsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         allApps.length === 0 ? <div style={{ color:'#888', padding:16 }}>No applications yet.</div> :
+        <Table head={['Candidate','Job Applied','Status','Action']} rows={allApps.slice(0,50).map(a => [
+          a.candidate_name || `Candidate #${a.candidate_id}`,
+          a.job_title || '—',
+          <Badge color={statusColor[a.status] || 'blue'}>{a.status}</Badge>,
+          <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
+            value={a.status}
+            onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(loadApps)}>
+            {['applied','shortlisted','interview','hired','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelCandSearch() {
+    const q = candSearchQ; const setQ = setCandSearchQ;
+    const filtered = q.trim() ? candidateList.filter(c =>
+      (c.name||'').toLowerCase().includes(q.toLowerCase()) ||
+      (c.skills||'').toLowerCase().includes(q.toLowerCase()) ||
+      (c.location||'').toLowerCase().includes(q.toLowerCase())
+    ) : candidateList;
     return <>
       <Bc parts={['Candidates','Search Candidates']} />
       <SectionHead title="Search Candidates 🔍" />
       <Card>
-        <CardTitle>🔍 Filter & Search</CardTitle>
-        <Grid cols={3}><Field label="Skill / Trade"><Inp placeholder="e.g. React, Python, Welding" /></Field><Field label="Location"><Sel options={['All India','Bengaluru','Hyderabad','Mumbai','Delhi','Pune','Chennai']} /></Field><Field label="Experience"><Sel options={['Any','Fresher','1-2 Years','2-5 Years','5+ Years']} /></Field></Grid>
-        <Grid cols={3}><Field label="Education"><Sel options={['Any','10th Pass','12th Pass','Diploma','Graduate','Post-Graduate']} /></Field><Field label="Category"><Sel options={['Any','General','OBC','SC','ST','Differently Abled']} /></Field><Field label="Min Match Score"><Sel options={['Any','60%+','70%+','80%+','90%+']} /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>🔍 Search Candidates</Btn></div>
+        <CardTitle>🔍 Search</CardTitle>
+        <Field label="Name / Skill / Location"><input value={q} onChange={e => setQ(e.target.value)} placeholder="e.g. React, Bengaluru, Priya" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
       </Card>
-      {CandCard({ initials:'AK', name:'Aisha Khan', meta:'Hyderabad · Graduate · 1 yr exp · Data Analyst', skills:['Excel','SQL','Power BI','Communication'], matchPct:'92%', matchColor:'green' })}
-      {CandCard({ initials:'RV', name:'Rahul Verma', meta:'Bengaluru · Graduate · 2 yrs exp · Frontend Developer', skills:['HTML','CSS','JavaScript','React'], matchPct:'87%', matchColor:'blue' })}
-      {CandCard({ initials:'SI', name:'Sneha Iyer', meta:'Pune · Graduate · 3 yrs exp · QA / Testing', skills:['Selenium','JIRA','Manual Testing','API Testing'], matchPct:'79%', matchColor:'teal' })}
-      {CandCard({ initials:'AS', name:'Amit Sharma', meta:'Hyderabad · Diploma · 4 yrs exp · DevOps / Cloud', skills:['AWS','Docker','Kubernetes','CI/CD'], matchPct:'83%', matchColor:'gold' })}
+      {candidateLoading && <div style={{ color:'#888', padding:16 }}>Loading candidates…</div>}
+      {filtered.slice(0,20).map(c => {
+        const skills = (() => { try { return JSON.parse(c.skills||'[]'); } catch { return []; } })();
+        const initials = (c.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        return CandCard({ key: c.id, initials, name: c.name, meta: [c.location, c.education, c.experience_years ? `${c.experience_years} yr exp` : 'Fresher'].filter(Boolean).join(' · '), skills: skills.slice(0,4), matchPct: null, matchColor:'blue' });
+      })}
+      {!candidateLoading && filtered.length === 0 && <div style={{ color:'#888', padding:16 }}>No candidates found.</div>}
     </>;
   }
 
   function PanelCandShortlist() {
+    const shortlisted = allApps.filter(a => ['shortlisted','interview'].includes(a.status));
     return <>
       <Bc parts={['Candidates','Shortlisted']} />
       <SectionHead title="Shortlisted Candidates 📌" />
       <Card>
-        <Table head={['Candidate','Job Applied','Shortlisted On','Match','Next Step','Action']} rows={[
-          ['Aisha Khan','Data Analyst','Jul 4','92%',<Badge color="blue">Schedule Interview</Badge>,<Btn sm outline>Schedule</Btn>],
-          ['Rahul Verma','React Developer','Jul 3','87%',<Badge color="teal">Interview Scheduled</Badge>,<Btn sm outline>View</Btn>],
-          ['Amit Sharma','DevOps Eng.','Jul 2','83%',<Badge color="gold">Awaiting Review</Badge>,<Btn sm outline>Review</Btn>],
-          ['Deepa Kumar','UI/UX Designer','Jul 1','90%',<Badge color="purple">Offer Pending</Badge>,<Btn sm outline>Send Offer</Btn>],
-        ]} />
+        {!appsLoaded
+          ? <div style={{ color:'#888', padding:16 }}>Loading…</div>
+          : shortlisted.length === 0
+            ? <div style={{ color:'#888', padding:'20px 0', textAlign:'center', fontSize:13 }}>No shortlisted candidates yet. Review applications and shortlist candidates.</div>
+            : <Table head={['Candidate','Job Applied','Status','Action']} rows={shortlisted.map(a => [
+                a.candidate_name || `Candidate #${a.candidate_id}`,
+                a.job_title || '—',
+                <Badge color={a.status==='interview' ? 'teal' : 'green'}>{a.status}</Badge>,
+                <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
+                  value={a.status}
+                  onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(() => api.myJobs().then(jobs =>
+                    Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(ap => ({ ...ap, job_title: j.title }))).catch(() => [])))
+                      .then(all => setAllApps(all.flat()))
+                  ))}>
+                  {['shortlisted','interview','hired','rejected'].map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+              ])} />
+        }
       </Card>
     </>;
   }
 
   function PanelCandInterview() {
+    const si = k => e => setInterview(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Interviews']} />
       <SectionHead title="Interview Management 🗓️" />
       <Card>
         <CardTitle>📅 Schedule New Interview</CardTitle>
-        <Grid cols={3}><Field label="Candidate Name"><Inp placeholder="e.g. Rahul Verma" /></Field><Field label="Job Role"><Sel options={['Senior React Developer','Data Analyst','QA Engineer','Product Manager','DevOps Engineer']} /></Field><Field label="Interview Round"><Sel options={['Technical Round 1','Technical Round 2','HR Round','Final Round']} /></Field></Grid>
-        <Grid cols={3}><Field label="Date"><Inp type="date" /></Field><Field label="Time"><Inp type="time" /></Field><Field label="Mode"><Sel options={['Video Call','In-Person','Telephonic']} /></Field></Grid>
-        <Grid><Field label="Interviewers"><Inp placeholder="e.g. Kavitha Reddy, Arjun Nair" /></Field><Field label="Meeting Link / Venue"><Inp placeholder="e.g. https://meet.google.com/xyz-abc" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn green>📅 Schedule Interview</Btn></div>
+        {interviewMsg && <Alert type={interviewMsg.startsWith('✅') ? 'info' : 'red'}>{interviewMsg}</Alert>}
+        <Grid cols={3}>
+          <Field label="Candidate Name *"><Inp value={interview.candidate_name} onChange={si('candidate_name')} placeholder="e.g. Rahul Verma" /></Field>
+          <Field label="Job Role"><Inp value={interview.job_role} onChange={si('job_role')} placeholder="e.g. React Developer" /></Field>
+          <Field label="Interview Round"><Sel value={interview.round} onChange={si('round')} options={['Technical Round 1','Technical Round 2','HR Round','Final Round']} /></Field>
+        </Grid>
+        <Grid cols={3}>
+          <Field label="Date *"><Inp type="date" value={interview.date} onChange={si('date')} /></Field>
+          <Field label="Time *"><Inp type="time" value={interview.time} onChange={si('time')} /></Field>
+          <Field label="Mode"><Sel value={interview.mode} onChange={si('mode')} options={['Video Call','In-Person','Telephonic']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Interviewers"><Inp value={interview.interviewers} onChange={si('interviewers')} placeholder="e.g. Kavitha Reddy, Arjun Nair" /></Field>
+          <Field label="Meeting Link / Venue"><Inp value={interview.link} onChange={si('link')} placeholder="e.g. https://meet.google.com/xyz-abc" /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}>
+          <Btn green onClick={scheduleInterview} style={{ opacity: interviewSaving ? .7 : 1 }}>
+            {interviewSaving ? 'Scheduling…' : '📅 Schedule Interview'}
+          </Btn>
+        </div>
       </Card>
       <Card>
-        <CardTitle>📋 Upcoming Interviews</CardTitle>
-        <Table head={['Candidate','Role','Date & Time','Round','Mode','Status']} rows={[
-          ['Rahul Verma','React Developer','Jul 5 · 10:00 AM','Technical 1','Video',<Badge color="green">Confirmed</Badge>],
-          ['Sneha Iyer','QA Engineer','Jul 5 · 2:00 PM','Technical 2','In-Person',<Badge color="green">Confirmed</Badge>],
-          ['Aisha Khan','Data Analyst','Jul 7 · 11:00 AM','HR Round','Telephonic',<Badge color="gold">Pending</Badge>],
-          ['Deepa Kumar','UI/UX Designer','Jul 8 · 3:00 PM','Final Round','Video',<Badge color="blue">Scheduled</Badge>],
-        ]} />
+        <CardTitle>📋 Scheduled Interviews</CardTitle>
+        {scheduledInterviews.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No interviews scheduled yet.</div>
+          : <Table head={['Candidate','Role','Round','Date','Time','Mode']} rows={scheduledInterviews.map(i => [
+              i.candidate_name, i.job_role || '—', i.round, i.date, i.time, i.mode,
+            ])} />}
       </Card>
     </>;
   }
 
   function PanelCandOffer() {
+    const so = k => e => setOffer(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Offers & Onboarding']} />
       <SectionHead title="Offers & Onboarding 📨" />
       <Card>
         <CardTitle>📝 Generate Offer Letter</CardTitle>
-        <Grid><Field label="Candidate Name"><Inp placeholder="e.g. Priya Verma" /></Field><Field label="Job Role"><Inp placeholder="e.g. Senior React Developer" /></Field></Grid>
-        <Grid cols={3}><Field label="CTC (₹/year)"><Inp defaultValue="750000" /></Field><Field label="Joining Date"><Inp type="date" /></Field><Field label="Probation Period"><Sel options={['No Probation','1 Month','3 Months','6 Months']} /></Field></Grid>
-        <Field label="Special Terms"><Inp placeholder="e.g. Sign-on bonus of ₹50,000, WFH 2 days/week" /></Field>
-        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}><Btn teal>Generate Letter</Btn><Btn green>Send via Email</Btn></div>
+        {offerMsg && <Alert type={offerMsg.startsWith('✅') ? 'info' : 'red'}>{offerMsg}</Alert>}
+        <Grid>
+          <Field label="Candidate Name *"><Inp value={offer.candidate_name} onChange={so('candidate_name')} placeholder="e.g. Priya Verma" /></Field>
+          <Field label="Job Role *"><Inp value={offer.job_role} onChange={so('job_role')} placeholder="e.g. Senior React Developer" /></Field>
+        </Grid>
+        <Grid cols={3}>
+          <Field label="CTC (₹/year) *"><Inp value={offer.ctc} onChange={so('ctc')} placeholder="e.g. 750000" /></Field>
+          <Field label="Joining Date"><Inp type="date" value={offer.joining_date} onChange={so('joining_date')} /></Field>
+          <Field label="Probation Period"><Sel value={offer.probation} onChange={so('probation')} options={['No Probation','1 Month','3 Months','6 Months']} /></Field>
+        </Grid>
+        <Field label="Special Terms"><Inp value={offer.special_terms} onChange={so('special_terms')} placeholder="e.g. Sign-on bonus of ₹50,000, WFH 2 days/week" /></Field>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <Btn teal onClick={() => generateOffer(false)} style={{ opacity: offerSaving ? .7 : 1 }}>Generate Letter</Btn>
+          <Btn green onClick={() => generateOffer(true)} style={{ opacity: offerSaving ? .7 : 1 }}>Send via Email</Btn>
+        </div>
       </Card>
       <Card>
         <CardTitle>📋 Offer Tracker</CardTitle>
-        <Table head={['Candidate','Role','CTC','Offer Sent','Status','Action']} rows={[
-          ['Priya Verma','React Developer','₹7.5 LPA','Jul 1, 2026',<Badge color="green">Accepted</Badge>,<Btn sm outline>Onboard</Btn>],
-          ['Deepa Kumar','UI/UX Designer','₹8.0 LPA','Jul 3, 2026',<Badge color="gold">Pending</Badge>,<Btn sm outline>Follow Up</Btn>],
-          ['Kiran Rao','QA Engineer','₹5.5 LPA','Jun 28, 2026',<Badge color="red">Declined</Badge>,<Btn sm outline>Re-engage</Btn>],
-        ]} />
+        {sentOffers.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No offers generated yet.</div>
+          : <Table head={['Candidate','Role','CTC','Joining Date','Status']} rows={sentOffers.map(o => [
+              o.candidate_name, o.job_role,
+              o.ctc ? `₹${Number(o.ctc).toLocaleString('en-IN')}` : '—',
+              o.joining_date || '—',
+              <Badge color={o.status === 'Sent' ? 'green' : 'blue'}>{o.status}</Badge>,
+            ])} />}
       </Card>
     </>;
   }
 
   function PanelCandPlaced() {
+    const hired = allApps.filter(a => a.status === 'hired');
     return <>
       <Bc parts={['Candidates','Placement Records']} />
       <SectionHead title="Placement Records 🏆" />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard val="47"  label="Total Hires" sub="FY 2025-26" color={C.green} />
-        <KpiCard val="₹6.8 LPA" label="Avg CTC" sub="Across all hires" color={C.blue} />
-        <KpiCard val="87%" label="Offer Acceptance" sub="Industry avg: 74%" color={C.teal} />
-        <KpiCard val="92%" label="30-day Retention" sub="Post joining" color={C.purple} />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20 }}>
+        <KpiCard val={hired.length} label="Total Hires" sub="All time" color={C.green} />
+        <KpiCard val={allApps.filter(a=>a.status==='shortlisted').length} label="Shortlisted" sub="Pending interview" color={C.blue} />
+        <KpiCard val={allApps.filter(a=>a.status==='interview').length} label="In Interview" sub="Active pipeline" color={C.teal} />
       </div>
       <Card>
-        <Table head={['Name','Role','Joining Date','CTC','Source','Status']} rows={[
-          ['Priya Verma','React Developer','Jul 10, 2026','₹7.5 LPA','Skill India Portal',<Badge color="green">Active</Badge>],
-          ['Karan Mehta','Data Analyst','Jun 1, 2026','₹5.5 LPA','Campus','Active'],
-          ['Neha Singh','DevOps Eng.','May 15, 2026','₹8.0 LPA','Referral',<Badge color="green">Active</Badge>],
-          ['Vikas Patel','QA Engineer','Apr 1, 2026','₹4.5 LPA','Skill India Portal',<Badge color="teal">Active</Badge>],
-        ]} />
+        {!appsLoaded
+          ? <div style={{ color:'#888', padding:16 }}>Loading…</div>
+          : hired.length === 0
+            ? <div style={{ color:'#888', padding:'20px 0', textAlign:'center', fontSize:13 }}>No hires recorded yet. Update application status to "hired" to track placements.</div>
+            : <Table head={['Candidate','Role','Hired On','Status']} rows={hired.map(a => [
+                a.candidate_name || `Candidate #${a.candidate_id}`,
+                a.job_title || '—',
+                a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-IN') : new Date(a.created_at).toLocaleDateString('en-IN'),
+                <Badge color="green">Hired</Badge>
+              ])} />
+        }
       </Card>
     </>;
   }
@@ -853,7 +1317,7 @@ export default function EmployerPortal() {
     return <>
       <Bc parts={['Skill Development','PMKVY Partnership']} />
       <SectionHead title="PMKVY Partnership 🏛️" />
-      <Alert icon="✅" type="success">TechNova Pvt Ltd is a <strong>PMKVY 4.0 Employer Partner</strong>. You are eligible for placement-linked incentives on certified candidates hired.</Alert>
+      <Alert icon="✅" type="success">{user?.org_name || 'Your company'} is a <strong>PMKVY 4.0 Employer Partner</strong>. You are eligible for placement-linked incentives on certified candidates hired.</Alert>
       <Card>
         <Table head={['Name','Trade','Certification','Hired On','Incentive','Status']} rows={[
           ['Aisha Khan','Data Entry Operator','NSQF L4','Jun 1, 2026',<Badge color="green">₹5,000 Claimed</Badge>,'Retained'],
@@ -1042,7 +1506,7 @@ export default function EmployerPortal() {
       <SectionHead title="Sector Reports 🏭" />
       <Card>
         <CardTitle>IT-ITeS Benchmarks — FY 2025-26</CardTitle>
-        <Table head={['Metric','TechNova','Sector Avg','Rank']} rows={[
+        <Table head={['Metric',user?.org_name||'Your Company','Sector Avg','Rank']} rows={[
           ['Avg Time to Hire','28 days','35 days',<Badge color="green">Top 20%</Badge>],
           ['Offer Acceptance Rate','87%','74%',<Badge color="green">Top 15%</Badge>],
           ['30-day Retention','92%','84%',<Badge color="teal">Top 25%</Badge>],
@@ -1107,13 +1571,13 @@ export default function EmployerPortal() {
       <Bc parts={['Compliance','Audit Trail']} />
       <SectionHead title="Audit Trail 🔍" />
       <Card>
-        <Table head={['Timestamp','User','Action','Details','IP']} rows={[
-          ['Jul 4 · 11:02','Kavitha Reddy','Job Posted','Senior React Developer — 3 openings','122.xx.xx.12'],
-          ['Jul 4 · 10:45','Kavitha Reddy','Offer Sent','Priya Verma — ₹7.5 LPA offer letter','122.xx.xx.12'],
-          ['Jul 3 · 4:30 PM','Arjun Nair','Candidate Shortlisted','Aisha Khan — Data Analyst','122.xx.xx.14'],
-          ['Jul 2 · 3:15 PM','Kavitha Reddy','Interview Scheduled','Rahul Verma · Jul 5, 10:00 AM','122.xx.xx.12'],
-          ['Jul 1 · 9:00 AM','System','Auto Report','Weekly Hiring Summary generated','—'],
-        ]} />
+        {myJobs.length === 0 && allApps.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No activity recorded yet</div>
+          : <Table head={['Action','Details']} rows={[
+              ...myJobs.slice(0,3).map(j=>['Job Posted', `${j.title} — ${j.status}`]),
+              ...allApps.slice(0,3).map(a=>['Application', `${a.candidate_name||a.email||'Candidate'} → ${a.job_title||'Role'} (${a.status})`]),
+            ]} />
+        }
       </Card>
     </>;
   }
@@ -1174,38 +1638,34 @@ export default function EmployerPortal() {
   }
 
   function PanelSettings() {
-    return <>
-      <Bc parts={['Account','Account Preferences']} />
-      <SectionHead title="Account Preferences ⚙️" />
-      <Card>
-        <CardTitle>👤 Account Information</CardTitle>
-        <Grid><Field label="Company Name"><Inp defaultValue={user?.org_name || 'TechNova Pvt Ltd'} /></Field><Field label="Login Email"><ValidInp defaultValue={user?.email || 'hr@technova.com'} validate="email" /></Field></Grid>
-        <Grid><Field label="HR Helpline"><ValidInp defaultValue="080-4567-8900" validate="phone" /></Field><Field label="State"><Sel options={['Karnataka','Maharashtra','Delhi','Tamil Nadu']} defaultValue="Karnataka" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>🔒 Change Password</CardTitle>
-        <Grid><Field label="Current Password"><Inp type="password" placeholder="Current password" /></Field><Field label="New Password"><Inp type="password" placeholder="New password" /></Field></Grid>
-        <Field label="Confirm New Password"><Inp type="password" placeholder="Confirm new password" /></Field>
-        <div style={{ textAlign:'right' }}><Btn>🔐 Update Password</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>🔔 Notification Preferences</CardTitle>
-        <Toggle label="New applications received" sub="Alert when candidates apply to your jobs" defaultChecked={true} />
-        <Toggle label="Shortlist & interview reminders" sub="Remind about scheduled interviews" defaultChecked={true} />
-        <Toggle label="Offer status updates" sub="Notify when candidate accepts or declines" defaultChecked={true} />
-        <Toggle label="Scheme & incentive alerts" sub="Updates on PMKVY, NAPS incentive credits" defaultChecked={true} />
-        <Toggle label="Compliance reminders" sub="PF/ESI filing deadlines and renewal alerts" defaultChecked={true} />
-        <Toggle label="Weekly hiring digest" sub="Summary report every Monday morning" defaultChecked={false} />
-      </Card>
-      <Card>
-        <CardTitle>⚠️ Account Actions</CardTitle>
-        <div style={{ display:'flex', gap:12 }}>
-          <Btn danger>🗑️ Delete Account</Btn>
-          <Btn outline onClick={handleLogout}>🚪 Sign Out</Btn>
+    return <AccountPreferences onLogout={handleLogout} />;
+  }
+
+  function PanelSignOut() {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'70vh' }}>
+        <div style={{ background:'#fff', borderRadius:16, boxShadow:'0 4px 32px rgba(0,0,0,.1)', padding:'48px 56px', textAlign:'center', maxWidth:440, width:'100%' }}>
+          <div style={{ fontSize:56, marginBottom:16 }}>🚪</div>
+          <div style={{ fontSize:22, fontWeight:800, color:C.navy, marginBottom:10 }}>Sign Out</div>
+          <div style={{ fontSize:14, color:'#64748b', marginBottom:32, lineHeight:1.7 }}>
+            Are you sure you want to sign out of the Employer Portal?<br />
+            You will be redirected to the home page.
+          </div>
+          <div style={{ display:'flex', gap:14, justifyContent:'center' }}>
+            <button
+              onClick={() => go('dashboard')}
+              style={{ padding:'11px 28px', borderRadius:8, border:'1.5px solid #dde2eb', background:'#f6f8fc', color:C.navy, fontWeight:600, fontSize:14, cursor:'pointer' }}>
+              Cancel
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{ padding:'11px 28px', borderRadius:8, border:'none', background:C.red||'#dc2626', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+              Yes, Sign Out
+            </button>
+          </div>
         </div>
-      </Card>
-    </>;
+      </div>
+    );
   }
 
   function renderPanel() {
@@ -1252,6 +1712,7 @@ export default function EmployerPortal() {
       case 'grievance':         return PanelGrievance();
       case 'faq':               return PanelFAQ();
       case 'settings':          return PanelSettings();
+      case 'signout':           return PanelSignOut();
       default:                  return <SectionHead title="Panel Not Found" />;
     }
   }

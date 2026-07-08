@@ -1,14 +1,30 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('aisha@example.com');
   const [password, setPassword] = useState('password123');
+  const [loginRole, setLoginRole] = useState(searchParams.get('role') || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const hideRegister = loginRole === 'state_gov' || loginRole === 'superadmin';
+
+  const LOGIN_ROLES = [
+    { value: '', label: 'Select role (optional)' },
+    { value: 'candidate', label: 'Candidate' },
+    { value: 'employer', label: 'Employer' },
+    { value: 'trainer', label: 'Trainer' },
+    { value: 'placement_agency', label: 'Placement Agency' },
+    { value: 'csr_org', label: 'CSR Organization' },
+    { value: 'training_vendor', label: 'Training Vendor' },
+    { value: 'state_gov', label: 'State Government' },
+    { value: 'superadmin', label: 'Administrator' },
+  ];
 
   async function submit(e) {
     e.preventDefault();
@@ -39,12 +55,19 @@ export default function Login() {
 
   return (
     <div className="auth-wrap">
-      <div className="auth-card">
-        <div className="auth-logo"><div className="mark">🎯</div><span>SkillsNJobs</span></div>
+      <div className="auth-card" style={{ position: 'relative' }}>
+        <button onClick={() => navigate('/')} style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }} title="Close">×</button>
+        <div className="auth-logo"><img src="/logo.png" alt="Skills n Jobs" style={{ height: 48, width: 48, objectFit: 'contain' }} /><span>SkillsNJobs</span></div>
         <h2>Welcome back</h2>
         <p className="sub">Sign in to continue your skill-to-career journey.</p>
         {error && <div className="error-msg">{error}</div>}
         <form onSubmit={submit}>
+          <div className="field">
+            <label>I am a</label>
+            <select value={loginRole} onChange={e => setLoginRole(e.target.value)}>
+              {LOGIN_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
           <div className="field">
             <label>Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
@@ -60,12 +83,11 @@ export default function Login() {
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
         </form>
-        <div className="auth-switch">
-          No account? <Link to="/register">Create one</Link>
-        </div>
-        <div className="hint" style={{ marginTop: 16, textAlign: 'center' }}>
-          Demo logins (password: <strong>password123</strong>): aisha@example.com (candidate) · hr@technova.com (employer) · trainer@skillbridge.in (trainer) · pioneer@placements.in (placement partner)
-        </div>
+        {!hideRegister && (
+          <div className="auth-switch">
+            No account? <Link to="/register">Create one</Link>
+          </div>
+        )}
       </div>
     </div>
   );

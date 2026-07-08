@@ -1,11 +1,13 @@
 import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api.js';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 
-const SW = 250, TH = 58;
+const SW = 220, TH = 58;
 const C = {
-  navy:'#0D2137', sidebar:'#1A56C4', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
+  navy:'#0D2137', sidebar:'#010E3C', blue:'#1E5FBF', teal:'#0B7B8C', green:'#1A7C3E',
   gold:'#C8860A', red:'#C0392B', purple:'#6B3FA0', orange:'#C05621',
   pBlue:'#EBF1FB', pGreen:'#E8F5EE', pGold:'#FEF6E4',
   pRed:'#FDECEA', pPurple:'#F0EAFB', pTeal:'#E6F4F6', pOrange:'#FFF0E6',
@@ -101,19 +103,23 @@ function Field({ label, children }) {
     {children}
   </div>;
 }
-function Inp({ placeholder, defaultValue, type='text' }) {
-  return <input type={type} placeholder={placeholder} defaultValue={defaultValue}
+function Inp({ placeholder, defaultValue, value, onChange, type='text' }) {
+  const controlled = value !== undefined;
+  return <input type={type} placeholder={placeholder}
+    {...(controlled ? { value, onChange } : { defaultValue })}
     style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} />;
 }
 
-function ValidInp({ placeholder, defaultValue, value: valueProp, type='text', validate: vtype, required }) {
-  const [val, setVal] = useState(typeof defaultValue !== 'undefined' ? String(defaultValue) : (typeof valueProp !== 'undefined' ? String(valueProp) : ''));
+function ValidInp({ placeholder, defaultValue, value: valueProp, onChange: onChangeProp, type='text', validate: vtype, required }) {
+  const [val, setVal] = useState(typeof valueProp !== 'undefined' ? String(valueProp) : (typeof defaultValue !== 'undefined' ? String(defaultValue) : ''));
   const [error, setError] = useState('');
+  useEffect(() => { if (valueProp !== undefined) setVal(String(valueProp)); }, [valueProp]);
   function handleChange(e) {
     let v = e.target.value;
     if (vtype && UPPERCASE_TYPES.has(vtype)) v = v.toUpperCase();
     setVal(v);
     if (error) setError('');
+    if (onChangeProp) onChangeProp({ target: { value: v } });
   }
   function handleBlur(e) {
     const v = e.target.value.trim();
@@ -133,8 +139,9 @@ function ValidInp({ placeholder, defaultValue, value: valueProp, type='text', va
     </div>
   );
 }
-function Sel({ options, defaultValue }) {
-  return <select defaultValue={defaultValue} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }}>
+function Sel({ options, defaultValue, value, onChange }) {
+  const controlled = value !== undefined;
+  return <select {...(controlled ? { value, onChange } : { defaultValue })} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }}>
     {options.map(o=><option key={o}>{o}</option>)}
   </select>;
 }
@@ -201,9 +208,135 @@ export default function CsrOrganizationPortal() {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef(null);
 
+  const [profileInfo, setProfileInfo] = useState(() => ({
+    org_name: user?.org_name || '',
+    cin: user?.cin || '',
+    pan: user?.pan || '',
+    website: user?.website || '',
+    bio: user?.bio || '',
+  }));
+  const [infoSaving, setInfoSaving] = useState(false);
+
+  const [profileContact, setProfileContact] = useState(() => ({
+    address_line1: user?.address_line1 || '',
+    city: user?.city || '',
+    state_name: user?.state_name || '',
+    pincode: user?.pincode || '',
+    phone: (user?.phone || '').replace(/^\+91/, ''),
+    email: user?.email || '',
+    spoc_name: user?.spoc_name || '',
+  }));
+  const [contactSaving, setContactSaving] = useState(false);
+
+  const [profileBank, setProfileBank] = useState(() => ({
+    bank_account_name: user?.bank_account_name || '',
+    bank_account_number: user?.bank_account_number || '',
+    bank_ifsc: user?.bank_ifsc || '',
+  }));
+  const [bankSaving, setBankSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setProfileInfo(f => ({ ...f,
+        org_name: user.org_name || '',
+        cin: user.cin || '',
+        pan: user.pan || '',
+        website: user.website || '',
+        bio: user.bio || '',
+      }));
+      setProfileContact(f => ({ ...f,
+        address_line1: user.address_line1 || '',
+        city: user.city || '',
+        state_name: user.state_name || '',
+        pincode: user.pincode || '',
+        phone: (user.phone || '').replace(/^\+91/, ''),
+        email: user.email || '',
+        spoc_name: user.spoc_name || '',
+      }));
+      setProfileBank(f => ({ ...f,
+        bank_account_name: user.bank_account_name || '',
+        bank_account_number: user.bank_account_number || '',
+        bank_ifsc: user.bank_ifsc || '',
+      }));
+    }
+  }, [user]);
+
+  async function saveInfo() {
+    setInfoSaving(true);
+    try {
+      await api.updateMe({ org_name: profileInfo.org_name, cin: profileInfo.cin, pan: profileInfo.pan, website: profileInfo.website, bio: profileInfo.bio });
+      alert('Organisation info saved.');
+    } catch { alert('Save failed.'); } finally { setInfoSaving(false); }
+  }
+  async function saveContact() {
+    setContactSaving(true);
+    try {
+      await api.updateMe({
+        address_line1: profileContact.address_line1, city: profileContact.city,
+        state_name: profileContact.state_name, pincode: profileContact.pincode,
+        phone: profileContact.phone ? '+91' + profileContact.phone : null,
+        spoc_name: profileContact.spoc_name,
+      });
+      alert('Contact info saved.');
+    } catch { alert('Save failed.'); } finally { setContactSaving(false); }
+  }
+  async function saveBank() {
+    setBankSaving(true);
+    try {
+      await api.updateMe({ bank_account_name: profileBank.bank_account_name, bank_account_number: profileBank.bank_account_number, bank_ifsc: profileBank.bank_ifsc });
+      alert('Bank details saved.');
+    } catch { alert('Save failed.'); } finally { setBankSaving(false); }
+  }
+
+  // Project proposal form
+  const [projForm, setProjForm] = useState({ title:'', schedule7:'Skill Development', sub_sector:'Vocational Training', target_beneficiaries:'', target_states:'', start_date:'', end_date:'', objectives:'', budget:'', own_contribution:'', other_sources:'', implementing_agency:'', agency_type:'NGO', mou_signed:'No — in progress' });
+  const [projSaving, setProjSaving] = useState(false);
+  const [projMsg, setProjMsg] = useState('');
+
+  // Training partner add form
+  const [tpForm, setTpForm] = useState({ org_name:'', type:'Private ITC', nsdc_reg:'', state_name:'Maharashtra', contact_person:'', email:'', num_trainers:'10', max_batch_size:'30' });
+  const [tpSaving, setTpSaving] = useState(false);
+  const [tpMsg, setTpMsg] = useState('');
+
+  const [stats, setStats] = useState({});
+  const [projects, setProjects] = useState([]);
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [disbursements, setDisbursements] = useState([]);
+  const [trainingPartners, setTrainingPartners] = useState([]);
+  const [loaded, setLoaded] = useState({});
+
+  const loadStats = useCallback(() => api.csrStats().then(setStats).catch(() => {}), []);
+  const loadProjects = useCallback(() => {
+    if (loaded.projects) return;
+    api.csrProjects().then(d => { setProjects(d); setLoaded(l => ({ ...l, projects: true })); }).catch(() => {});
+  }, [loaded.projects]);
+  const loadBeneficiaries = useCallback(() => {
+    if (loaded.beneficiaries) return;
+    api.csrBeneficiaries().then(d => { setBeneficiaries(d); setLoaded(l => ({ ...l, beneficiaries: true })); }).catch(() => {});
+  }, [loaded.beneficiaries]);
+  const loadDisbursements = useCallback(() => {
+    if (loaded.disbursements) return;
+    api.csrDisbursements().then(d => { setDisbursements(d); setLoaded(l => ({ ...l, disbursements: true })); }).catch(() => {});
+  }, [loaded.disbursements]);
+  const loadTPs = useCallback(() => {
+    if (loaded.tps) return;
+    api.csrTrainingPartners().then(d => { setTrainingPartners(d); setLoaded(l => ({ ...l, tps: true })); }).catch(() => {});
+  }, [loaded.tps]);
+
+  useEffect(() => { loadStats(); loadProjects(); loadDisbursements(); }, []);
+
   function toggleMenu(id) { setOpenMenus(m => ({ ...m, [id]: !m[id] })); }
-  function go(key) { setPanel(key); window.scrollTo(0, 0); }
-  function handleLogout() { logout(); navigate('/login'); }
+  function go(key) {
+    setPanel(key); window.scrollTo(0, 0);
+    if (['dashboard','proj-active','proj-draft','proj-completed','proj-approval'].includes(key)) loadProjects();
+    if (['bene-list','bene-track','bene-placement'].includes(key)) loadBeneficiaries();
+    if (['fund-disbursements','fund-utilization','fund-unspent'].includes(key)) loadDisbursements();
+    if (['tp-list','tp-performance'].includes(key)) loadTPs();
+  }
+  function handleLogout() { logout(); navigate('/'); }
+
+  const crore = n => n >= 10000000 ? `₹${(n/10000000).toFixed(1)} Cr` : n >= 100000 ? `₹${(n/100000).toFixed(1)} L` : `₹${(n||0).toLocaleString('en-IN')}`;
+  const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
 
   const searchResults = searchQ.trim()
     ? NAV.filter(n => n.label.toLowerCase().includes(searchQ.toLowerCase()) || n.section.toLowerCase().includes(searchQ.toLowerCase())).slice(0, 8)
@@ -234,15 +367,16 @@ export default function CsrOrganizationPortal() {
     const lbl = s => <div style={{ padding:'16px 16px 4px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.32)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
 
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'auto', zIndex:200, display:'flex', flexDirection:'column' }}>
-        <div style={{ padding:'0 16px', height:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
-          <div style={{ width:34, height:34, background:C.green, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🏛️</div>
+      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'0 16px', height:TH, minHeight:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
             <div style={{ color:'#fff', fontWeight:800, fontSize:14, lineHeight:1.2 }}>SkillsNJobs</div>
             <div style={{ color:'rgba(255,255,255,.45)', fontSize:9.5 }}>CSR ORGANIZATION</div>
           </div>
         </div>
 
+        <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
         {lbl('Main')}
         <NavItem icon="🏠" label="Dashboard" active={panel==='dashboard'} onClick={()=>go('dashboard')} />
         <NavItem icon="🔔" label="Notifications" badge="5" active={panel==='notifications'} onClick={()=>go('notifications')} />
@@ -329,6 +463,7 @@ export default function CsrOrganizationPortal() {
 
         {lbl('Account')}
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />
+        </div>
       </div>
     );
   }
@@ -358,12 +493,14 @@ export default function CsrOrganizationPortal() {
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
           <div style={{ cursor:'pointer', padding:6, position:'relative', fontSize:18 }} onClick={()=>go('notifications')}>
-            🔔<span style={{ position:'absolute', top:2, right:2, width:17, height:17, borderRadius:'50%', background:C.red, color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>5</span>
+            🔔
           </div>
-          <div style={{ width:38, height:38, borderRadius:'50%', background:C.green, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>CS</div>
+          <div style={{ width:38, height:38, borderRadius:'50%', background:C.green, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>
+            {(user?.org_name||'CS').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+          </div>
           <div style={{ lineHeight:1.25 }}>
-            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || 'Cipla Foundation'}</div>
-            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: CSR-000047</div>
+            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || '—'}</div>
+            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: CSR-{String(user?.id||'').padStart(6,'0')}</div>
           </div>
           <button onClick={handleLogout} style={{ background:C.blue, color:'#fff', border:'none', padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>⏻ Sign Out</button>
         </div>
@@ -373,14 +510,19 @@ export default function CsrOrganizationPortal() {
 
   // ── PANELS ────────────────────────────────────────────────────────────────
   function PanelDashboard() {
+    const utilPct = pct(stats.totalSpent, stats.totalBudget);
+    const activeProjList = projects.filter(p => p.status === 'active').slice(0, 5);
+    const completedProjList = projects.filter(p => p.status === 'completed');
+    const inProgressBene = beneficiaries.filter(b => b.training_status === 'in_progress').length;
+    const enrolledBene = beneficiaries.filter(b => b.training_status === 'enrolled').length;
     return <>
       <Alert icon="⚡" type="warn"><strong>Action needed:</strong> FY 2025-26 CSR-2 form submission due by 30 Sep 2026. <strong>File Now →</strong></Alert>
-      <SectionHead title="Welcome, Cipla Foundation! 🏛️" />
+      <SectionHead title={`Welcome, ${user?.org_name || user?.name || 'CSR Organisation'}! 🏛️`} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard val="₹18.4 Cr" label="Total CSR Spend" sub="FY 2025-26" color={C.blue} />
-        <KpiCard val="6,840" label="Beneficiaries Trained" sub="This year" color={C.teal} />
-        <KpiCard val="12" label="Active Projects" sub="Across 8 states" color={C.green} />
-        <KpiCard val="94%" label="Fund Utilization" sub="Of allocated corpus" color={C.gold} />
+        <KpiCard val={crore(stats.totalSpent)} label="Total CSR Spend" sub="All projects combined" color={C.blue} />
+        <KpiCard val={(stats.totalBeneficiaries || 0).toLocaleString('en-IN')} label="Beneficiaries Enrolled" sub={`${stats.certifiedBeneficiaries||0} certified`} color={C.teal} />
+        <KpiCard val={stats.activeProjects || 0} label="Active Projects" sub={`${stats.completedProjects||0} completed`} color={C.green} />
+        <KpiCard val={`${utilPct}%`} label="Fund Utilization" sub={`${crore(stats.totalBudget)} allocated`} color={C.gold} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[['📋','Propose Project','proj-new'],['👥','Add Beneficiary','bene-register'],['💰','Disburse Funds','fund-disbursements'],['📜','File CSR-2','comp-csr2']].map(([icon,lbl,k])=>(
@@ -394,38 +536,41 @@ export default function CsrOrganizationPortal() {
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:0 }}>
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>📊 CSR Spend vs Obligation</CardTitle>
-          <StatRow n="₹18.4 Cr" label="Actual Spend" pct={92} color={C.green} />
-          <StatRow n="₹20.0 Cr" label="Obligation (2% of PAT)" pct={100} color={C.blue} />
-          <StatRow n="₹1.6 Cr" label="Unspent (to be transferred)" pct={8} color={C.red} />
+          <CardTitle>📊 CSR Spend vs Budget</CardTitle>
+          <StatRow n={crore(stats.totalSpent)} label="Actual Spend" pct={utilPct} color={C.green} />
+          <StatRow n={crore(stats.totalBudget)} label="Total Budget Allocated" pct={100} color={C.blue} />
+          <StatRow n={crore(Math.max(0,(stats.totalBudget||0)-(stats.totalSpent||0)))} label="Unspent Balance" pct={100-utilPct} color={C.red} />
           <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'14px 0' }} />
-          <div style={{ fontSize:12, color:'#64748b' }}>Sector: Healthcare 35% · Skill Dev 40% · Education 25%</div>
+          <div style={{ fontSize:12, color:'#64748b' }}>{stats.totalPartners||0} training partners · {stats.activePartners||0} active MoUs</div>
         </Card>
         <Card style={{ marginBottom:0, overflowX:'auto' }}>
           <CardTitle>🏆 Project Status</CardTitle>
-          <Table head={['Project','Beneficiaries','Status']} rows={[
-            ['Skill Dev — Navi Mumbai','1,200',<Badge color="green">Active</Badge>],
-            ['Women Empowerment','840',<Badge color="green">Active</Badge>],
-            ['Digital Literacy Drive','2,100',<Badge color="blue">Active</Badge>],
-            ['Healthcare Outreach','620',<Badge color="gold">Review</Badge>],
-            ['EV Technician Training','480',<Badge color="teal">Completed</Badge>],
-          ]} />
+          {projects.length === 0
+            ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+            : <Table head={['Project','Beneficiaries','Status']} rows={projects.slice(0,6).map(p => [
+                p.title,
+                (p.beneficiaries_actual||0).toLocaleString('en-IN'),
+                <Badge color={p.status==='active'?'green':p.status==='completed'?'teal':p.status==='delayed'?'gold':'blue'}>{p.status}</Badge>
+              ])} />}
         </Card>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginTop:16 }}>
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>🔔 Recent Activity</CardTitle>
-          <TlItem dot={C.green} title="₹1.2 Cr disbursed to SkillBridge Institute" meta="Today · 10:45 AM" />
-          <TlItem dot={C.blue} title="240 new beneficiaries enrolled in PMKVY batch" meta="Today · 9:00 AM" />
-          <TlItem dot={C.gold} title="Board resolution for Q3 CSR expenditure uploaded" meta="Yesterday · 5:30 PM" />
-          <TlItem dot={C.purple} title="Quarterly impact report generated" meta="Jul 3, 2026" />
-          <TlItem dot={C.teal} title="MoU signed with TrainRight Academy, Jaipur" meta="Jul 2, 2026" />
+          <CardTitle>🔔 Recent Disbursements</CardTitle>
+          {disbursements.length === 0
+            ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+            : disbursements.slice(0,5).map(d => (
+                <TlItem key={d.id} dot={d.status==='disbursed'?C.green:C.gold}
+                  title={`${crore(d.amount)} disbursed to ${d.recipient}`}
+                  meta={`${d.purpose} · ${d.status}`} />
+              ))}
         </Card>
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>📈 Beneficiary Funnel (This Year)</CardTitle>
-          {[['8,400','Enrolled',100,C.blue],['7,920','Training Completed',94,C.teal],['6,840','Certified',81,C.green],['5,210','Placed',62,C.gold],['4,890','Retained (3-month)',58,C.purple]].map(([n,l,p,c])=>(
-            <StatRow key={l} n={n} label={l} pct={p} color={c} />
-          ))}
+          <CardTitle>📈 Beneficiary Status</CardTitle>
+          <StatRow n={stats.totalBeneficiaries||0} label="Total Enrolled" pct={100} color={C.blue} />
+          <StatRow n={stats.certifiedBeneficiaries||0} label="Training Completed" pct={pct(stats.certifiedBeneficiaries,stats.totalBeneficiaries)} color={C.teal} />
+          <StatRow n={stats.placedBeneficiaries||0} label="Placed" pct={pct(stats.placedBeneficiaries,stats.totalBeneficiaries)} color={C.green} />
+          <StatRow n={stats.totalPartners||0} label="Training Partners" pct={pct(stats.activePartners,stats.totalPartners)*100/100} color={C.gold} />
         </Card>
       </div>
     </>;
@@ -448,41 +593,57 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelProfileInfo() {
+    const set = k => e => setProfileInfo(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['CSR Profile','Organisation Information']} />
       <SectionHead title="Organisation Information 🏢" />
       <Card>
         <CardTitle>🏛️ Basic Details</CardTitle>
-        <Grid><Field label="Organisation Name"><Inp defaultValue="Cipla Limited" /></Field><Field label="CIN Number"><ValidInp defaultValue="L24239MH1935PLC002406" validate="cin" /></Field></Grid>
-        <Grid><Field label="Organisation Type"><Sel options={['Public Limited Company','Private Limited Company','Government','Trust','Section 8 Company']} defaultValue="Public Limited Company" /></Field><Field label="Year of Incorporation"><Inp defaultValue="1935" /></Field></Grid>
-        <Grid><Field label="PAN Number"><ValidInp defaultValue="AAACF0684J" validate="pan" /></Field><Field label="Category"><Sel options={['Manufacturing','Healthcare','Technology','FMCG','Banking & Finance']} defaultValue="Healthcare" /></Field></Grid>
-        <Field label="Nature of Business"><Inp defaultValue="Pharmaceutical manufacturing and distribution" /></Field>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
+        <Grid>
+          <Field label="Organisation Name"><Inp value={profileInfo.org_name} onChange={set('org_name')} /></Field>
+          <Field label="CIN Number"><ValidInp value={profileInfo.cin} onChange={set('cin')} validate="cin" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="PAN Number"><ValidInp value={profileInfo.pan} onChange={set('pan')} validate="pan" /></Field>
+          <Field label="Website"><Inp value={profileInfo.website} onChange={set('website')} /></Field>
+        </Grid>
+        <Field label="Description / Mission"><textarea className="inp" rows={3} value={profileInfo.bio} onChange={set('bio')} placeholder="Describe your CSR mission…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <div style={{ textAlign:'right' }}><Btn onClick={saveInfo} style={{ opacity: infoSaving ? .7 : 1 }}>{infoSaving ? 'Saving…' : '💾 Save Changes'}</Btn></div>
       </Card>
       <Card>
         <CardTitle>📊 CSR Obligation (FY 2025-26)</CardTitle>
-        <Grid cols={3}><Field label="Avg Net Profit (3 yrs)"><Inp defaultValue="₹1,000 Cr" /></Field><Field label="2% CSR Obligation"><Inp defaultValue="₹20.0 Cr" /></Field><Field label="Total Spend"><Inp defaultValue="₹18.4 Cr" /></Field></Grid>
-        <Alert icon="ℹ️" type="info">Unspent amount of ₹1.6 Cr must be transferred to a designated account within 6 months of FY end as per Section 135(6).</Alert>
+        <Grid cols={3}><Field label="Avg Net Profit (3 yrs)"><Inp placeholder="e.g. ₹1,000 Cr" /></Field><Field label="2% CSR Obligation"><Inp placeholder="e.g. ₹20.0 Cr" /></Field><Field label="Total Spend"><Inp placeholder="e.g. ₹18.4 Cr" /></Field></Grid>
+        <Alert icon="ℹ️" type="info">Unspent CSR amounts must be transferred to a designated account within 6 months of FY end as per Section 135(6).</Alert>
       </Card>
     </>;
   }
 
   function PanelProfileContact() {
+    const set = k => e => setProfileContact(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['CSR Profile','Contact & Address']} />
       <SectionHead title="Contact & Address 📍" />
       <Card>
         <CardTitle>📞 Registered Office</CardTitle>
-        <Field label="Street Address"><Inp defaultValue="Mumbai Central, Ganpatrao Kadam Marg" /></Field>
-        <Grid cols={3}><Field label="City"><Inp defaultValue="Mumbai" /></Field><Field label="State"><Sel options={['Maharashtra','Delhi','Karnataka','Tamil Nadu']} defaultValue="Maharashtra" /></Field><Field label="PIN Code"><ValidInp defaultValue="400013" validate="pincode" /></Field></Grid>
-        <Grid><Field label="CSR Helpline"><Inp defaultValue="1800-xxx-xxxx" /></Field><Field label="CSR Email"><Inp defaultValue="csr@cipla.com" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
+        <Field label="Street Address"><Inp value={profileContact.address_line1} onChange={set('address_line1')} placeholder="Street / Building" /></Field>
+        <Grid cols={3}>
+          <Field label="City"><Inp value={profileContact.city} onChange={set('city')} placeholder="City" /></Field>
+          <Field label="State"><Inp value={profileContact.state_name} onChange={set('state_name')} placeholder="State" /></Field>
+          <Field label="PIN Code"><ValidInp value={profileContact.pincode} onChange={set('pincode')} validate="pincode" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Phone"><Inp value={profileContact.phone} onChange={set('phone')} placeholder="10-digit mobile" /></Field>
+          <Field label="Email"><Inp value={profileContact.email} placeholder="Email (read-only)" /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}><Btn onClick={saveContact} style={{ opacity: contactSaving ? .7 : 1 }}>{contactSaving ? 'Saving…' : '💾 Save Changes'}</Btn></div>
       </Card>
       <Card>
-        <CardTitle>👤 Nodal Officer</CardTitle>
-        <Grid><Field label="Officer Name"><Inp defaultValue="Dr. Amrita Patel" /></Field><Field label="Designation"><Inp defaultValue="Head of CSR" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp defaultValue="9876543210" validate="mobile" /></Field><Field label="Email"><ValidInp defaultValue="amrita.patel@cipla.com" validate="email" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Update Contact</Btn></div>
+        <CardTitle>👤 Nodal Officer / SPOC</CardTitle>
+        <Grid>
+          <Field label="Officer Name"><Inp value={profileContact.spoc_name} onChange={set('spoc_name')} placeholder="Officer name" /></Field>
+          <Field label="Designation"><Inp placeholder="e.g. Head of CSR" /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}><Btn onClick={saveContact} style={{ opacity: contactSaving ? .7 : 1 }}>{contactSaving ? 'Saving…' : '💾 Update Contact'}</Btn></div>
       </Card>
     </>;
   }
@@ -512,90 +673,137 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelProfileBank() {
+    const set = k => e => setProfileBank(f => ({ ...f, [k]: e.target.value }));
     return <>
       <Bc parts={['CSR Profile','Bank & Payment Details']} />
       <SectionHead title="Bank & Payment Details 🏦" />
       <Card>
         <CardTitle>🏦 Primary Bank Account</CardTitle>
-        <Grid><Field label="Account Holder"><Inp defaultValue="Cipla Limited — CSR Fund" /></Field><Field label="Account Number"><Inp defaultValue="XXX-XXXX-XXXX-1234" /></Field></Grid>
-        <Grid><Field label="IFSC Code"><ValidInp defaultValue="HDFC0001234" validate="ifsc" /></Field><Field label="Bank Name"><Inp defaultValue="HDFC Bank" /></Field></Grid>
-        <Grid><Field label="Branch"><Inp defaultValue="Mumbai Central" /></Field><Field label="Account Type"><Sel options={['Current','Savings']} defaultValue="Current" /></Field></Grid>
+        <Grid>
+          <Field label="Account Holder"><Inp value={profileBank.bank_account_name} onChange={set('bank_account_name')} placeholder="As per bank records" /></Field>
+          <Field label="Account Number"><Inp value={profileBank.bank_account_number} onChange={set('bank_account_number')} placeholder="Account number" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="IFSC Code"><ValidInp value={profileBank.bank_ifsc} onChange={set('bank_ifsc')} validate="ifsc" /></Field>
+          <Field label="Account Type"><Sel options={['Current','Savings']} /></Field>
+        </Grid>
         <Alert icon="⚠️" type="warn">Bank details once saved require OTP verification and board approval before changes take effect.</Alert>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save & Verify</Btn></div>
+        <div style={{ textAlign:'right' }}><Btn onClick={saveBank} style={{ opacity: bankSaving ? .7 : 1 }}>{bankSaving ? 'Saving…' : '💾 Save & Verify'}</Btn></div>
       </Card>
       <Card>
         <CardTitle>🏛️ Unspent CSR Fund Account</CardTitle>
-        <Grid><Field label="Account Number"><Inp defaultValue="XXX-XXXX-XXXX-5678" /></Field><Field label="Bank"><Inp defaultValue="SBI — National Unspent CSR Fund" /></Field></Grid>
+        <Grid><Field label="Account Number"><Inp placeholder="Designated unspent CSR account" /></Field><Field label="Bank"><Inp placeholder="Bank name" /></Field></Grid>
         <p style={{ fontSize:12.5, color:'#64748b', marginTop:8 }}>Designated for unspent CSR funds as per Section 135(6) of the Companies Act, 2013.</p>
       </Card>
     </>;
   }
 
   function PanelProjNew() {
+    const pf = projForm;
+    const set = k => e => setProjForm(f => ({ ...f, [k]: e.target.value }));
+
+    async function saveProject(status) {
+      if (!pf.title.trim()) { setProjMsg('Project title is required.'); return; }
+      setProjSaving(true); setProjMsg('');
+      try {
+        await api.csrCreateProject({ ...pf, status });
+        setProjMsg(status === 'draft' ? '✅ Saved as draft.' : '✅ Submitted for approval!');
+        setProjForm({ title:'', schedule7:'Skill Development', sub_sector:'Vocational Training', target_beneficiaries:'', target_states:'', start_date:'', end_date:'', objectives:'', budget:'', own_contribution:'', other_sources:'', implementing_agency:'', agency_type:'NGO', mou_signed:'No — in progress' });
+        setLoaded(l => ({ ...l, projects: false }));
+      } catch(e) { setProjMsg('❌ ' + (e.message || 'Save failed.')); }
+      setProjSaving(false);
+    }
+
     return <>
       <Bc parts={['Projects','Propose New Project']} />
       <SectionHead title="Propose New Project 📋" />
+      {projMsg && <Alert icon={projMsg.startsWith('✅') ? '✅' : '❌'} type={projMsg.startsWith('✅') ? 'success' : 'red'}>{projMsg}</Alert>}
       <Card>
         <CardTitle>📝 Project Details</CardTitle>
-        <Field label="Project Title"><Inp placeholder="e.g. Skill Development for Youth in Rural Maharashtra" /></Field>
-        <Grid><Field label="Schedule VII Activity"><Sel options={['Eradicating Poverty','Promoting Education','Healthcare & Sanitation','Skill Development','Gender Equality','Environment','National Heritage','Sports','PM National Relief Fund']} /></Field><Field label="Sub-Sector"><Sel options={['Vocational Training','Literacy','Digital Skills','Financial Literacy']} /></Field></Grid>
-        <Grid><Field label="Target Beneficiaries"><Inp placeholder="500" /></Field><Field label="Target States"><Inp placeholder="Maharashtra, Rajasthan" /></Field></Grid>
-        <Grid><Field label="Start Date"><Inp type="date" /></Field><Field label="End Date"><Inp type="date" /></Field></Grid>
-        <Field label="Project Objectives"><textarea className="inp" rows={3} placeholder="Describe objectives…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <Field label="Project Title"><Inp value={pf.title} onChange={set('title')} placeholder="e.g. Skill Development for Youth in Rural Maharashtra" /></Field>
+        <Grid>
+          <Field label="Schedule VII Activity"><Sel value={pf.schedule7} onChange={set('schedule7')} options={['Eradicating Poverty','Promoting Education','Healthcare & Sanitation','Skill Development','Gender Equality','Environment','National Heritage','Sports','PM National Relief Fund']} /></Field>
+          <Field label="Sub-Sector"><Sel value={pf.sub_sector} onChange={set('sub_sector')} options={['Vocational Training','Literacy','Digital Skills','Financial Literacy']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Target Beneficiaries"><Inp value={pf.target_beneficiaries} onChange={set('target_beneficiaries')} placeholder="500" /></Field>
+          <Field label="Target States"><Inp value={pf.target_states} onChange={set('target_states')} placeholder="Maharashtra, Rajasthan" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Start Date"><Inp type="date" value={pf.start_date} onChange={set('start_date')} /></Field>
+          <Field label="End Date"><Inp type="date" value={pf.end_date} onChange={set('end_date')} /></Field>
+        </Grid>
+        <Field label="Project Objectives"><textarea rows={3} value={pf.objectives} onChange={set('objectives')} placeholder="Describe objectives…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
       </Card>
       <Card>
         <CardTitle>💰 Financial Details</CardTitle>
-        <Grid cols={3}><Field label="Estimated Budget (₹)"><Inp defaultValue="50,00,000" /></Field><Field label="Own Contribution (₹)"><Inp defaultValue="40,00,000" /></Field><Field label="Other Sources (₹)"><Inp defaultValue="10,00,000" /></Field></Grid>
-        <Field label="Implementing Agency"><Inp placeholder="e.g. SkillBridge Institute Pvt. Ltd." /></Field>
-        <Grid><Field label="Agency Type"><Sel options={['NGO','Training Institute','Government Body','Direct Implementation']} /></Field><Field label="MoU Signed"><Sel options={['Yes','No — in progress']} /></Field></Grid>
-        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}><Btn outline>Save Draft</Btn><Btn green>Submit for Approval</Btn></div>
+        <Grid cols={3}>
+          <Field label="Estimated Budget (₹)"><Inp value={pf.budget} onChange={set('budget')} placeholder="50,00,000" /></Field>
+          <Field label="Own Contribution (₹)"><Inp value={pf.own_contribution} onChange={set('own_contribution')} placeholder="40,00,000" /></Field>
+          <Field label="Other Sources (₹)"><Inp value={pf.other_sources} onChange={set('other_sources')} placeholder="10,00,000" /></Field>
+        </Grid>
+        <Field label="Implementing Agency"><Inp value={pf.implementing_agency} onChange={set('implementing_agency')} placeholder="e.g. SkillBridge Institute Pvt. Ltd." /></Field>
+        <Grid>
+          <Field label="Agency Type"><Sel value={pf.agency_type} onChange={set('agency_type')} options={['NGO','Training Institute','Government Body','Direct Implementation']} /></Field>
+          <Field label="MoU Signed"><Sel value={pf.mou_signed} onChange={set('mou_signed')} options={['Yes','No — in progress']} /></Field>
+        </Grid>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
+          <Btn outline onClick={() => saveProject('draft')} disabled={projSaving}>💾 Save Draft</Btn>
+          <Btn green onClick={() => saveProject('pending')} disabled={projSaving}>📤 Submit for Approval</Btn>
+        </div>
       </Card>
     </>;
   }
 
   function PanelProjActive() {
+    const active = projects.filter(p => p.status === 'active');
     return <>
       <Bc parts={['Projects','Active Projects']} />
       <SectionHead title="Active Projects 🚀" />
       <Card>
-        <Table head={['Project','State','Budget','Spent','Beneficiaries','Status']} rows={[
-          ['Skill Dev — Navi Mumbai','Maharashtra','₹1.5 Cr','₹1.1 Cr (73%)','1,200',<Badge color="green">On Track</Badge>],
-          ['Women Empowerment','Rajasthan','₹80 L','₹52 L (65%)','840',<Badge color="green">On Track</Badge>],
-          ['Digital Literacy Drive','UP','₹2.0 Cr','₹1.6 Cr (80%)','2,100',<Badge color="blue">On Track</Badge>],
-          ['Healthcare Outreach','Bihar','₹60 L','₹38 L (63%)','620',<Badge color="gold">Delayed</Badge>],
-          ['EV Technician Training','Gujarat','₹1.2 Cr','₹0.7 Cr (58%)','480',<Badge color="green">On Track</Badge>],
-          ['Agri-Tech Rural Program','Punjab','₹90 L','₹68 L (76%)','390',<Badge color="teal">On Track</Badge>],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : active.length === 0 ? <div style={{ color:'#888', padding:12 }}>No active projects.</div>
+         : <Table head={['Project','State','Budget','Spent','Beneficiaries','Status']} rows={active.map(p => [
+             p.title, p.state_name,
+             crore(p.budget), `${crore(p.spent)} (${pct(p.spent,p.budget)}%)`,
+             (p.beneficiaries_actual||0).toLocaleString('en-IN'),
+             <Badge color={p.status==='active'?'green':p.status==='delayed'?'gold':'teal'}>{p.status}</Badge>
+           ])} />}
       </Card>
     </>;
   }
 
   function PanelProjDraft() {
+    const drafts = projects.filter(p => p.status === 'draft');
     return <>
       <Bc parts={['Projects','Draft Projects']} />
       <SectionHead title="Draft Projects 📝" />
       <Card>
-        <Table head={['Title','Sector','Budget','Last Edited','Action']} rows={[
-          ['Tribal Youth Coding Program','Education','₹40 L','Jul 3, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Submit</Btn></>],
-          ['Water Conservation — Vidarbha','Environment','₹70 L','Jun 28, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Submit</Btn></>],
-          ['Senior Care Skill Program','Healthcare','₹25 L','Jun 20, 2026',<><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Submit</Btn></>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Propose New Project</Btn></div>
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : drafts.length === 0 ? <div style={{ color:'#888', padding:12 }}>No draft projects.</div>
+         : <Table head={['Title','State','Budget','Action']} rows={drafts.map(p => [
+             p.title, p.state_name || '—', crore(p.budget),
+             <><Btn sm outline>Edit</Btn>{' '}<Btn sm green>Submit</Btn></>
+           ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={()=>go('proj-new')}>+ Propose New Project</Btn></div>
       </Card>
     </>;
   }
 
   function PanelProjCompleted() {
+    const completed = projects.filter(p => p.status === 'completed');
     return <>
       <Bc parts={['Projects','Completed Projects']} />
       <SectionHead title="Completed Projects ✅" />
       <Card>
-        <Table head={['Project','Year','Beneficiaries','Fund Used','Impact Score','Certificate']} rows={[
-          ['Digital Skills for Women','FY24-25','1,840','₹1.2 Cr',<Badge color="green">92/100</Badge>,<Btn sm outline>Download</Btn>],
-          ['Rural Healthcare Training','FY24-25','960','₹80 L',<Badge color="green">87/100</Badge>,<Btn sm outline>Download</Btn>],
-          ['Agri-Tech Pilot — Nashik','FY23-24','540','₹45 L',<Badge color="blue">78/100</Badge>,<Btn sm outline>Download</Btn>],
-          ['EV Technician Batch 1','FY23-24','320','₹38 L',<Badge color="teal">95/100</Badge>,<Btn sm outline>Download</Btn>],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : completed.length === 0 ? <div style={{ color:'#888', padding:12 }}>No completed projects yet.</div>
+         : <Table head={['Project','State','Beneficiaries','Fund Used','Certificate']} rows={completed.map(p => [
+             p.title, p.state_name || '—',
+             (p.beneficiaries_actual||0).toLocaleString('en-IN'),
+             crore(p.spent),
+             <Btn sm outline>Download</Btn>
+           ])} />}
       </Card>
     </>;
   }
@@ -648,59 +856,63 @@ export default function CsrOrganizationPortal() {
       <Bc parts={['Beneficiaries','Beneficiary List']} />
       <SectionHead title="Beneficiary List 👥" />
       <Card>
-        <Table head={['Name','Gender','State','Project','Status','Batch']} rows={[
-          ['Ramesh Kumar','M','Maharashtra','Skill Dev — NM',<Badge color="blue">In Training</Badge>,'PMKVY-NM-2026-B3'],
-          ['Sunita Devi','F','Rajasthan','Women Empowerment',<Badge color="green">Certified</Badge>,'WE-RJ-2026-B1'],
-          ['Amit Singh','M','UP','Digital Literacy',<Badge color="teal">Enrolled</Badge>,'DL-UP-2026-B5'],
-          ['Priya Verma','F','Bihar','Healthcare Outreach',<Badge color="purple">Placed</Badge>,'HO-BR-2025-B2'],
-          ['Deepak Yadav','M','Gujarat','EV Technician',<Badge color="blue">In Training</Badge>,'EV-GJ-2026-B1'],
-        ]} />
-        <div style={{ marginTop:12, fontSize:12, color:'#64748b' }}>Total: 6,840 beneficiaries | Showing 1–5</div>
+        {!loaded.beneficiaries ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : beneficiaries.length === 0 ? <div style={{ color:'#888', padding:12 }}>No beneficiaries registered yet.</div>
+         : <>
+             <Table head={['Name','Gender','State','Project','Training Status','Batch']} rows={beneficiaries.map(b => [
+               b.name, b.gender || '—', b.state_name || '—',
+               b.project_title || '—',
+               <Badge color={b.training_status==='completed'?'green':b.training_status==='in_progress'?'blue':b.training_status==='dropout'?'red':'teal'}>{b.training_status}</Badge>,
+               b.batch_code || '—'
+             ])} />
+             <div style={{ marginTop:12, fontSize:12, color:'#64748b' }}>Total: {beneficiaries.length} beneficiaries</div>
+           </>}
       </Card>
     </>;
   }
 
   function PanelBeneTrack() {
+    const total = beneficiaries.length;
+    const inProgress = beneficiaries.filter(b => b.training_status === 'in_progress').length;
+    const completed = beneficiaries.filter(b => b.training_status === 'completed').length;
+    const placed = beneficiaries.filter(b => b.placement_status === 'placed').length;
     return <>
       <Bc parts={['Beneficiaries','Track Progress']} />
       <SectionHead title="Track Progress 📈" />
       <Card>
         <CardTitle>📊 Overall Beneficiary Funnel</CardTitle>
-        {[['8,400','Enrolled',100,C.blue],['7,920','Training In Progress',94,C.teal],['6,840','Certified',81,C.green],['5,210','Placed',62,C.gold],['4,890','Retained (3-month)',58,C.purple]].map(([n,l,p,c])=>(
-          <StatRow key={l} n={n} label={l} pct={p} color={c} />
-        ))}
-      </Card>
-      <Card>
-        <CardTitle>📌 Project-wise Progress</CardTitle>
-        <Table head={['Project','Enrolled','Certified','Placed','Completion %']} rows={[
-          ['Skill Dev — Navi Mumbai','1,200','1,080','920',<Badge color="green">90%</Badge>],
-          ['Women Empowerment','840','760','680',<Badge color="green">90%</Badge>],
-          ['Digital Literacy Drive','2,100','1,890','1,200',<Badge color="blue">90%</Badge>],
-          ['Healthcare Outreach','620','480','320',<Badge color="gold">77%</Badge>],
-        ]} />
+        {!loaded.beneficiaries ? <div style={{ color:'#888', padding:12 }}>Loading…</div> : <>
+          <StatRow n={total} label="Total Enrolled" pct={100} color={C.blue} />
+          <StatRow n={inProgress} label="Training In Progress" pct={pct(inProgress,total)} color={C.teal} />
+          <StatRow n={completed} label="Training Completed" pct={pct(completed,total)} color={C.green} />
+          <StatRow n={placed} label="Placed" pct={pct(placed,total)} color={C.gold} />
+        </>}
       </Card>
     </>;
   }
 
   function PanelBenePlacement() {
+    const total = beneficiaries.length;
+    const completed = beneficiaries.filter(b => b.training_status === 'completed').length;
+    const placed = beneficiaries.filter(b => b.placement_status === 'placed').length;
+    const selfEmployed = beneficiaries.filter(b => b.placement_status === 'self_employed').length;
+    const placedList = beneficiaries.filter(b => b.placement_status === 'placed');
     return <>
       <Bc parts={['Beneficiaries','Placement Outcomes']} />
       <SectionHead title="Placement Outcomes 🎯" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:16 }}>
-        <KpiCard val="4,890" label="Total Placed" sub="FY 2025-26" color={C.green} />
-        <KpiCard val="76%" label="Placement Rate" sub="Of certified candidates" color={C.blue} />
-        <KpiCard val="₹14,200" label="Avg Monthly CTC" sub="Entry-level jobs" color={C.teal} />
-        <KpiCard val="94%" label="Retention (3-month)" sub="Of placed candidates" color={C.purple} />
+        <KpiCard val={placed} label="Total Placed" sub="From your projects" color={C.green} />
+        <KpiCard val={`${pct(placed,completed)}%`} label="Placement Rate" sub="Of certified" color={C.blue} />
+        <KpiCard val={selfEmployed} label="Self-Employed" sub="From your projects" color={C.teal} />
+        <KpiCard val={`${pct(placed+selfEmployed,total)}%`} label="Overall Outcome" sub="Placed or self-employed" color={C.purple} />
       </div>
       <Card>
-        <CardTitle>🏆 Sector-wise Placements</CardTitle>
-        <Table head={['Sector','Placed','Avg CTC','Top Employer']} rows={[
-          ['IT-ITES / BPO','1,240',<Badge color="blue">₹12,000</Badge>,'Wipro BPO'],
-          ['Healthcare / Pharma','820',<Badge color="teal">₹11,500</Badge>,'Apollo Hospitals'],
-          ['Retail / Sales','740',<Badge color="green">₹10,800</Badge>,'BigBazaar'],
-          ['EV / Manufacturing','480',<Badge color="purple">₹14,500</Badge>,'Ola Electric'],
-          ['Hospitality','360',<Badge color="gold">₹9,500</Badge>,'OYO Hotels'],
-        ]} />
+        <CardTitle>📋 Placed Beneficiaries</CardTitle>
+        {!loaded.beneficiaries ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : placedList.length === 0 ? <div style={{ color:'#888', padding:12 }}>No placed beneficiaries yet.</div>
+         : <Table head={['Name','Gender','State','Project','Batch']} rows={placedList.map(b => [
+             b.name, b.gender||'—', b.state_name||'—', b.project_title||'—', b.batch_code||'—'
+           ])} />}
       </Card>
     </>;
   }
@@ -710,28 +922,56 @@ export default function CsrOrganizationPortal() {
       <Bc parts={['Training Partners','Empanelled Partners']} />
       <SectionHead title="Empanelled Training Partners 🎓" />
       <Card>
-        <Table head={['Partner','Type','State','Beneficiaries','Rating','Status']} rows={[
-          ['SkillBridge Institute','Private ITC','Maharashtra',<Badge color="blue">1,200</Badge>,'⭐ 4.7',<Badge color="green">Active</Badge>],
-          ['TrainRight Academy','NGO','Rajasthan',<Badge color="blue">840</Badge>,'⭐ 4.5',<Badge color="green">Active</Badge>],
-          ['TechLearn Pvt Ltd','Private','UP',<Badge color="blue">2,100</Badge>,'⭐ 4.3',<Badge color="blue">Active</Badge>],
-          ['HealSkill Foundation','NGO','Bihar',<Badge color="blue">620</Badge>,'⭐ 4.1',<Badge color="gold">Review</Badge>],
-          ['EV Academy India','Private','Gujarat',<Badge color="blue">480</Badge>,'⭐ 4.9',<Badge color="teal">Active</Badge>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Add New Partner</Btn></div>
+        {!loaded.tps ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : trainingPartners.length === 0 ? <div style={{ color:'#888', padding:12 }}>No training partners added yet.</div>
+         : <Table head={['Partner','Type','State','District','Beneficiaries Trained','Status']} rows={trainingPartners.map(tp => [
+             tp.name, tp.type||'—', tp.state_name||'—', tp.district||'—',
+             (tp.beneficiaries_trained||0).toLocaleString('en-IN'),
+             <Badge color={tp.status==='active'?'green':tp.status==='mou_expired'?'red':'gold'}>{tp.status}</Badge>
+           ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={()=>go('tp-add')}>+ Add New Partner</Btn></div>
       </Card>
     </>;
   }
 
   function PanelTpAdd() {
+    const tf = tpForm;
+    const set = k => e => setTpForm(f => ({ ...f, [k]: e.target.value }));
+
+    async function addPartner() {
+      if (!tf.org_name.trim() || !tf.contact_person.trim()) { setTpMsg('Organisation name and contact person are required.'); return; }
+      setTpSaving(true); setTpMsg('');
+      try {
+        await api.csrCreateTP({ name: tf.org_name, type: tf.type, nsdc_reg: tf.nsdc_reg, state_name: tf.state_name, contact_person: tf.contact_person, email: tf.email, num_trainers: tf.num_trainers, max_batch_size: tf.max_batch_size });
+        setTpMsg('✅ Partner added successfully!');
+        setTpForm({ org_name:'', type:'Private ITC', nsdc_reg:'', state_name:'Maharashtra', contact_person:'', email:'', num_trainers:'10', max_batch_size:'30' });
+        setLoaded(l => ({ ...l, tps: false }));
+      } catch(e) { setTpMsg('❌ ' + (e.message || 'Failed to add partner.')); }
+      setTpSaving(false);
+    }
+
     return <>
       <Bc parts={['Training Partners','Add Training Partner']} />
       <SectionHead title="Add Training Partner ➕" />
+      {tpMsg && <Alert icon={tpMsg.startsWith('✅') ? '✅' : '❌'} type={tpMsg.startsWith('✅') ? 'success' : 'red'}>{tpMsg}</Alert>}
       <Card>
-        <Grid><Field label="Organisation Name"><Inp /></Field><Field label="Type"><Sel options={['Private ITC','Government ITI','NGO','Society','Trust','Private Company']} /></Field></Grid>
-        <Grid><Field label="NSDC Registration No."><Inp /></Field><Field label="State"><Sel options={['Maharashtra','Rajasthan','UP','Bihar','Gujarat','Punjab']} /></Field></Grid>
-        <Grid><Field label="Contact Person"><Inp /></Field><Field label="Email"><ValidInp type="email" validate="email" /></Field></Grid>
-        <Grid><Field label="No. of Trainers"><Inp defaultValue="10" /></Field><Field label="Max Batch Size"><Inp defaultValue="30" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn green>+ Add Partner</Btn></div>
+        <Grid>
+          <Field label="Organisation Name *"><Inp value={tf.org_name} onChange={set('org_name')} placeholder="e.g. SkillBridge Institute" /></Field>
+          <Field label="Type"><Sel value={tf.type} onChange={set('type')} options={['Private ITC','Government ITI','NGO','Society','Trust','Private Company']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="NSDC Registration No."><Inp value={tf.nsdc_reg} onChange={set('nsdc_reg')} placeholder="NSDC-XXXX" /></Field>
+          <Field label="State"><Sel value={tf.state_name} onChange={set('state_name')} options={['Maharashtra','Rajasthan','UP','Bihar','Gujarat','Punjab','Tamil Nadu','Karnataka']} /></Field>
+        </Grid>
+        <Grid>
+          <Field label="Contact Person *"><Inp value={tf.contact_person} onChange={set('contact_person')} placeholder="Name" /></Field>
+          <Field label="Email"><ValidInp type="email" value={tf.email} onChange={set('email')} validate="email" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="No. of Trainers"><Inp value={tf.num_trainers} onChange={set('num_trainers')} /></Field>
+          <Field label="Max Batch Size"><Inp value={tf.max_batch_size} onChange={set('max_batch_size')} /></Field>
+        </Grid>
+        <div style={{ textAlign:'right' }}><Btn green onClick={addPartner} disabled={tpSaving}>{tpSaving ? '⏳ Adding…' : '+ Add Partner'}</Btn></div>
       </Card>
     </>;
   }
@@ -802,28 +1042,38 @@ export default function CsrOrganizationPortal() {
       </Card>
       <Card>
         <CardTitle>📋 Recent Disbursements</CardTitle>
-        <Table head={['Date','Project','Partner','Amount','Mode','Status']} rows={[
-          ['Jul 4, 2026','Skill Dev — NM','SkillBridge','₹1.20 Cr','RTGS',<Badge color="green">Completed</Badge>],
-          ['Jun 28, 2026','Digital Literacy','TechLearn','₹80 L','NEFT',<Badge color="green">Completed</Badge>],
-          ['Jun 20, 2026','Women Empowerment','TrainRight','₹40 L','NEFT',<Badge color="green">Completed</Badge>],
-          ['Jun 15, 2026','Healthcare Outreach','HealSkill','₹20 L','Cheque',<Badge color="gold">Pending</Badge>],
-        ]} />
+        {!loaded.disbursements ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : disbursements.length === 0 ? <div style={{ color:'#888', padding:12 }}>No disbursements recorded yet.</div>
+         : <Table head={['Project','Recipient','Amount','FY','Status']} rows={disbursements.map(d => [
+             d.project_title||'—', d.recipient||'—', crore(d.amount), d.fy||'—',
+             <Badge color={d.status==='disbursed'?'green':d.status==='returned'?'red':'gold'}>{d.status}</Badge>
+           ])} />}
       </Card>
     </>;
   }
 
   function PanelFundUtilization() {
+    const utilPct = pct(stats.totalSpent, stats.totalBudget);
     return <>
       <Bc parts={['Funds','Utilization Reports']} />
       <SectionHead title="Utilization Reports 📊" />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:16 }}>
+        <KpiCard val={crore(stats.totalBudget)} label="Total Budget Allocated" sub="All active projects" color={C.navy} />
+        <KpiCard val={crore(stats.totalSpent)} label="Total Spent" sub="Across all projects" color={C.green} />
+        <KpiCard val={`${utilPct}%`} label="Utilization Rate" sub="Spent vs allocated" color={utilPct >= 75 ? C.green : utilPct >= 50 ? C.gold : C.red} />
+      </div>
       <Card>
-        <Table head={['Quarter','Planned','Actual Spend','Variance','Status']} rows={[
-          ['Q1 (Apr–Jun 2025)','₹4.0 Cr','₹3.6 Cr','−₹0.4 Cr',<Badge color="gold">Under Utilized</Badge>],
-          ['Q2 (Jul–Sep 2025)','₹5.0 Cr','₹5.2 Cr','+₹0.2 Cr',<Badge color="green">On Track</Badge>],
-          ['Q3 (Oct–Dec 2025)','₹5.5 Cr','₹5.4 Cr','−₹0.1 Cr',<Badge color="green">On Track</Badge>],
-          ['Q4 (Jan–Mar 2026)','₹5.5 Cr','₹4.2 Cr','−₹1.3 Cr',<Badge color="red">Short Spend</Badge>],
-        ]} />
-        <div style={{ marginTop:14, display:'flex', gap:10 }}><Btn outline>📥 Download Q4 Report</Btn><Btn>📊 Full Year Report</Btn></div>
+        <CardTitle>📊 Project-wise Utilization</CardTitle>
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : projects.length === 0 ? <div style={{ color:'#888', padding:12 }}>No projects found.</div>
+         : <Table head={['Project','Budget','Spent','Utilization']} rows={projects.map(p => {
+             const u = pct(p.spent, p.budget);
+             return [
+               p.title, crore(p.budget), crore(p.spent),
+               <Badge color={u>=75?'green':u>=50?'gold':'red'}>{u}%</Badge>
+             ];
+           })} />}
+        <div style={{ marginTop:14, display:'flex', gap:10 }}><Btn outline>📥 Download Report</Btn><Btn>📊 Full Year Report</Btn></div>
       </Card>
     </>;
   }
@@ -914,10 +1164,7 @@ export default function CsrOrganizationPortal() {
         <div style={{ fontSize:13, color:'#374151', lineHeight:1.8, marginBottom:12 }}>
           Government shares <strong>25% of stipend</strong> (max ₹1,500/month) per apprentice. Promotes industry-based apprenticeship.
         </div>
-        <Table head={['Employer Partner','Apprentices','Monthly Stipend','Govt Share','Status']} rows={[
-          ['Cipla Ltd (Internal)','120','₹6,000','₹1,500',<Badge color="green">Active</Badge>],
-          ['TechNova Ltd','40','₹7,000','₹1,500',<Badge color="blue">Active</Badge>],
-        ]} />
+        <div style={{ color:'#94a3b8', fontSize:13, padding:'12px 0', textAlign:'center' }}>No apprentice enrollments recorded yet</div>
         <div style={{ marginTop:14 }}><Btn>+ Enroll New Apprentice</Btn></div>
       </Card>
     </>;
@@ -1171,38 +1418,7 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelSettings() {
-    return <>
-      <Bc parts={['Account','Account Preferences']} />
-      <SectionHead title="Account Preferences ⚙️" />
-      <Card>
-        <CardTitle>👤 Account Information</CardTitle>
-        <Grid><Field label="Organisation Name"><Inp defaultValue={user?.org_name || 'Cipla Foundation'} /></Field><Field label="Email / Username"><ValidInp defaultValue={user?.email || 'csr@cipla.com'} validate="email" /></Field></Grid>
-        <Grid><Field label="Mobile"><ValidInp defaultValue="9876543210" validate="mobile" /></Field><Field label="State"><Sel options={['Maharashtra','Delhi','Karnataka','Tamil Nadu']} defaultValue="Maharashtra" /></Field></Grid>
-        <div style={{ textAlign:'right' }}><Btn>💾 Save Changes</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>🔒 Change Password</CardTitle>
-        <Grid><Field label="Current Password"><Inp type="password" placeholder="Current password" /></Field><Field label="New Password"><Inp type="password" placeholder="New password" /></Field></Grid>
-        <Field label="Confirm New Password"><Inp type="password" placeholder="Confirm new password" /></Field>
-        <div style={{ textAlign:'right' }}><Btn>🔐 Update Password</Btn></div>
-      </Card>
-      <Card>
-        <CardTitle>🔔 Notification Preferences</CardTitle>
-        <Toggle label="Project approval updates" sub="Notify when a project is approved or requires changes" defaultChecked={true} />
-        <Toggle label="Fund disbursement alerts" sub="Notify on disbursement requests and completions" defaultChecked={true} />
-        <Toggle label="Compliance reminders" sub="Remind about CSR-2 filing and unspent fund deadlines" defaultChecked={true} />
-        <Toggle label="Beneficiary milestone alerts" sub="Notify on batch completion and certification" defaultChecked={true} />
-        <Toggle label="Partner performance reports" sub="Monthly partner performance digest" defaultChecked={false} />
-        <Toggle label="Annual report generation" sub="Notify when annual impact report is ready" defaultChecked={true} />
-      </Card>
-      <Card>
-        <CardTitle>⚠️ Account Actions</CardTitle>
-        <div style={{ display:'flex', gap:12 }}>
-          <Btn danger>🗑️ Delete Account</Btn>
-          <Btn outline onClick={handleLogout}>🚪 Sign Out</Btn>
-        </div>
-      </Card>
-    </>;
+    return <AccountPreferences onLogout={handleLogout} />;
   }
 
   function renderPanel() {

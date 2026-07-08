@@ -50,7 +50,7 @@ export default function ResetPassword() {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-logo"><div className="mark">🎯</div><span>SkillsNJobs</span></div>
+        <div className="auth-logo"><img src="/logo.png" alt="Skills n Jobs" style={{ height:48, width:48, objectFit:'contain' }} /><span>SkillsNJobs</span></div>
 
         {!done ? (
           <>

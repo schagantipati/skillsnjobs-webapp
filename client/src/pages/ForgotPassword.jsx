@@ -1,13 +1,20 @@
 import { useState } from 'react';
+import { validate as fieldValidate } from '../utils/validators.js';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 
 export default function ForgotPassword() {
   const [email, setEmail]   = useState('');
+  const [emailError, setEmailError] = useState('');
   const [busy, setBusy]     = useState(false);
   const [done, setDone]     = useState(false);
   const [devToken, setDevToken] = useState('');
   const [error, setError]   = useState('');
+
+  function validateEmail() {
+    if (!email) return '';
+    return fieldValidate('email', email);
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -27,7 +34,7 @@ export default function ForgotPassword() {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-logo"><div className="mark">🎯</div><span>SkillsNJobs</span></div>
+        <div className="auth-logo"><img src="/logo.png" alt="Skills n Jobs" style={{ height:48, width:48, objectFit:'contain' }} /><span>SkillsNJobs</span></div>
 
         {!done ? (
           <>
@@ -37,8 +44,12 @@ export default function ForgotPassword() {
             <form onSubmit={submit}>
               <div className="field">
                 <label>Email Address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com" required autoFocus />
+                <input type="email" value={email}
+                  onChange={e => { setEmail(e.target.value); setEmailError(''); }}
+                  onBlur={() => setEmailError(validateEmail())}
+                  placeholder="you@example.com" required autoFocus
+                  style={emailError ? { borderColor: '#EF4444' } : undefined} />
+                {emailError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{emailError}</div>}
               </div>
               <button className="btn btn-primary btn-block" disabled={busy}>
                 {busy ? 'Sending…' : 'Send Reset Link'}

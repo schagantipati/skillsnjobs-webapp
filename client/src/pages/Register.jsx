@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { validate as fieldValidate } from '../utils/validators.js';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
 
@@ -52,9 +53,10 @@ function Field({ label, required, children, hint }) {
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const photoRef = useRef();
 
-  const [role, setRole] = useState('candidate');
+  const [role, setRole] = useState(searchParams.get('role') || 'candidate');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [orgClassifications, setOrgClassifications] = useState([]);
@@ -78,6 +80,9 @@ export default function Register() {
   const [gender, setGender] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [pincodeError, setPincodeError] = useState('');
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoBase64, setPhotoBase64] = useState('');
   const [addrLine1, setAddrLine1] = useState('');
@@ -121,12 +126,15 @@ export default function Register() {
 
   function validatePhone() {
     const digits = phone.replace(/\D/g, '');
+    if (!digits) return '';
     if (digits.length !== 10) return 'Mobile number must be exactly 10 digits';
+    if (!/^[6-9]/.test(digits)) return 'Mobile number must start with 6, 7, 8, or 9';
     return '';
   }
 
   function validateEmail() {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid email address';
+    const emailErr = fieldValidate('email', email);
+    if (emailErr) return emailErr;
     return '';
   }
 
@@ -146,7 +154,7 @@ export default function Register() {
       finally { setOtpBusy(''); }
     } else {
       const err = validateEmail();
-      if (err) { setError(err); return; }
+      if (err) { setEmailError(err); return; }
       setOtpBusy('email');
       try {
         const res = await api.sendOtp('email', email);
@@ -170,6 +178,7 @@ export default function Register() {
       } else {
         await api.verifyOtp('email', email, emailOtp);
         setEmailVerified(true);
+        setEmailError('');
         setError('');
       }
     } catch (e) { setError(e.message); }
@@ -184,19 +193,19 @@ export default function Register() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
 
     if (usesFullForm) {
-      if (isTrainingVendor ? !firstName.trim() : (!firstName.trim() || !lastName.trim())) { setError(isTrainingVendor ? 'Contact Person Name is required' : 'First name and last name are required'); return; }
+      if (usesOrgForm ? !firstName.trim() : (!firstName.trim() || !lastName.trim())) { setError(usesOrgForm ? 'Contact Person Name is required' : 'First name and last name are required'); return; }
       const phoneErr = validatePhone();
       if (phoneErr) { setError(phoneErr); return; }
       const emailErr = validateEmail();
       if (emailErr) { setError(emailErr); return; }
       if (!mobileVerified) { setError('Please verify your mobile number with OTP'); return; }
       if (!emailVerified) { setError('Please verify your email address with OTP'); return; }
-      if (isTrainingVendor ? !dob : (!dateDay || !dateMonth || !dateYear)) { setError(isTrainingVendor ? 'Date of Incorporation is required' : 'Date of birth is required'); return; }
+      if (usesOrgForm ? !dob : (!dateDay || !dateMonth || !dateYear)) { setError(usesOrgForm ? 'Date of Incorporation is required' : 'Date of birth is required'); return; }
       if (!gender) { setError('Gender is required'); return; }
       if (!addrLine1.trim()) { setError('Address Line 1 is required'); return; }
       if (!city.trim()) { setError('City is required'); return; }
       if (!pincode.trim()) { setError('PIN / ZIP code is required'); return; }
-      if (isTrainingVendor && !orgName.trim()) { setError('Organization Name is required'); return; }
+      if (usesOrgForm && !orgName.trim()) { setError('Organization Name is required'); return; }
     }
 
     setBusy(true);
@@ -224,11 +233,7 @@ export default function Register() {
         mobile_verified: mobileVerified,
         email_verified: emailVerified,
       });
-      if (u.role === 'training_vendor') {
-        navigate('/vendor-portal');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -237,13 +242,18 @@ export default function Register() {
   }
 
   const isCandidate = role === 'candidate';
+  const isTrainer = role === 'trainer';
   const isTrainingVendor = role === 'training_vendor';
-  const usesFullForm = isCandidate || isTrainingVendor;
+  const isEmployer = role === 'employer';
+  const isCsrOrg = role === 'csr_org';
+  const isPlacementAgency = role === 'placement_agency';
+  const usesOrgForm = isTrainingVendor || isEmployer || isCsrOrg || isPlacementAgency;
+  const usesFullForm = isCandidate || isTrainer || isTrainingVendor || isEmployer || isCsrOrg || isPlacementAgency;
 
   return (
     <div className="auth-wrap" style={{ padding: '32px 16px' }}>
       <div className="auth-card" style={{ maxWidth: usesFullForm ? 680 : 480, width: '100%' }}>
-        <div className="auth-logo"><div className="mark">🎯</div><span>SkillsNJobs</span></div>
+        <div className="auth-logo"><img src="/logo.png" alt="Skills n Jobs" style={{ height:48, width:48, objectFit:'contain' }} /><span>SkillsNJobs</span></div>
         <h2>Create your account</h2>
         <p className="sub">Connect skills, jobs and training in one place.</p>
 
@@ -266,11 +276,11 @@ export default function Register() {
             </div>
           </div>
 
-          {/* ── CANDIDATE / TRAINING VENDOR FIELDS ── */}
+          {/* ── CANDIDATE / TRAINER / EMPLOYER / TRAINING VENDOR FIELDS ── */}
           {usesFullForm && (
             <>
-              {/* Organization Name — Training Vendor only */}
-              {isTrainingVendor && (
+              {/* Organization Name — Org-style forms only */}
+              {usesOrgForm && (
                 <>
                   <div style={{ marginTop: 80 }} />
                   <Field label="Organization Name" required>
@@ -280,8 +290,8 @@ export default function Register() {
               )}
 
               {/* Name row */}
-              {!isTrainingVendor && <div style={{ marginTop: 80 }} />}
-              {isTrainingVendor
+              {!usesOrgForm && <div style={{ marginTop: 80 }} />}
+              {usesOrgForm
                 ? <Field label="Contact Person Name" required>
                     <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Full name of authorised contact person" required />
                   </Field>
@@ -298,10 +308,10 @@ export default function Register() {
                   </div>
               }
 
-              {/* DOB & Gender — or Date of Incorporation & Org Classification for Training Vendor */}
+              {/* DOB & Gender — or Date of Incorporation & Org Classification for org-style forms */}
               <div className="grid grid-2">
-                <Field label={isTrainingVendor ? 'Date of Incorporation' : 'Date of Birth'} required>
-                  {isTrainingVendor
+                <Field label={usesOrgForm ? 'Date of Incorporation' : 'Date of Birth'} required>
+                  {usesOrgForm
                     ? <input type="date" value={dob} onChange={e => setDob(e.target.value)}
                         max={new Date().toISOString().split('T')[0]} required />
                     : <div style={{ display: 'flex', gap: 6 }}>
@@ -320,8 +330,8 @@ export default function Register() {
                       </div>
                   }
                 </Field>
-                <Field label={isTrainingVendor ? 'Organisation Classification' : 'Gender'} required>
-                  {isTrainingVendor
+                <Field label={usesOrgForm ? 'Organisation Classification' : 'Gender'} required>
+                  {usesOrgForm
                     ? <select value={gender} onChange={e => setGender(e.target.value)} required>
                         <option value="">Select classification</option>
                         {orgClassifications.length > 0
@@ -380,8 +390,13 @@ export default function Register() {
                     </select>
                   </Field>
                   <Field label={country === 'India' ? 'PIN Code' : 'ZIP / Postal Code'} required>
-                    <input value={pincode} onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder={country === 'India' ? '6-digit PIN' : 'Postal code'} required />
+                    <div style={{ width: '100%' }}>
+                      <input value={pincode} onChange={e => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 10)); setPincodeError(''); }}
+                        onBlur={() => { if (country === 'India' && pincode) setPincodeError(pincode.length === 6 ? '' : 'Must be a 6-digit PIN code'); }}
+                        placeholder={country === 'India' ? '6-digit PIN' : 'Postal code'} required
+                        style={pincodeError ? { borderColor: '#EF4444' } : undefined} />
+                      {pincodeError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{pincodeError}</div>}
+                    </div>
                   </Field>
                 </div>
               </div>
@@ -397,8 +412,11 @@ export default function Register() {
                   </Field>
                   <div className="field" style={{ flex: 1 }}>
                     <label>Mobile Number <span style={{ color: '#EF4444' }}>*</span></label>
-                    <input value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="10-digit number" maxLength={10} disabled={mobileVerified} required />
+                    <input value={phone} onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 10); setPhone(v); setPhoneError(''); }}
+                      onBlur={() => setPhoneError(validatePhone())}
+                      placeholder="10-digit number" maxLength={10} disabled={mobileVerified} required
+                      style={phoneError ? { borderColor: '#EF4444' } : undefined} />
+                    {phoneError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{phoneError}</div>}
                   </div>
                   <button type="button" className={`btn btn-sm ${mobileVerified ? 'btn-outline' : 'btn-primary'}`}
                     style={{ marginBottom: 1, minWidth: 100, background: mobileVerified ? '#10B981' : undefined, color: mobileVerified ? '#fff' : undefined, borderColor: mobileVerified ? '#10B981' : undefined }}
@@ -429,8 +447,12 @@ export default function Register() {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                   <div className="field" style={{ flex: 1 }}>
                     <label>Email Address (User Name) <span style={{ color: '#EF4444' }}>*</span></label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                      placeholder="yourname@example.com" disabled={emailVerified} required />
+                    <input type="email" value={email}
+                      onChange={e => { setEmail(e.target.value); setEmailError(''); }}
+                      onBlur={() => setEmailError(validateEmail())}
+                      placeholder="yourname@example.com" disabled={emailVerified} required
+                      style={emailError ? { borderColor: '#EF4444' } : undefined} />
+                    {emailError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{emailError}</div>}
                   </div>
                   <button type="button" className={`btn btn-sm ${emailVerified ? 'btn-outline' : 'btn-primary'}`}
                     style={{ marginBottom: 1, minWidth: 100, background: emailVerified ? '#10B981' : undefined, color: emailVerified ? '#fff' : undefined, borderColor: emailVerified ? '#10B981' : undefined }}
@@ -466,7 +488,14 @@ export default function Register() {
                 <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Your full name" required />
               </Field>
               <Field label="Email Address (User Name)" required>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="yourname@example.com" required />
+                <div style={{ width:'100%' }}>
+                  <input type="email" value={email}
+                    onChange={e => { setEmail(e.target.value); setEmailError(''); }}
+                    onBlur={() => { if (email) setEmailError(validateEmail()); }}
+                    placeholder="yourname@example.com" required
+                    style={emailError ? { borderColor: '#EF4444' } : undefined} />
+                  {emailError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{emailError}</div>}
+                </div>
               </Field>
               {role !== 'candidate' && (
                 <Field label="Organization Name">
@@ -498,9 +527,14 @@ export default function Register() {
             </div>
           )}
 
-          <button className="btn btn-primary btn-block" disabled={busy} style={{ marginTop: 4 }}>
-            {busy ? 'Creating account…' : 'Create account'}
-          </button>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? 'Creating account…' : 'Create account'}
+            </button>
+            <button type="button" className="btn btn-outline btn-block" onClick={() => navigate('/')} disabled={busy}>
+              Cancel
+            </button>
+          </div>
         </form>
 
         <div className="auth-switch" style={{ marginTop: 16 }}>

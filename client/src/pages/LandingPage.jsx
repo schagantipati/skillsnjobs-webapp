@@ -1,310 +1,520 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
+/* ─── data ──────────────────────────────────────────────────────── */
 const TICKER_ITEMS = [
-  'PMKVY 4.0 enrolments open · Apply now',
-  'DDU-GKY: Rural youth skilling programme · 50,000 seats available',
-  'NAPS Apprenticeship scheme · Register your organisation today',
-  'New batch: AI & Data Analytics short course · Starts Aug 2026',
-  'CSR funding available for skilling initiatives · Know more',
+  '🏅 PMKVY 4.0 enrolments open — Apply now',
+  '🌾 DDU-GKY: 50,000 seats available for rural youth',
+  '💼 NAPS Apprenticeship scheme — Register your organisation today',
+  '🤖 New batch: AI & Data Analytics short course — Starts Aug 2026',
+  '💚 CSR funding available for skilling initiatives — Know more',
+  '📜 Digital certificates now blockchain-verified — Learn more',
 ];
 
 const PORTALS = [
-  { title: 'Candidate', desc: 'Browse courses, apply to jobs, track applications, and earn certifications.', icon: '🎓', color: '#16A34A', bg: '#DCFCE7', border: '#4ADE80', href: '/candidate-portal' },
-  { title: 'Employer', desc: 'Post jobs, discover skilled candidates, and manage your hiring pipeline.', icon: '🏢', color: '#1D4ED8', bg: '#DBEAFE', border: '#60A5FA', href: '/employer-portal' },
-  { title: 'Trainer', desc: 'Manage batches, track learner progress, and submit assessments digitally.', icon: '📋', color: '#BE185D', bg: '#FCE7F3', border: '#F472B6', href: '/trainer-portal' },
-  { title: 'Training Vendor', desc: 'Register your organisation, manage training centres, and get government tie-ups.', icon: '🏫', color: '#D97706', bg: '#FEF3C7', border: '#FBBF24', href: '/vendor-portal' },
-  { title: 'CSR Organisation', desc: 'Channel CSR funds into verified skilling projects and track social impact.', icon: '🤝', color: '#7C3AED', bg: '#EDE9FE', border: '#A78BFA', href: '/csr-portal' },
-  { title: 'Placement Partner', desc: 'Connect trained candidates to employers and track placement outcomes.', icon: '🔗', color: '#EA580C', bg: '#FFEDD5', border: '#FB923C', href: '/placement-partner-portal' },
-  { title: 'State Government', desc: 'Monitor scheme targets, disburse funds, and access district-level MIS reports.', icon: '🏛️', color: '#059669', bg: '#D1FAE5', border: '#34D399', href: '/state-govt-portal' },
-  { title: 'Administrator', desc: 'Platform-wide oversight, user management, audit logs, and analytics.', icon: '🛡️', color: '#475569', bg: '#F1F5F9', border: '#94A3B8', href: '/dashboard' },
+  { title:'Candidate',         desc:'Browse courses, apply to jobs, track your skill journey.',                   icon:'🎓', color:'#16A34A', bg:'#DCFCE7', border:'#4ADE80', href:'/candidate-portal' },
+  { title:'Employer',          desc:'Post jobs, discover skilled candidates, manage hiring.',                     icon:'🏢', color:'#1D4ED8', bg:'#DBEAFE', border:'#60A5FA', href:'/employer-portal' },
+  { title:'Trainer',           desc:'Manage batches, track learner progress, submit assessments.',                icon:'📋', color:'#BE185D', bg:'#FCE7F3', border:'#F472B6', href:'/trainer-portal' },
+  { title:'Training Vendor',   desc:'Register your centre, manage programmes, get govt tie-ups.',                 icon:'🏫', color:'#D97706', bg:'#FEF3C7', border:'#FBBF24', href:'/vendor-portal' },
+  { title:'CSR Organisation',  desc:'Channel CSR funds into verified skilling projects and track impact.',        icon:'🤝', color:'#7C3AED', bg:'#EDE9FE', border:'#A78BFA', href:'/csr-portal' },
+  { title:'Placement Partner', desc:'Connect trained candidates to employers, track placements.',                 icon:'🔗', color:'#EA580C', bg:'#FFEDD5', border:'#FB923C', href:'/placement-partner-portal' },
+  { title:'State Government',  desc:'Monitor targets, disburse funds, access district-level MIS.',              icon:'🏛️', color:'#059669', bg:'#D1FAE5', border:'#34D399', href:'/state-govt-portal', loginRole:'state_gov' },
+  { title:'Administrator',     desc:'Platform-wide oversight, user management, audit logs.',                     icon:'🛡️', color:'#475569', bg:'#F1F5F9', border:'#94A3B8', href:'/dashboard',          loginRole:'superadmin' },
+];
+
+const SECTORS = [
+  { icon:'💻', label:'IT & ITeS',         count:'340+ courses', color:'#1D4ED8', bg:'#DBEAFE' },
+  { icon:'🏥', label:'Healthcare',         count:'180+ courses', color:'#BE185D', bg:'#FCE7F3' },
+  { icon:'🚚', label:'Logistics',          count:'120+ courses', color:'#D97706', bg:'#FEF3C7' },
+  { icon:'🏦', label:'BFSI',              count:'210+ courses', color:'#059669', bg:'#D1FAE5' },
+  { icon:'🛒', label:'Retail',             count:'95+ courses',  color:'#EA580C', bg:'#FFEDD5' },
+  { icon:'🚗', label:'Automotive',         count:'140+ courses', color:'#7C3AED', bg:'#EDE9FE' },
+  { icon:'🏗️', label:'Construction',       count:'88+ courses',  color:'#0891B2', bg:'#CFFAFE' },
+  { icon:'👗', label:'Apparel & Textiles', count:'72+ courses',  color:'#C2410C', bg:'#FFF7ED' },
+  { icon:'🍽️', label:'Tourism & Hospitality', count:'96+ courses', color:'#4D7C0F', bg:'#ECFCCB' },
+  { icon:'⚡', label:'Electronics',        count:'160+ courses', color:'#B45309', bg:'#FEF9C3' },
 ];
 
 const SCHEMES = [
-  { name: 'PMKVY 4.0', icon: '🏅', bg: '#EFF6FF', color: '#1D4ED8', desc: 'Pradhan Mantri Kaushal Vikas Yojana — free short-term skill training with certification and placement support for Indian youth.', stat: '8,800+', statLbl: 'Training centres registered' },
-  { name: 'DDU-GKY', icon: '🌾', bg: '#F0FDF4', color: '#16A34A', desc: 'Deen Dayal Upadhyaya Grameen Kaushalya Yojana — skilling and placement programme focused on rural youth from BPL families.', stat: '2.4L+', statLbl: 'Rural youth trained' },
-  { name: 'NAPS', icon: '💼', bg: '#FFF7ED', color: '#EA580C', desc: 'National Apprenticeship Promotion Scheme — government shares 25% of stipend costs with employers who hire apprentices.', stat: '1.1L', statLbl: 'Active apprentices' },
-  { name: 'State Schemes', icon: '🗺️', bg: '#FAF5FF', color: '#7C3AED', desc: 'Access state-specific skilling initiatives and scholarships. Integrated with 28 state portals for seamless disbursement.', stat: '28', statLbl: 'States integrated' },
-  { name: 'Digital Skills', icon: '💻', bg: '#FFF1F2', color: '#BE123C', desc: 'Future-ready digital literacy and tech courses — AI, data analytics, coding, cloud computing, and cybersecurity.', stat: '340+', statLbl: 'Digital courses available' },
-  { name: 'CSR Skilling', icon: '💚', bg: '#ECFDF5', color: '#059669', desc: 'Corporations can fund and track skilling projects through a transparent CSR portal aligned with Schedule VII of Companies Act.', stat: '₹480Cr', statLbl: 'CSR funds channelled' },
+  { name:'PMKVY 4.0',    icon:'🏅', bg:'#EFF6FF', color:'#1D4ED8', desc:'Free short-term skill training with certification and placement support for Indian youth.', stat:'8,800+', statLbl:'Training centres registered' },
+  { name:'DDU-GKY',      icon:'🌾', bg:'#F0FDF4', color:'#16A34A', desc:'Skilling and placement programme focused on rural youth from BPL families.', stat:'2.4L+', statLbl:'Rural youth trained' },
+  { name:'NAPS',         icon:'💼', bg:'#FFF7ED', color:'#EA580C', desc:'Government shares 25% of stipend costs with employers who hire apprentices.', stat:'1.1L', statLbl:'Active apprentices' },
+  { name:'State Schemes',icon:'🗺️', bg:'#FAF5FF', color:'#7C3AED', desc:'Access state-specific skilling initiatives and scholarships across 28 states.', stat:'28', statLbl:'States integrated' },
+  { name:'Digital Skills',icon:'💻', bg:'#FFF1F2', color:'#BE123C', desc:'AI, data analytics, coding, cloud computing, and cybersecurity courses.', stat:'340+', statLbl:'Digital courses available' },
+  { name:'CSR Skilling', icon:'💚', bg:'#ECFDF5', color:'#059669', desc:'Fund and track skilling projects through a transparent CSR portal.', stat:'₹480Cr', statLbl:'CSR funds channelled' },
 ];
 
 const FEATURES = [
-  { icon: '🌐', title: 'Multilingual support', desc: 'Available in 13 Indian languages. Candidates can access courses, certificates, and job listings in their native language.', color: '#60A5FA' },
-  { icon: '📊', title: 'Real-time MIS dashboards', desc: 'Live district, state, and national dashboards for government officials. Track targets, disbursements, and placements instantly.', color: '#34D399' },
-  { icon: '📜', title: 'Digital certificates', desc: 'Blockchain-anchored, verifiable skill certificates. Employers can authenticate certificates instantly via a QR code.', color: '#FBBF24' },
-  { icon: '🤖', title: 'AI-based job matching', desc: 'Smart matching engine scores candidate-job compatibility based on skills, location, experience, and sector alignment.', color: '#F472B6' },
-  { icon: '🔒', title: 'Secure & auditable', desc: 'End-to-end audit logs, role-based access control, and data isolation per state — built with OWASP Top 10 standards.', color: '#A78BFA' },
-  { icon: '📱', title: 'Mobile-first design', desc: 'Fully responsive, works on low-bandwidth networks. Offline mode available for training attendance and assessments.', color: '#FB923C' },
+  { icon:'🌐', title:'13 Indian Languages', desc:'Candidates access courses, certificates, and job listings in their native language.', color:'#60A5FA' },
+  { icon:'📊', title:'Real-time MIS',        desc:'Live district, state, and national dashboards for instant tracking of targets.', color:'#34D399' },
+  { icon:'📜', title:'Blockchain Certificates', desc:'Verifiable skill certificates authenticated instantly via QR code.', color:'#FBBF24' },
+  { icon:'🤖', title:'AI Job Matching',      desc:'Smart engine scores candidate-job compatibility by skills, location, and sector.', color:'#F472B6' },
+  { icon:'🔒', title:'Secure & Auditable',   desc:'End-to-end audit logs, role-based access control, OWASP Top 10 standards.', color:'#A78BFA' },
+  { icon:'📱', title:'Mobile-First',         desc:'Works on low-bandwidth networks. Offline mode for attendance & assessments.', color:'#FB923C' },
 ];
 
 const TESTIMONIALS = [
-  { quote: '"I completed the PMKVY logistics course and got placed at Amazon within 3 weeks. SkillsNJobs made the entire process seamless — from enrolment to offer letter."', name: 'Aisha Khan', role: 'Warehouse Associate, Nagpur', initials: 'AK', color: '#16A34A' },
-  { quote: '"The AI-matched candidate profiles save us weeks of screening. 80% of our warehouse hires in 2025 came through SkillsNJobs and they\'re better prepared than ever."', name: 'HR Manager, TechNova', role: 'Employer, Pune', initials: 'HR', color: '#1D4ED8' },
-  { quote: '"Managing DDU-GKY batches across 14 districts is now effortless. The MIS dashboard gives our team real-time visibility we never had before with spreadsheets."', name: 'State Administrator', role: 'Government of Rajasthan', initials: 'SA', color: '#7C3AED' },
+  { quote:'I completed the PMKVY logistics course and got placed at Amazon within 3 weeks. SkillsNJobs made the entire process seamless — from enrolment to offer letter.', name:'Aisha Khan', role:'Warehouse Associate, Nagpur', initials:'AK', color:'#16A34A', stars:5 },
+  { quote:'The AI-matched candidate profiles save us weeks of screening. 80% of our warehouse hires in 2025 came through SkillsNJobs and they\'re better prepared than ever.', name:'HR Manager, TechNova', role:'Employer, Pune', initials:'HR', color:'#1D4ED8', stars:5 },
+  { quote:'Managing DDU-GKY batches across 14 districts is now effortless. The MIS dashboard gives our team real-time visibility we never had with spreadsheets.', name:'State Administrator', role:'Government of Rajasthan', initials:'SA', color:'#7C3AED', stars:5 },
+  { quote:'Our CSR spends now reach verified beneficiaries with full audit trail. The project tracking dashboard is exactly what our compliance team needed.', name:'CSR Head, Mahindra Group', role:'CSR Organisation, Mumbai', initials:'MG', color:'#EA580C', stars:5 },
 ];
 
-const PARTNERS = ['NSDC','Ministry of Skill Development','ASCI','IT-ITeS SSC','BFSI SSC','Healthcare SSC','Logistics SSC','Retail SSC','TCS iON','Wipro','Infosys BPM','Amazon India','Flipkart','HDFC Bank','Apollo Hospitals','Maruti Suzuki'];
+const FAQS = [
+  { q:'Is SkillsNJobs free for candidates?', a:'Yes — registration, course browsing, and application submission are completely free for candidates. Some premium certification courses may have fees which are often subsidised under government schemes.' },
+  { q:'Which government schemes are supported?', a:'We support PMKVY 4.0, DDU-GKY, NAPS, NATS, STAR Scheme, and 28+ state-specific skilling schemes. Applications are made directly through the platform.' },
+  { q:'How do I verify a certificate issued on SkillsNJobs?', a:'Every certificate has a unique QR code. Scan it or visit our certificate verification portal and enter the certificate ID to instantly verify authenticity.' },
+  { q:'How can my organisation become a Training Partner?', a:'Register as a Training Vendor, complete your profile, upload accreditation documents, and submit for NSDC/state nodal agency approval. The entire process is digital and takes 3–5 business days.' },
+  { q:'Is the platform available in regional languages?', a:'Yes — SkillsNJobs supports 13 Indian languages including Hindi, Tamil, Telugu, Kannada, Bengali, Marathi, Gujarati, and more. Language can be changed from any portal.' },
+  { q:'How does the AI job matching work?', a:'Our engine analyses your skills, certifications, location, sector, and experience level, then scores compatibility against active job listings and notifies you of the best matches in real time.' },
+];
 
+const PARTNERS = ['NSDC','Ministry of Skill Development','ASCI','IT-ITeS SSC','BFSI SSC','Healthcare SSC','Logistics SSC','Retail SSC','TCS iON','Wipro','Infosys BPM','Amazon India','Flipkart','HDFC Bank','Apollo Hospitals','Maruti Suzuki','L&T','Mahindra','TATA Group','Bosch India'];
+
+const NEWS = [
+  { tag:'Update', color:'#1D4ED8', bg:'#DBEAFE', date:'Jul 5, 2026', title:'PMKVY 4.0 Phase II — New Demand-Led Courses Added', desc:'35 new job-role courses aligned with industry demand added across IT, Green Energy, and Healthcare sectors.' },
+  { tag:'Partnership', color:'#059669', bg:'#D1FAE5', date:'Jul 2, 2026', title:'SkillsNJobs Partners with 3 New Sector Skill Councils', desc:'Electronics, Gems & Jewellery, and Tourism SSCs now integrated for direct assessment and certification.' },
+  { tag:'Policy', color:'#D97706', bg:'#FEF3C7', date:'Jun 28, 2026', title:'Union Budget 2026: ₹1,200 Cr Allocated for Digital Skilling', desc:'Government increases digital skilling allocation by 34%. SkillsNJobs designated as implementation partner.' },
+];
+
+/* ─── helpers ────────────────────────────────────────────────────── */
+function Stars({ n = 5 }) {
+  return <div style={{ display:'flex', gap:2, marginBottom:12 }}>{Array.from({length:n}).map((_,i)=><span key={i} style={{ color:'#F59E0B', fontSize:14 }}>★</span>)}</div>;
+}
+
+function FaqItem({ q, a }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border:'1px solid #e0e8f4', borderRadius:12, overflow:'hidden', marginBottom:10 }}>
+      <button onClick={() => setOpen(v => !v)} style={{ width:'100%', textAlign:'left', padding:'18px 22px', background:open?'#002060':'#fff', border:'none', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', transition:'background .2s' }}>
+        <span style={{ fontSize:14, fontWeight:700, color:open?'#fff':'#002060' }}>{q}</span>
+        <span style={{ fontSize:20, color:open?'#60A5FA':'#94A3B8', fontWeight:300, lineHeight:1, flexShrink:0, marginLeft:12 }}>{open?'−':'+'}</span>
+      </button>
+      {open && <div style={{ padding:'16px 22px', fontSize:13, color:'#4b5563', lineHeight:1.8, background:'#f8fafc', borderTop:'1px solid #e0e8f4' }}>{a}</div>}
+    </div>
+  );
+}
+
+function ContactForm() {
+  const [form, setForm] = useState({ name:'', email:'', phone:'', subject:'', message:'' });
+  const [errors, setErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+  function set(k, v) { setForm(f => ({ ...f, [k]:v })); }
+  function setErr(k, msg) { setErrors(e => ({ ...e, [k]:msg })); }
+  function clearErr(k) { setErrors(e => ({ ...e, [k]:'' })); }
+  function validateEmail(v) {
+    if (!v.trim()) return 'Email is required';
+    if (!/^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/.test(v.trim())) return 'Enter a valid email address';
+    return '';
+  }
+  function handleSubmit(e) {
+    e.preventDefault();
+    const errs = {};
+    if (!form.name.trim()) errs.name = 'Name is required';
+    const emailErr = validateEmail(form.email);
+    if (emailErr) errs.email = emailErr;
+    if (!form.subject) errs.subject = 'Subject is required';
+    if (!form.message.trim()) errs.message = 'Message is required';
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+    setSubmitted(true);
+  }
+  const inp = { width:'100%', padding:'10px 14px', borderRadius:8, fontSize:13.5, outline:'none', boxSizing:'border-box', fontFamily:'inherit' };
+  if (submitted) return (
+    <div style={{ background:'#fff', borderRadius:14, boxShadow:'0 2px 16px rgba(0,0,0,.08)', padding:'48px 36px', textAlign:'center' }}>
+      <div style={{ fontSize:52, marginBottom:16 }}>✅</div>
+      <div style={{ fontSize:20, fontWeight:800, color:'#002060', marginBottom:10 }}>Message Sent!</div>
+      <div style={{ fontSize:14, color:'#64748b', marginBottom:28, lineHeight:1.7 }}>Thank you for reaching out. Our team will respond within 24 hours.</div>
+      <button onClick={() => { setSubmitted(false); setForm({ name:'', email:'', phone:'', subject:'', message:'' }); }}
+        style={{ padding:'10px 24px', borderRadius:8, border:'none', background:'#002060', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
+        Send Another Message
+      </button>
+    </div>
+  );
+  return (
+    <form onSubmit={handleSubmit} noValidate style={{ background:'#fff', borderRadius:14, boxShadow:'0 2px 16px rgba(0,0,0,.08)', padding:'32px 32px' }}>
+      <div style={{ fontSize:17, fontWeight:800, color:'#002060', marginBottom:22 }}>Send us a Message</div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:5 }}>Full Name <span style={{ color:'#dc2626' }}>*</span></label>
+          <input value={form.name} onChange={e => { set('name', e.target.value); clearErr('name'); }}
+            onBlur={() => !form.name.trim() && setErr('name','Name is required')}
+            placeholder="Your full name" style={{ ...inp, border:`1.5px solid ${errors.name?'#dc2626':'#dde2eb'}` }} />
+          {errors.name && <div style={{ fontSize:11.5, color:'#dc2626', marginTop:4 }}>{errors.name}</div>}
+        </div>
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:5 }}>Email Address <span style={{ color:'#dc2626' }}>*</span></label>
+          <input type="email" value={form.email} onChange={e => { set('email', e.target.value); clearErr('email'); }}
+            onBlur={() => { const e = validateEmail(form.email); if (e) setErr('email', e); }}
+            placeholder="you@example.com" style={{ ...inp, border:`1.5px solid ${errors.email?'#dc2626':'#dde2eb'}` }} />
+          {errors.email && <div style={{ fontSize:11.5, color:'#dc2626', marginTop:4 }}>{errors.email}</div>}
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:5 }}>Phone Number</label>
+          <input value={form.phone} onChange={e => set('phone', e.target.value.replace(/\D/g,'').slice(0,10))}
+            placeholder="10-digit mobile" style={{ ...inp, border:'1.5px solid #dde2eb' }} />
+        </div>
+        <div>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:5 }}>Subject <span style={{ color:'#dc2626' }}>*</span></label>
+          <select value={form.subject} onChange={e => { set('subject', e.target.value); clearErr('subject'); }}
+            onBlur={() => !form.subject && setErr('subject','Subject is required')}
+            style={{ ...inp, border:`1.5px solid ${errors.subject?'#dc2626':'#dde2eb'}`, background:'#fff' }}>
+            <option value="">Select a subject</option>
+            <option>General Enquiry</option>
+            <option>Technical Support</option>
+            <option>Training Partner Registration</option>
+            <option>Employer Onboarding</option>
+            <option>Grievance / Complaint</option>
+            <option>Scheme Information</option>
+            <option>Other</option>
+          </select>
+          {errors.subject && <div style={{ fontSize:11.5, color:'#dc2626', marginTop:4 }}>{errors.subject}</div>}
+        </div>
+      </div>
+      <div style={{ marginBottom:22 }}>
+        <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:5 }}>Message <span style={{ color:'#dc2626' }}>*</span></label>
+        <textarea value={form.message} onChange={e => { set('message', e.target.value); clearErr('message'); }}
+          onBlur={() => !form.message.trim() && setErr('message','Message is required')}
+          placeholder="Describe your query or feedback…" rows={4}
+          style={{ ...inp, border:`1.5px solid ${errors.message?'#dc2626':'#dde2eb'}`, resize:'vertical' }} />
+        {errors.message && <div style={{ fontSize:11.5, color:'#dc2626', marginTop:4 }}>{errors.message}</div>}
+      </div>
+      <button type="submit" style={{ width:'100%', padding:'12px', borderRadius:8, border:'none', background:'#002060', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
+        Send Message →
+      </button>
+    </form>
+  );
+}
+
+/* ─── main component ─────────────────────────────────────────────── */
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { login, register: registerUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [tickerOffset, setTickerOffset] = useState(0);
   const menuRef = useRef(null);
-  const tickerRef = useRef(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
-  // Close dropdown when clicking outside
+  // ticker
+  const [tickIdx, setTickIdx] = useState(0);
   useEffect(() => {
-    function handler(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    }
+    const id = setInterval(() => setTickIdx(i => (i+1) % TICKER_ITEMS.length), 3500);
+    return () => clearInterval(id);
+  }, []);
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    setLoginError(''); setLoggingIn(true);
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setLoginError(err.message || 'Invalid email or password');
+    } finally { setLoggingIn(false); }
+  }
+
+  function openLogin() { setShowLogin(true); setLoginError(''); setEmail(''); setPassword(''); }
+  function closeLogin() { setShowLogin(false); }
+
+  const [showRegister, setShowRegister] = useState(false);
+  const [regRole, setRegRole] = useState('');
+  const [regStep, setRegStep] = useState('role');
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regOrg, setRegOrg] = useState('');
+  const [regError, setRegError] = useState('');
+  const [registering, setRegistering] = useState(false);
+
+  const ROLES = [
+    { label:'Candidate',        icon:'🎓', desc:'Find courses & jobs',        value:'candidate' },
+    { label:'Employer',         icon:'🏢', desc:'Hire skilled talent',         value:'employer' },
+    { label:'Trainer',          icon:'📋', desc:'Manage your batches',         value:'trainer' },
+    { label:'Training Vendor',  icon:'🏫', desc:'List your organisation',      value:'training_vendor' },
+    { label:'CSR Organisation', icon:'🤝', desc:'Fund skilling projects',      value:'csr_org' },
+    { label:'Placement Partner',icon:'🔗', desc:'Drive placements',            value:'placement_agency' },
+  ];
+
+  function openRegister() { setShowRegister(true); setRegStep('role'); setRegRole(''); setRegError(''); setRegName(''); setRegEmail(''); setRegPassword(''); setRegOrg(''); }
+  function closeRegister() { setShowRegister(false); }
+  function selectRole(role) { closeRegister(); navigate('/register?role=' + role); }
+
+  async function handleRegister(e) {
+    e.preventDefault(); setRegError(''); setRegistering(true);
+    try {
+      const needsOrg = ['training_vendor','csr_org','placement_agency','employer'].includes(regRole);
+      await registerUser({ name:regName, email:regEmail, password:regPassword, role:regRole, ...(needsOrg && regOrg ? { org_name:regOrg } : {}) });
+      navigate('/dashboard');
+    } catch (err) { setRegError(err.message || 'Registration failed. Please try again.'); }
+    finally { setRegistering(false); }
+  }
+
+  useEffect(() => {
+    function handler(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const sec = { padding:'80px 40px' };
+  const pill = (txt, dark) => (
+    <div style={{ display:'inline-flex', alignItems:'center', marginBottom:16 }}>
+      <span style={{ fontSize:11, fontWeight:700, letterSpacing:1, textTransform:'uppercase', color:dark?'rgba(255,255,255,.6)':'#1A56C4', background:dark?'rgba(255,255,255,.1)':'#EFF6FF', borderRadius:20, padding:'5px 16px', border:dark?'1px solid rgba(255,255,255,.15)':'1px solid #BFDBFE' }}>{txt}</span>
+    </div>
+  );
+  const h2 = (txt, dark) => <h2 style={{ fontSize:32, fontWeight:800, color:dark?'#fff':'#001845', letterSpacing:-0.6, margin:'4px 0 10px', lineHeight:1.2 }}>{txt}</h2>;
+  const sub = (txt, dark) => <p style={{ fontSize:14.5, color:dark?'rgba(255,255,255,.55)':'#5a6a8a', lineHeight:1.8, maxWidth:520, margin:'0 0 40px' }}>{txt}</p>;
+
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", color: '#1a1a2e', background: '#fff', fontSize: 14, lineHeight: 1.6, overflowX: 'hidden' }}>
+    <div style={{ fontFamily:"'Inter',system-ui,sans-serif", color:'#1a1a2e', background:'#fff', fontSize:14, lineHeight:1.6, overflowX:'hidden', paddingTop:60 }}>
 
       {/* ── NAVBAR ── */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid #e0e8f4', padding: '0 40px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60,
-      }}>
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <img src="/logo.png" alt="Skills n Jobs" style={{ height: 48, width: 48, objectFit: 'contain' }} />
+      <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:100, background:'rgba(255,255,255,0.97)', backdropFilter:'blur(12px)', borderBottom:'1px solid #e0e8f4', padding:'0 40px', display:'flex', alignItems:'center', justifyContent:'space-between', height:60 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }} onClick={() => window.scrollTo({ top:0, behavior:'smooth' })}>
+          <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+            <img src="/logo.png" alt="SkillsNJobs" style={{ height:34, width:34, objectFit:'contain' }} />
+          </div>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#002060', letterSpacing: -0.3 }}>SkillsNJobs</div>
-            <div style={{ fontSize: 9, color: '#5a6a8a', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: -2 }}>Skill India · National Skills Mission</div>
+            <div style={{ fontSize:16, fontWeight:800, color:'#002060', letterSpacing:-0.3 }}>SkillsNJobs</div>
+            <div style={{ fontSize:9, color:'#5a6a8a', letterSpacing:0.5, textTransform:'uppercase', marginTop:-2 }}>India's Unified Skill Platform</div>
           </div>
         </div>
-
-        {/* Nav links */}
-        <ul style={{ display: 'flex', gap: 28, listStyle: 'none', margin: 0, padding: 0 }}>
-          {['About', 'Schemes', 'Training Partners', 'Employers', 'Resources'].map(l => (
-            <li key={l}><a href="#" style={{ fontSize: 13, color: '#5a6a8a', textDecoration: 'none', fontWeight: 500 }}>{l}</a></li>
+        <ul style={{ display:'flex', gap:26, listStyle:'none', margin:0, padding:0 }}>
+          {[['About','#about'],['Schemes','#schemes'],['Sectors','#sectors'],['Partners','#partners'],['News','#news'],['FAQ','#faq'],['Contact','#contact']].map(([lbl,href]) => (
+            <li key={lbl}><a href={href} onClick={e => { e.preventDefault(); document.querySelector(href)?.scrollIntoView({ behavior:'smooth' }); }}
+              style={{ fontSize:13, color:'#5a6a8a', textDecoration:'none', fontWeight:500, cursor:'pointer' }}>{lbl}</a></li>
           ))}
         </ul>
-
-        {/* Auth dropdown */}
-        <div style={{ position: 'relative' }} ref={menuRef}>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => navigate('/login')}
-              style={{ padding: '7px 18px', border: '1.5px solid #002060', borderRadius: 8, background: 'transparent', color: '#002060', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              style={{ padding: '7px 18px', border: 'none', borderRadius: 8, background: '#002060', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              Register
-              <span style={{ fontSize: 10, transform: menuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: '0.2s', display: 'inline-block' }}>▼</span>
-            </button>
-          </div>
-
-          {/* Dropdown */}
-          {menuOpen && (
-            <div style={{
-              position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: '#fff',
-              border: '1px solid #e0e8f4', borderRadius: 12, width: 240,
-              boxShadow: '0 12px 40px rgba(0,32,96,0.13)', zIndex: 200, overflow: 'hidden',
-            }}>
-              <div style={{ padding: '10px 16px 6px', fontSize: 10, fontWeight: 700, color: '#5a6a8a', letterSpacing: 0.8, textTransform: 'uppercase' }}>Register as</div>
-              {[
-                { label: 'Candidate', icon: '🎓', desc: 'Find courses & jobs' },
-                { label: 'Employer', icon: '🏢', desc: 'Hire skilled talent' },
-                { label: 'Trainer', icon: '📋', desc: 'Manage your batches' },
-                { label: 'Training Vendor', icon: '🏫', desc: 'List your organisation' },
-                { label: 'CSR Organisation', icon: '🤝', desc: 'Fund skilling projects' },
-                { label: 'Placement Partner', icon: '🔗', desc: 'Drive placements' },
-              ].map(item => (
-                <div
-                  key={item.label}
-                  onClick={() => { setMenuOpen(false); navigate('/register'); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', transition: 'background .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F0F4FF'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ fontSize: 20, width: 32, textAlign: 'center' }}>{item.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#002060' }}>{item.label}</div>
-                    <div style={{ fontSize: 11, color: '#5a6a8a' }}>{item.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <div ref={menuRef} style={{ display:'flex', gap:10 }}>
+          <button onClick={openLogin} style={{ padding:'7px 18px', border:'1.5px solid #002060', borderRadius:8, background:'transparent', color:'#002060', fontSize:13, fontWeight:700, cursor:'pointer' }}>Login</button>
+          <button onClick={openRegister} style={{ padding:'7px 18px', border:'none', borderRadius:8, background:'#002060', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>Register</button>
         </div>
       </nav>
 
-      {/* ── HERO ── */}
-      <div style={{ background: 'linear-gradient(135deg,#001845 0%,#002060 50%,#0a3a8c 100%)', padding: '80px 40px 70px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: -100, left: -100, width: 500, height: 500, borderRadius: '50%', background: 'rgba(26,86,196,0.15)' }} />
-        <div style={{ position: 'absolute', bottom: -80, right: -80, width: 400, height: 400, borderRadius: '50%', background: 'rgba(124,58,237,0.1)' }} />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 20, padding: '5px 16px', fontSize: 11, color: 'rgba(255,255,255,0.8)', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 24 }}>
-            <span style={{ width: 6, height: 6, background: '#4ADE80', borderRadius: '50%', display: 'inline-block' }} />
-            National Skills Mission · Skill India
+      {/* ── NEWS TICKER ── */}
+      <div style={{ background:'#002060', height:36, display:'flex', alignItems:'center', overflow:'hidden', position:'relative' }}>
+        <div style={{ background:'#1A56C4', color:'#fff', fontSize:11, fontWeight:700, padding:'0 16px', height:'100%', display:'flex', alignItems:'center', letterSpacing:0.5, flexShrink:0 }}>LIVE UPDATES</div>
+        <div style={{ flex:1, overflow:'hidden', position:'relative' }}>
+          <div key={tickIdx} style={{ color:'rgba(255,255,255,.85)', fontSize:12.5, paddingLeft:24, animation:'slideIn .5s ease' }}>
+            {TICKER_ITEMS[tickIdx]}
           </div>
-          <h1 style={{ fontSize: 44, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 16, letterSpacing: -1 }}>
-            From <span style={{ color: '#60A5FA' }}>skill</span> to <span style={{ color: '#60A5FA' }}>career</span> —<br />one unified platform
+        </div>
+        <div style={{ paddingRight:20, display:'flex', gap:6 }}>
+          {TICKER_ITEMS.map((_,i) => (
+            <div key={i} onClick={() => setTickIdx(i)} style={{ width:6, height:6, borderRadius:'50%', background:i===tickIdx?'#60A5FA':'rgba(255,255,255,.25)', cursor:'pointer', transition:'background .3s' }} />
+          ))}
+        </div>
+      </div>
+      <style>{`@keyframes slideIn{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}`}</style>
+
+      {/* ── HERO ── */}
+      <div style={{ background:'linear-gradient(135deg,#001228 0%,#002060 55%,#0a3a8c 100%)', padding:'90px 40px 80px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:-120, left:-120, width:600, height:600, borderRadius:'50%', background:'rgba(26,86,196,.12)' }} />
+        <div style={{ position:'absolute', bottom:-100, right:-80, width:500, height:500, borderRadius:'50%', background:'rgba(124,58,237,.08)' }} />
+        <div style={{ position:'absolute', top:'30%', left:'5%', width:300, height:300, borderRadius:'50%', background:'rgba(96,165,250,.05)' }} />
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,.08)', border:'1px solid rgba(255,255,255,.18)', borderRadius:24, padding:'6px 18px', fontSize:11, color:'rgba(255,255,255,.8)', letterSpacing:0.6, textTransform:'uppercase', marginBottom:28 }}>
+            <span style={{ width:7, height:7, background:'#4ADE80', borderRadius:'50%', display:'inline-block', animation:'pulse 2s infinite' }} />
+            India's Unified Skill & Career Platform
+          </div>
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+          <h1 style={{ fontSize:50, fontWeight:900, color:'#fff', lineHeight:1.12, marginBottom:18, letterSpacing:-1.5 }}>
+            From <span style={{ color:'#60A5FA' }}>skill</span> to <span style={{ color:'#60A5FA' }}>career</span> —<br />one unified platform
           </h1>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', maxWidth: 540, margin: '0 auto 32px', lineHeight: 1.8 }}>
+          <p style={{ fontSize:16, color:'rgba(255,255,255,.6)', maxWidth:560, margin:'0 auto 36px', lineHeight:1.85 }}>
             SkillsNJobs connects learners, trainers, employers, and government — bridging the gap between vocational education and meaningful employment across India.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 56 }}>
-            <button onClick={() => navigate('/register')} style={{ padding: '13px 30px', background: '#fff', border: 'none', borderRadius: 10, color: '#002060', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+          <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap', marginBottom:64 }}>
+            <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 24px rgba(0,0,0,.25)' }}>
               Start learning for free →
             </button>
-            <button onClick={() => navigate('/login')} style={{ padding: '13px 30px', background: 'rgba(255,255,255,0.1)', border: '1.5px solid rgba(255,255,255,0.3)', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={openLogin} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>
               Sign in to your portal
             </button>
           </div>
-          {/* Stats strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', maxWidth: 800, margin: '0 auto', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 14, overflow: 'hidden', background: 'rgba(255,255,255,0.06)' }}>
-            {[['1.24L+','Learners trained'],['2,340','Training partners'],['67%','Placement rate'],['28','States covered']].map(([n,l], i) => (
-              <div key={l} style={{ padding: '18px 16px', textAlign: 'center', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
-                <div style={{ fontSize: 26, fontWeight: 800, color: '#fff', letterSpacing: -0.5 }}>{n}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{l}</div>
+          {/* Stats bar */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', maxWidth:860, margin:'0 auto', border:'1px solid rgba(255,255,255,.12)', borderRadius:16, overflow:'hidden', background:'rgba(255,255,255,.05)', backdropFilter:'blur(8px)' }}>
+            {[['1.24L+','Learners trained','#60A5FA'],['2,340','Training partners','#34D399'],['67%','Placement rate','#FBBF24'],['28','States covered','#F472B6']].map(([n,l,c],i) => (
+              <div key={l} style={{ padding:'22px 16px', textAlign:'center', borderRight:i<3?'1px solid rgba(255,255,255,.08)':'none' }}>
+                <div style={{ fontSize:30, fontWeight:900, color:c, letterSpacing:-1, lineHeight:1 }}>{n}</div>
+                <div style={{ fontSize:11.5, color:'rgba(255,255,255,.45)', marginTop:5, fontWeight:500 }}>{l}</div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── TICKER ── */}
-      <div style={{ background: '#F4A900', padding: '9px 0', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'inline-flex', animation: 'landingTick 30s linear infinite' }}>
-          {[...TICKER_ITEMS, ...TICKER_ITEMS].map((t, i) => (
-            <span key={i} style={{ fontSize: 12, fontWeight: 600, color: '#1a1000', padding: '0 32px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 4, height: 4, background: 'rgba(0,0,0,0.3)', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />
-              {t}
-            </span>
-          ))}
-        </div>
-        <style>{`@keyframes landingTick{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
+      {/* ── TRUST BAR ── */}
+      <div style={{ background:'#f8fafc', borderBottom:'1px solid #e0e8f4', padding:'20px 40px', display:'flex', alignItems:'center', gap:32, justifyContent:'center', flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, color:'#94a3b8', fontWeight:600, letterSpacing:0.5 }}>RECOGNISED BY</span>
+        {['Ministry of Skill Development & Entrepreneurship','NSDC','ASCI','National Career Service'].map(p => (
+          <span key={p} style={{ fontSize:12.5, fontWeight:700, color:'#5a6a8a', padding:'6px 16px', borderRadius:6, border:'1px solid #e0e8f4', background:'#fff' }}>{p}</span>
+        ))}
       </div>
 
       {/* ── PORTALS ── */}
-      <section style={{ padding: '70px 40px' }}>
-        <div style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1A56C4', background: '#F0F4FF', borderRadius: 20, padding: '4px 14px' }}>Choose your portal</span>
-        </div>
-        <h2 style={{ fontSize: 30, fontWeight: 800, color: '#002060', letterSpacing: -0.5, marginBottom: 6 }}>One platform, every stakeholder</h2>
-        <p style={{ fontSize: 14, color: '#5a6a8a', maxWidth: 520, lineHeight: 1.7, marginBottom: 36 }}>Whether you're a learner, employer, trainer, or government body — SkillsNJobs has a dedicated workspace for you.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+      <section id="portals" style={sec}>
+        {pill('Choose your portal')}
+        {h2('One platform, every stakeholder')}
+        {sub('Whether you\'re a learner, employer, trainer, or government body — SkillsNJobs has a dedicated workspace for you.')}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
           {PORTALS.map(p => (
-            <div
-              key={p.title}
-              onClick={() => navigate('/login')}
-              style={{ border: `1px solid #e0e8f4`, borderTop: `3px solid ${p.border}`, borderRadius: 14, padding: '22px 18px', cursor: 'pointer', background: '#fff', transition: 'transform .2s,box-shadow .2s' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,32,96,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-            >
-              <div style={{ width: 44, height: 44, borderRadius: 11, background: p.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 14 }}>{p.icon}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#002060', marginBottom: 4 }}>{p.title}</div>
-              <div style={{ fontSize: 12, color: '#5a6a8a', lineHeight: 1.6, marginBottom: 12 }}>{p.desc}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: p.color, display: 'flex', alignItems: 'center', gap: 4 }}>Enter portal →</div>
+            <div key={p.title} onClick={() => p.loginRole ? navigate('/login?role='+p.loginRole) : openLogin()}
+              style={{ border:`1px solid #e8eef7`, borderTop:`3px solid ${p.border}`, borderRadius:16, padding:'24px 20px', cursor:'pointer', background:'#fff', transition:'all .22s', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}
+              onMouseEnter={e => { e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='0 16px 40px rgba(0,32,96,.11)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.04)'; }}>
+              <div style={{ width:48, height:48, borderRadius:12, background:p.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, marginBottom:16 }}>{p.icon}</div>
+              <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:6 }}>{p.title}</div>
+              <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.7, marginBottom:14 }}>{p.desc}</div>
+              <div style={{ fontSize:12.5, fontWeight:700, color:p.color }}>Enter portal →</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── SCHEMES ── */}
-      <section style={{ padding: '70px 40px', background: '#F0F4FF' }}>
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1A56C4', background: '#fff', borderRadius: 20, padding: '4px 14px' }}>Government schemes</span>
-          <h2 style={{ fontSize: 30, fontWeight: 800, color: '#002060', letterSpacing: -0.5, margin: '12px 0 6px' }}>Aligned with National Skill Development</h2>
-          <p style={{ fontSize: 14, color: '#5a6a8a', maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>SkillsNJobs is fully integrated with major government skilling schemes. Apply directly through the platform.</p>
+      {/* ── IMPACT STRIP ── */}
+      <div style={{ background:'linear-gradient(90deg,#001845 0%,#0a3a8c 100%)', padding:'50px 40px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:0, maxWidth:1100, margin:'0 auto' }}>
+          {[
+            ['1.24L+','Learners Trained'],
+            ['2,340','Training Centres'],
+            ['67%','Avg Placement Rate'],
+            ['28','States Covered'],
+            ['₹480Cr','CSR Funds Channelled'],
+            ['13','Languages Supported'],
+          ].map(([n,l],i) => (
+            <div key={l} style={{ textAlign:'center', padding:'12px 8px', borderRight:i<5?'1px solid rgba(255,255,255,.1)':'none' }}>
+              <div style={{ fontSize:28, fontWeight:900, color:'#60A5FA', letterSpacing:-0.5 }}>{n}</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', marginTop:4, fontWeight:500 }}>{l}</div>
+            </div>
+          ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+      </div>
+
+      {/* ── SCHEMES ── */}
+      <section id="schemes" style={{ ...sec, background:'#F8FAFF' }}>
+        <div style={{ textAlign:'center' }}>
+          {pill('Government schemes')}
+          {h2('Aligned with National Skill Development')}
+          {sub('SkillsNJobs is fully integrated with major government skilling schemes. Apply directly through the platform.')}
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:22 }}>
           {SCHEMES.map(s => (
-            <div key={s.name} style={{ background: '#fff', borderRadius: 14, padding: '26px 22px', border: '1px solid #e0e8f4' }}>
-              <div style={{ width: 48, height: 48, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 16 }}>{s.icon}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#002060', marginBottom: 6 }}>{s.name}</div>
-              <div style={{ fontSize: 12, color: '#5a6a8a', lineHeight: 1.7, marginBottom: 14 }}>{s.desc}</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.stat}</div>
-              <div style={{ fontSize: 11, color: '#5a6a8a' }}>{s.statLbl}</div>
+            <div key={s.name} style={{ background:'#fff', borderRadius:16, padding:'28px 24px', border:'1px solid #e0e8f4', boxShadow:'0 2px 8px rgba(0,0,0,.04)', transition:'box-shadow .2s' }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow='0 8px 28px rgba(0,32,96,.1)'}
+              onMouseLeave={e => e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,.04)'}>
+              <div style={{ width:52, height:52, borderRadius:14, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:18 }}>{s.icon}</div>
+              <div style={{ fontSize:16, fontWeight:800, color:'#001845', marginBottom:8 }}>{s.name}</div>
+              <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.75, marginBottom:16 }}>{s.desc}</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:6 }}>
+                <span style={{ fontSize:26, fontWeight:900, color:s.color }}>{s.stat}</span>
+                <span style={{ fontSize:11.5, color:'#94a3b8' }}>{s.statLbl}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── SECTORS ── */}
+      <section id="sectors" style={sec}>
+        {pill('Industry sectors')}
+        {h2('Skills for every industry')}
+        {sub('Over 900+ courses across 10 high-demand sectors — all government-aligned and industry-certified.')}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
+          {SECTORS.map(s => (
+            <div key={s.label} style={{ background:'#fff', border:'1px solid #e0e8f4', borderRadius:14, padding:'22px 16px', textAlign:'center', cursor:'pointer', transition:'all .2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background=s.bg; e.currentTarget.style.borderColor=s.color; e.currentTarget.style.transform='translateY(-3px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='#fff'; e.currentTarget.style.borderColor='#e0e8f4'; e.currentTarget.style.transform='none'; }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>{s.icon}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#001845', marginBottom:4 }}>{s.label}</div>
+              <div style={{ fontSize:11, color:s.color, fontWeight:600 }}>{s.count}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <section style={{ padding: '70px 40px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 50 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1A56C4', background: '#F0F4FF', borderRadius: 20, padding: '4px 14px' }}>How it works</span>
-          <h2 style={{ fontSize: 30, fontWeight: 800, color: '#002060', letterSpacing: -0.5, margin: '12px 0 6px' }}>Skill to career in 4 steps</h2>
-          <p style={{ fontSize: 14, color: '#5a6a8a', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>A clear, supported pathway from enrolment to employment — tracked end to end on one platform.</p>
+      <section style={{ ...sec, background:'#F8FAFF' }}>
+        <div style={{ textAlign:'center' }}>
+          {pill('How it works')}
+          {h2('Skill to career in 4 steps')}
+          {sub('A clear, supported pathway from enrolment to employment — tracked end to end on one platform.')}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0, position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 28, left: '12.5%', right: '12.5%', height: 1.5, background: '#e0e8f4', zIndex: 0 }} />
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:0, position:'relative', maxWidth:1000, margin:'0 auto' }}>
+          <div style={{ position:'absolute', top:32, left:'12.5%', right:'12.5%', height:2, background:'linear-gradient(90deg,#1A56C4,#60A5FA)', zIndex:0, borderRadius:2 }} />
           {[
-            { n: '1', title: 'Register & verify', desc: 'Create a profile with mobile OTP. Choose your role — candidate, employer, or training partner.' },
-            { n: '2', title: 'Choose a course', desc: 'Browse thousands of government-approved courses across sectors and enrol at a centre near you.' },
-            { n: '3', title: 'Train & get certified', desc: 'Complete your training, sit the sector skill council assessment, and earn a verifiable certificate.' },
-            { n: '4', title: 'Get placed', desc: 'Apply to matched job openings, attend placement drives, and receive post-placement support.' },
+            { n:'1', icon:'👤', title:'Register & verify',    desc:'Create a profile with mobile OTP. Choose your role — candidate, employer, or training partner.' },
+            { n:'2', icon:'📚', title:'Choose a course',      desc:'Browse thousands of government-approved courses across sectors and enrol at a centre near you.' },
+            { n:'3', icon:'🏆', title:'Train & get certified',desc:'Complete training, sit the sector skill council assessment, and earn a verifiable certificate.' },
+            { n:'4', icon:'🏢', title:'Get placed',           desc:'Apply to matched job openings, attend placement drives, and receive post-placement support.' },
           ].map(s => (
-            <div key={s.n} style={{ textAlign: 'center', padding: '0 16px', position: 'relative', zIndex: 1 }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fff', border: '2px solid #1A56C4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 20, fontWeight: 800, color: '#1A56C4' }}>{s.n}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#002060', marginBottom: 6 }}>{s.title}</div>
-              <div style={{ fontSize: 12, color: '#5a6a8a', lineHeight: 1.7 }}>{s.desc}</div>
+            <div key={s.n} style={{ textAlign:'center', padding:'0 20px', position:'relative', zIndex:1 }}>
+              <div style={{ width:64, height:64, borderRadius:'50%', background:'#002060', border:'3px solid #60A5FA', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:26 }}>{s.icon}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#1A56C4', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>Step {s.n}</div>
+              <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:8 }}>{s.title}</div>
+              <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.75 }}>{s.desc}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── FEATURES ── */}
-      <section style={{ background: '#002060', padding: '70px 40px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 44 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: '4px 14px' }}>Platform features</span>
-          <h2 style={{ fontSize: 30, fontWeight: 800, color: '#fff', letterSpacing: -0.5, margin: '12px 0 6px' }}>Built for scale, built for India</h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>Designed to handle the complexity of national skilling — multilingual, accessible, and real-time.</p>
+      <section id="about" style={{ ...sec, background:'#001845' }}>
+        <div style={{ textAlign:'center' }}>
+          {pill('Platform features', true)}
+          {h2('Built for scale, built for India', true)}
+          {sub('Designed to handle the complexity of national skilling — multilingual, accessible, and real-time.', true)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 24 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:24 }}>
           {FEATURES.map(f => (
-            <div key={f.title} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '26px 22px' }}>
-              <div style={{ fontSize: 26, marginBottom: 14 }}>{f.icon}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{f.title}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>{f.desc}</div>
+            <div key={f.title} style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.09)', borderRadius:16, padding:'28px 24px', transition:'background .2s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.09)'}
+              onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,.05)'}>
+              <div style={{ width:52, height:52, borderRadius:14, background:'rgba(255,255,255,.08)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:18 }}>{f.icon}</div>
+              <div style={{ fontSize:15, fontWeight:800, color:'#fff', marginBottom:8 }}>{f.title}</div>
+              <div style={{ fontSize:12.5, color:'rgba(255,255,255,.45)', lineHeight:1.8 }}>{f.desc}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── PARTNERS ── */}
-      <section style={{ padding: '70px 40px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1A56C4', background: '#F0F4FF', borderRadius: 20, padding: '4px 14px' }}>Ecosystem</span>
-          <h2 style={{ fontSize: 30, fontWeight: 800, color: '#002060', letterSpacing: -0.5, margin: '12px 0 6px' }}>Trusted by 1,200+ organisations</h2>
-          <p style={{ fontSize: 14, color: '#5a6a8a', maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>From sector skill councils to Fortune 500 employers — SkillsNJobs powers India's largest skilling ecosystem.</p>
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+      <section id="partners" style={sec}>
+        {pill('Ecosystem')}
+        {h2('Trusted by 1,200+ organisations')}
+        {sub('From sector skill councils to Fortune 500 employers — SkillsNJobs powers India\'s largest skilling ecosystem.')}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:10, justifyContent:'center' }}>
           {PARTNERS.map(p => (
-            <div key={p} style={{ background: '#F0F4FF', border: '1px solid #e0e8f4', borderRadius: 20, padding: '8px 20px', fontSize: 12, fontWeight: 600, color: '#002060' }}>{p}</div>
+            <div key={p} style={{ background:'#F8FAFF', border:'1px solid #e0e8f4', borderRadius:24, padding:'9px 22px', fontSize:12.5, fontWeight:600, color:'#002060', transition:'all .2s', cursor:'default' }}
+              onMouseEnter={e => { e.currentTarget.style.background='#EFF6FF'; e.currentTarget.style.borderColor='#93C5FD'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='#F8FAFF'; e.currentTarget.style.borderColor='#e0e8f4'; }}>
+              {p}
+            </div>
           ))}
         </div>
       </section>
 
       {/* ── TESTIMONIALS ── */}
-      <section style={{ background: '#F0F4FF', padding: '70px 40px' }}>
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: '#1A56C4', background: '#fff', borderRadius: 20, padding: '4px 14px' }}>Stories</span>
-          <h2 style={{ fontSize: 30, fontWeight: 800, color: '#002060', letterSpacing: -0.5, margin: '12px 0' }}>Real impact, real people</h2>
+      <section style={{ ...sec, background:'#F8FAFF' }}>
+        <div style={{ textAlign:'center' }}>
+          {pill('Success stories')}
+          {h2('Real impact, real people')}
+          {sub('Join over 1.24 lakh learners who found their career through SkillsNJobs.')}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:22 }}>
           {TESTIMONIALS.map(t => (
-            <div key={t.name} style={{ background: '#fff', border: '1px solid #e0e8f4', borderRadius: 14, padding: '24px' }}>
-              <div style={{ fontSize: 13, color: '#5a6a8a', lineHeight: 1.8, marginBottom: 16, fontStyle: 'italic' }}>{t.quote}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{t.initials}</div>
+            <div key={t.name} style={{ background:'#fff', border:'1px solid #e0e8f4', borderRadius:16, padding:'28px 26px', boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
+              <Stars n={t.stars} />
+              <div style={{ fontSize:14, color:'#374151', lineHeight:1.85, marginBottom:20, fontStyle:'italic' }}>"{t.quote}"</div>
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ width:44, height:44, borderRadius:'50%', background:t.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:800, color:'#fff', flexShrink:0 }}>{t.initials}</div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#002060' }}>{t.name}</div>
-                  <div style={{ fontSize: 11, color: '#5a6a8a' }}>{t.role}</div>
+                  <div style={{ fontSize:13.5, fontWeight:700, color:'#001845' }}>{t.name}</div>
+                  <div style={{ fontSize:12, color:'#5a6a8a' }}>{t.role}</div>
                 </div>
               </div>
             </div>
@@ -312,48 +522,275 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── CTA BAND ── */}
-      <div style={{ background: 'linear-gradient(135deg,#001845,#0a3a8c)', padding: '70px 40px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: 34, fontWeight: 800, color: '#fff', letterSpacing: -0.5, marginBottom: 10 }}>Ready to start your journey?</h2>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 32 }}>Join over 1.24 lakh learners, 2,300 training partners, and 4,000 employers on one platform.</p>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-          <button onClick={() => navigate('/register')} style={{ padding: '13px 30px', background: '#fff', border: 'none', borderRadius: 10, color: '#002060', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>Register as a candidate</button>
-          <button onClick={() => navigate('/login')} style={{ padding: '13px 30px', background: 'rgba(255,255,255,0.1)', border: '1.5px solid rgba(255,255,255,0.3)', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Sign in to portal →</button>
+      {/* ── NEWS ── */}
+      <section id="news" style={sec}>
+        {pill('Latest news')}
+        {h2('Updates & announcements')}
+        {sub('Stay current with the latest policy updates, scheme launches, and platform news.')}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:22 }}>
+          {NEWS.map(n => (
+            <div key={n.title} style={{ background:'#fff', border:'1px solid #e0e8f4', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,.04)', cursor:'pointer', transition:'box-shadow .2s' }}
+              onMouseEnter={e => e.currentTarget.style.boxShadow='0 8px 28px rgba(0,32,96,.1)'}
+              onMouseLeave={e => e.currentTarget.style.boxShadow='0 2px 8px rgba(0,0,0,.04)'}>
+              <div style={{ background:`linear-gradient(135deg,${n.bg},#fff)`, padding:'24px 22px 20px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+                  <span style={{ fontSize:10.5, fontWeight:700, color:n.color, background:n.bg, border:`1px solid ${n.color}30`, padding:'3px 10px', borderRadius:12 }}>{n.tag}</span>
+                  <span style={{ fontSize:11, color:'#94a3b8' }}>{n.date}</span>
+                </div>
+                <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', lineHeight:1.4, marginBottom:10 }}>{n.title}</div>
+              </div>
+              <div style={{ padding:'14px 22px 22px' }}>
+                <div style={{ fontSize:13, color:'#5a6a8a', lineHeight:1.75 }}>{n.desc}</div>
+                <div style={{ fontSize:12.5, fontWeight:700, color:n.color, marginTop:14 }}>Read more →</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── APP DOWNLOAD BANNER ── */}
+      <div style={{ background:'linear-gradient(135deg,#002060,#1A56C4)', margin:'0 40px 80px', borderRadius:24, padding:'52px 48px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:32, boxShadow:'0 20px 60px rgba(0,32,96,.2)' }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,.5)', letterSpacing:1, textTransform:'uppercase', marginBottom:10 }}>Mobile App — Coming Soon</div>
+          <h3 style={{ fontSize:28, fontWeight:900, color:'#fff', margin:'0 0 12px', letterSpacing:-0.5 }}>Take SkillsNJobs in your pocket</h3>
+          <p style={{ fontSize:14, color:'rgba(255,255,255,.6)', maxWidth:480, lineHeight:1.8, margin:'0 0 28px' }}>Browse courses, track applications, mark attendance, and get real-time placement notifications — all from your smartphone.</p>
+          <div style={{ display:'flex', gap:12 }}>
+            {['📱 Google Play','🍎 App Store'].map(lbl => (
+              <button key={lbl} style={{ padding:'12px 22px', background:'rgba(255,255,255,.12)', border:'1.5px solid rgba(255,255,255,.3)', borderRadius:10, color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}
+                onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,.2)'}
+                onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,.12)'}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ textAlign:'center', flexShrink:0 }}>
+          <div style={{ width:160, height:160, borderRadius:28, background:'rgba(255,255,255,.1)', border:'2px solid rgba(255,255,255,.2)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
+            <div style={{ fontSize:52 }}>📲</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontWeight:600 }}>Scan QR to download</div>
+          </div>
         </div>
       </div>
 
-      {/* ── FOOTER ── */}
-      <footer style={{ background: '#0d0d1a', padding: '50px 40px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 40, marginBottom: 40 }}>
+      {/* ── FAQ ── */}
+      <section id="faq" style={{ ...sec, paddingTop:0 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:60, alignItems:'start' }}>
+          <div style={{ position:'sticky', top:80 }}>
+            {pill('FAQ')}
+            {h2('Frequently asked questions')}
+            <p style={{ fontSize:14, color:'#5a6a8a', lineHeight:1.8 }}>Can't find your answer? Reach out to our support team and we'll respond within 24 hours.</p>
+            <button onClick={() => document.querySelector('#contact')?.scrollIntoView({ behavior:'smooth' })} style={{ marginTop:20, padding:'12px 24px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer' }}>
+              Contact Support →
+            </button>
+          </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <img src="/logo.png" alt="Skills n Jobs" style={{ height: 40, width: 40, objectFit: 'contain' }} />
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>SkillsNJobs</div>
+            {FAQS.map(f => <FaqItem key={f.q} q={f.q} a={f.a} />)}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA BAND ── */}
+      <div style={{ background:'linear-gradient(135deg,#001228,#0a3a8c)', padding:'80px 40px', textAlign:'center' }}>
+        <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,.08)', border:'1px solid rgba(255,255,255,.15)', borderRadius:24, padding:'6px 18px', fontSize:11, color:'rgba(255,255,255,.7)', letterSpacing:0.6, textTransform:'uppercase', marginBottom:24 }}>
+          🚀 Join the movement
+        </div>
+        <h2 style={{ fontSize:38, fontWeight:900, color:'#fff', letterSpacing:-0.8, marginBottom:12 }}>Ready to start your journey?</h2>
+        <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', marginBottom:36, lineHeight:1.8, maxWidth:520, margin:'0 auto 36px' }}>
+          Join over 1.24 lakh learners, 2,300 training partners, and 4,000 employers on one platform.
+        </p>
+        <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap' }}>
+          <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer' }}>Register as a candidate</button>
+          <button onClick={openLogin} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>Sign in to portal →</button>
+        </div>
+      </div>
+
+      {/* ── CONTACT ── */}
+      <section id="contact" style={{ ...sec, background:'#f0f4f8' }}>
+        <div style={{ textAlign:'center', marginBottom:52 }}>
+          {pill('Get in touch')}
+          {h2('Contact Us')}
+          <p style={{ fontSize:14.5, color:'#5a6a8a', maxWidth:480, margin:'0 auto', lineHeight:1.8 }}>Have a question or need help? Reach out and our team will respond within 24 hours.</p>
+        </div>
+        <div style={{ maxWidth:1060, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:36, alignItems:'start' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            {[
+              { icon:'🏢', title:'Head Office', lines:['Skills n Jobs AI Technologies Pvt. Ltd.','Plot No. 91, LVS Arcade, Jayabheri Enclave','Hitech City, Hyderabad – 500084'] },
+              { icon:'📞', title:'Phone',        lines:['0000000000','Mon – Sat, 9 AM – 6 PM IST'] },
+              { icon:'✉️', title:'Email',        lines:['support@skillsnjobs.in','grievance@skillsnjobs.in'] },
+              { icon:'🕐', title:'Working Hours',lines:['Monday – Saturday','9:00 AM to 6:00 PM IST'] },
+            ].map(({ icon, title, lines }) => (
+              <div key={title} style={{ background:'#fff', borderRadius:14, padding:'20px 24px', boxShadow:'0 1px 6px rgba(0,0,0,.07)', display:'flex', gap:16, alignItems:'flex-start' }}>
+                <div style={{ width:42, height:42, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>{icon}</div>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:13.5, color:'#001845', marginBottom:6 }}>{title}</div>
+                  {lines.map(l => <div key={l} style={{ fontSize:13, color:'#4b5563', lineHeight:1.7 }}>{l}</div>)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <ContactForm />
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer id="resources" style={{ background:'#060c18', padding:'60px 40px 28px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'2.2fr 1fr 1fr 1fr 1fr', gap:40, marginBottom:48 }}>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+              <div style={{ width:42, height:42, borderRadius:'50%', border:'2px solid rgba(255,255,255,.15)', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+                <img src="/logo.png" alt="SkillsNJobs" style={{ height:32, width:32, objectFit:'contain' }} />
+              </div>
+              <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>SkillsNJobs</div>
             </div>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', lineHeight: 1.8, maxWidth: 240 }}>India's unified platform for skill development, vocational training, and employment. Aligned with National Skills Mission 2025–30.</p>
+            <p style={{ fontSize:12.5, color:'rgba(255,255,255,.28)', lineHeight:1.85, maxWidth:240, marginBottom:20 }}>India's unified platform for skill development, vocational training, and meaningful employment.</p>
+            <div style={{ display:'flex', gap:10 }}>
+              {['𝕏','in','f','▶'].map(s => (
+                <div key={s} style={{ width:34, height:34, borderRadius:8, background:'rgba(255,255,255,.07)', border:'1px solid rgba(255,255,255,.1)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:13, color:'rgba(255,255,255,.5)', fontWeight:700 }}
+                  onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,.15)'; e.currentTarget.style.color='#fff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,.07)'; e.currentTarget.style.color='rgba(255,255,255,.5)'; }}>
+                  {s}
+                </div>
+              ))}
+            </div>
           </div>
           {[
-            { h: 'Platform', links: ['Candidate portal','Employer portal','Training vendor','Trainer portal','CSR portal','State govt portal'] },
-            { h: 'Schemes', links: ['PMKVY 4.0','DDU-GKY','NAPS','State schemes','Digital skills'] },
-            { h: 'Resources', links: ['About us','Sector skill councils','MIS reports','Help centre','Grievance portal','Privacy policy'] },
+            { h:'Platform', links:['Candidate portal','Employer portal','Training vendor','Trainer portal','CSR portal','State govt portal'] },
+            { h:'Schemes',  links:['PMKVY 4.0','DDU-GKY','NAPS','State schemes','Digital skills'] },
+            { h:'Company',  links:['About us','Careers','Press','Blog','Sector Skill Councils'] },
+            { h:'Legal',    links:['Privacy policy','Terms of use','Grievance portal','Refund policy','Cookie policy'] },
           ].map(col => (
             <div key={col.h}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 14 }}>{col.h}</div>
-              <ul style={{ listStyle: 'none', padding: 0 }}>
-                {col.links.map(l => <li key={l} style={{ marginBottom: 8 }}><a href="#" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>{l}</a></li>)}
+              <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,.35)', letterSpacing:1, textTransform:'uppercase', marginBottom:16 }}>{col.h}</div>
+              <ul style={{ listStyle:'none', padding:0 }}>
+                {col.links.map(l => (
+                  <li key={l} style={{ marginBottom:10 }}>
+                    <a href="#" style={{ fontSize:12.5, color:'rgba(255,255,255,.28)', textDecoration:'none', transition:'color .15s' }}
+                      onMouseEnter={e => e.target.style.color='rgba(255,255,255,.75)'}
+                      onMouseLeave={e => e.target.style.color='rgba(255,255,255,.28)'}>{l}</a>
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
         </div>
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>© 2026 SkillsNJobs. Government of India initiative under National Skills Mission.</p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['Skill India','Digital India','Make in India'].map(b => (
-              <div key={b} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '3px 8px', fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{b}</div>
+        <div style={{ borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:22, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
+          <p style={{ fontSize:11.5, color:'rgba(255,255,255,.18)' }}>© 2026 SkillsNJobs AI Technologies Pvt. Ltd. All rights reserved.</p>
+          <div style={{ display:'flex', gap:16 }}>
+            {['Privacy','Terms','Cookies'].map(l => (
+              <a key={l} href="#" style={{ fontSize:11.5, color:'rgba(255,255,255,.18)', textDecoration:'none' }}
+                onMouseEnter={e => e.target.style.color='rgba(255,255,255,.5)'}
+                onMouseLeave={e => e.target.style.color='rgba(255,255,255,.18)'}>{l}</a>
             ))}
           </div>
         </div>
       </footer>
+
+      {/* ── LOGIN MODAL ── */}
+      {showLogin && (
+        <div onClick={closeLogin} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:22, padding:'38px 34px', width:420, boxShadow:'0 40px 100px rgba(0,0,0,.45)', position:'relative' }}>
+            <button onClick={closeLogin} style={{ position:'absolute', top:16, right:18, background:'none', border:'none', fontSize:24, color:'#94A3B8', cursor:'pointer', lineHeight:1 }}>×</button>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:26 }}>
+              <img src="/logo.png" alt="SkillsNJobs" style={{ height:46, width:46, objectFit:'contain' }} />
+              <div>
+                <div style={{ fontSize:19, fontWeight:800, color:'#002060' }}>SkillsNJobs</div>
+                <div style={{ fontSize:10.5, color:'#8899BB' }}>Sign in to your portal</div>
+              </div>
+            </div>
+            {loginError && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', color:'#B91C1C', fontSize:13, marginBottom:16 }}>{loginError}</div>}
+            <form onSubmit={handleLogin}>
+              <div style={{ marginBottom:14 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748B', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>Email</label>
+                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
+                  style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #E2E8F0', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box' }}
+                  onFocus={e => e.target.style.borderColor='#1A56C4'} onBlur={e => e.target.style.borderColor='#E2E8F0'} />
+              </div>
+              <div style={{ marginBottom:8 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#64748B', letterSpacing:0.5, textTransform:'uppercase' }}>Password</label>
+                  <span onClick={() => { closeLogin(); navigate('/forgot-password'); }} style={{ fontSize:12, color:'#1A56C4', cursor:'pointer', fontWeight:600 }}>Forgot password?</span>
+                </div>
+                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+                  style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #E2E8F0', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box' }}
+                  onFocus={e => e.target.style.borderColor='#1A56C4'} onBlur={e => e.target.style.borderColor='#E2E8F0'} />
+              </div>
+              <button type="submit" disabled={loggingIn} style={{ width:'100%', padding:'13px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:15, fontWeight:700, cursor:loggingIn?'not-allowed':'pointer', marginTop:18, opacity:loggingIn?.7:1 }}>
+                {loggingIn?'Signing in…':'Sign In →'}
+              </button>
+            </form>
+            <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
+              No account?{' '}<span onClick={() => { closeLogin(); openRegister(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Create one</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── REGISTER MODAL ── */}
+      {showRegister && (
+        <div onClick={closeRegister} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:22, padding:'38px 34px', width:regStep==='role'?500:440, boxShadow:'0 40px 100px rgba(0,0,0,.45)', position:'relative', maxHeight:'90vh', overflowY:'auto' }}>
+            <button onClick={closeRegister} style={{ position:'absolute', top:16, right:18, background:'none', border:'none', fontSize:24, color:'#94A3B8', cursor:'pointer', lineHeight:1 }}>×</button>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:24 }}>
+              <img src="/logo.png" alt="SkillsNJobs" style={{ height:46, width:46, objectFit:'contain' }} />
+              <div>
+                <div style={{ fontSize:19, fontWeight:800, color:'#002060' }}>SkillsNJobs</div>
+                <div style={{ fontSize:10.5, color:'#8899BB' }}>{regStep==='role'?'Choose your role to get started':`Registering as ${ROLES.find(r=>r.value===regRole)?.label}`}</div>
+              </div>
+            </div>
+            {regStep==='role' && (
+              <div>
+                <p style={{ fontSize:13.5, color:'#64748B', marginBottom:18 }}>Select the role that best describes you:</p>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                  {ROLES.map(r => (
+                    <div key={r.value} onClick={() => selectRole(r.value)}
+                      style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', border:'1.5px solid #E2E8F0', borderRadius:12, cursor:'pointer', transition:'all .15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor='#1A56C4'; e.currentTarget.style.background='#F0F4FF'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor='#E2E8F0'; e.currentTarget.style.background='#fff'; }}>
+                      <span style={{ fontSize:24 }}>{r.icon}</span>
+                      <div><div style={{ fontSize:13.5, fontWeight:700, color:'#002060' }}>{r.label}</div><div style={{ fontSize:11, color:'#94A3B8' }}>{r.desc}</div></div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
+                  Already have an account?{' '}<span onClick={() => { closeRegister(); openLogin(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
+                </div>
+              </div>
+            )}
+            {regStep==='form' && (() => {
+              const role = ROLES.find(r => r.value===regRole);
+              const needsOrg = ['training_vendor','csr_org','placement_agency','employer'].includes(regRole);
+              const orgLabel = regRole==='employer'?'Company Name':'Organisation Name';
+              return (
+                <div>
+                  <button onClick={() => setRegStep('role')} style={{ background:'none', border:'none', color:'#1A56C4', fontSize:13, fontWeight:600, cursor:'pointer', padding:0, marginBottom:16 }}>← Back</button>
+                  {regError && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', color:'#B91C1C', fontSize:13, marginBottom:16 }}>{regError}</div>}
+                  <form onSubmit={handleRegister}>
+                    {[
+                      { label:'Full Name', type:'text', val:regName, set:setRegName, ph:'Your full name', required:true },
+                      ...(needsOrg?[{ label:orgLabel, type:'text', val:regOrg, set:setRegOrg, ph:`Enter ${orgLabel.toLowerCase()}`, required:true }]:[]),
+                      { label:'Email', type:'email', val:regEmail, set:setRegEmail, ph:'your@email.com', required:true },
+                      { label:'Password', type:'password', val:regPassword, set:setRegPassword, ph:'Min. 8 characters', required:true },
+                    ].map(f => (
+                      <div key={f.label} style={{ marginBottom:14 }}>
+                        <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748B', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>{f.label}</label>
+                        <input type={f.type} required={f.required} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                          style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #E2E8F0', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box' }}
+                          onFocus={e => e.target.style.borderColor='#1A56C4'} onBlur={e => e.target.style.borderColor='#E2E8F0'} />
+                      </div>
+                    ))}
+                    <button type="submit" disabled={registering} style={{ width:'100%', padding:'13px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:15, fontWeight:700, cursor:registering?'not-allowed':'pointer', marginTop:8, opacity:registering?.7:1 }}>
+                      {registering?'Creating account…':`Create ${role?.label} Account →`}
+                    </button>
+                  </form>
+                  <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
+                    Already have an account?{' '}<span onClick={() => { closeRegister(); openLogin(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

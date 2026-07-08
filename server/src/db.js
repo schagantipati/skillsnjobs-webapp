@@ -2,7 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'skillsnjobs.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'skillsnjobs.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -366,6 +366,8 @@ const newCols = [
   ['dob', 'TEXT'], ['gender', 'TEXT'], ['phone', 'TEXT'], ['photo', 'TEXT'],
   ['address_line1', 'TEXT'], ['address_line2', 'TEXT'],
   ['city', 'TEXT'], ['state_name', 'TEXT'], ['country', 'TEXT'], ['pincode', 'TEXT'],
+  // Shared org identity
+  ['cin', 'TEXT'], ['website', 'TEXT'],
   // Training Vendor – org details
   ['registration_number', 'TEXT'], ['pan', 'TEXT'], ['gstin', 'TEXT'],
   ['year_established', 'TEXT'], ['head_office', 'TEXT'], ['branch_offices', 'TEXT'],
@@ -533,7 +535,380 @@ if (schemeCount === 0) {
   schemes.forEach(s => ins.run(...s));
 }
 
-seedIfEmpty();
+// ══════════ TRAINER FEATURE TABLES ══════════
+db.exec(`
+CREATE TABLE IF NOT EXISTS trainer_certifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  cert_name TEXT NOT NULL,
+  issuing_body TEXT NOT NULL,
+  year TEXT,
+  valid_until TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  doc_type TEXT NOT NULL,
+  status TEXT DEFAULT 'Submitted',
+  file_name TEXT,
+  file_path TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL,
+  topic TEXT NOT NULL,
+  session_date TEXT NOT NULL,
+  start_time TEXT,
+  duration_hrs REAL,
+  venue TEXT,
+  mode TEXT DEFAULT 'Classroom',
+  status TEXT DEFAULT 'scheduled',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_assessments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL,
+  type TEXT DEFAULT 'Final',
+  date TEXT NOT NULL,
+  duration_hrs REAL,
+  total_marks INTEGER DEFAULT 100,
+  passing_marks INTEGER DEFAULT 50,
+  assessor TEXT,
+  status TEXT DEFAULT 'scheduled',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_mock_tests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL,
+  subject TEXT NOT NULL,
+  date TEXT NOT NULL,
+  duration_min INTEGER DEFAULT 60,
+  questions INTEGER DEFAULT 50,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_content (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  batch_targets TEXT DEFAULT 'All',
+  file_name TEXT,
+  views INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_support_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ticket_id TEXT,
+  category TEXT DEFAULT 'Other',
+  priority TEXT DEFAULT 'Medium',
+  subject TEXT NOT NULL,
+  details TEXT,
+  status TEXT DEFAULT 'Open',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_grievances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ref_id TEXT,
+  grievance_type TEXT DEFAULT 'Other',
+  against_whom TEXT,
+  details TEXT NOT NULL,
+  status TEXT DEFAULT 'Submitted',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS candidate_grievances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  category TEXT DEFAULT 'Other',
+  subject TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status TEXT DEFAULT 'Submitted',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+// ══════════ TRAINER PROFILE TABLES ══════════
+db.exec(`
+CREATE TABLE IF NOT EXISTS trainer_qualifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  degree TEXT NOT NULL,
+  institution TEXT NOT NULL,
+  year TEXT,
+  score TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_experience (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  org TEXT NOT NULL,
+  role TEXT NOT NULL,
+  from_date TEXT,
+  to_date TEXT,
+  sector TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS trainer_skills (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain TEXT NOT NULL,
+  courses TEXT,
+  ssc TEXT,
+  nsqf_level TEXT,
+  years_exp TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+// Add scheme_type to batches if not present (safe migration)
+try { db.exec(`ALTER TABLE batches ADD COLUMN scheme_type TEXT DEFAULT 'None'`); } catch(e) {}
+
+// Add file_path to trainer_documents if not present (safe migration)
+try { db.exec(`ALTER TABLE trainer_documents ADD COLUMN file_path TEXT`); } catch(e) {}
+try { db.exec(`ALTER TABLE trainer_documents ADD COLUMN file_name TEXT`); } catch(e) {}
+
+// ══════════ NEW TABLES: batches, attendance, placements, certificates ══════════
+db.exec(`
+CREATE TABLE IF NOT EXISTS batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trainer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+  batch_code TEXT,
+  name TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  capacity INTEGER DEFAULT 30,
+  status TEXT DEFAULT 'active' CHECK(status IN ('upcoming','active','completed')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS batch_enrollments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+  candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assessment_score INTEGER,
+  passed INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'enrolled' CHECK(status IN ('enrolled','completed','dropped')),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(batch_id, candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS attendance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch_id INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+  candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  present INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(batch_id, candidate_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS placements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agency_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  candidate_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  employer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  job_title TEXT NOT NULL,
+  company TEXT NOT NULL,
+  location TEXT,
+  ctc REAL DEFAULT 0,
+  placement_date TEXT DEFAULT (date('now')),
+  status TEXT DEFAULT 'placed' CHECK(status IN ('placed','joined','dropped')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS candidate_certificates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  candidate_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE SET NULL,
+  course_title TEXT NOT NULL,
+  issuer TEXT,
+  nsqf_level TEXT DEFAULT 'Level 4',
+  issued_date TEXT DEFAULT (date('now')),
+  cert_no TEXT UNIQUE,
+  status TEXT DEFAULT 'valid' CHECK(status IN ('valid','revoked')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS csr_projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  csr_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  activity TEXT,
+  sub_sector TEXT,
+  state_name TEXT,
+  district TEXT,
+  start_date TEXT,
+  end_date TEXT,
+  budget INTEGER DEFAULT 0,
+  spent INTEGER DEFAULT 0,
+  beneficiaries_target INTEGER DEFAULT 0,
+  beneficiaries_actual INTEGER DEFAULT 0,
+  implementing_agency TEXT,
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft','active','completed','delayed','cancelled')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS csr_beneficiaries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  csr_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES csr_projects(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  gender TEXT CHECK(gender IN ('Male','Female','Other')),
+  age INTEGER,
+  district TEXT,
+  state_name TEXT,
+  course TEXT,
+  batch_code TEXT,
+  enroll_date TEXT,
+  training_status TEXT DEFAULT 'enrolled' CHECK(training_status IN ('enrolled','in_progress','completed','dropout')),
+  placement_status TEXT DEFAULT 'not_placed' CHECK(placement_status IN ('not_placed','placed','self_employed')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS csr_disbursements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  csr_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES csr_projects(id) ON DELETE SET NULL,
+  amount INTEGER NOT NULL,
+  recipient TEXT,
+  purpose TEXT,
+  disbursed_date TEXT,
+  reference_no TEXT,
+  fy TEXT,
+  status TEXT DEFAULT 'pending' CHECK(status IN ('pending','disbursed','returned')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS csr_training_partners (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  csr_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT,
+  state_name TEXT,
+  district TEXT,
+  contact_email TEXT,
+  contact_mobile TEXT,
+  mou_date TEXT,
+  mou_expiry TEXT,
+  beneficiaries_trained INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive','mou_expired')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+`);
+
+// Seed new tables if empty
+function seedNewTables() {
+  const batchCount = db.prepare('SELECT COUNT(*) c FROM batches').get().c;
+  if (batchCount > 0) return;
+
+  const trainer = db.prepare("SELECT id FROM users WHERE role='trainer' LIMIT 1").get();
+  const candidates = db.prepare("SELECT id FROM users WHERE role='candidate'").all();
+  const courses = db.prepare('SELECT id, title FROM courses').all();
+  const agency = db.prepare("SELECT id FROM users WHERE role='placement_agency' LIMIT 1").get();
+  const employer = db.prepare("SELECT id FROM users WHERE role='employer' LIMIT 1").get();
+
+  if (!trainer || candidates.length === 0 || courses.length === 0) return;
+
+  // ── Batches ──
+  const insBatch = db.prepare(`INSERT INTO batches (trainer_id,course_id,batch_code,name,start_date,end_date,capacity,status) VALUES (?,?,?,?,?,?,?,?)`);
+  const batchData = [
+    [trainer.id, courses[0]?.id, 'B2025-01', 'SQL Batch Jan 2025', '2025-01-10', '2025-02-20', 30, 'completed'],
+    [trainer.id, courses[1]?.id, 'B2025-02', 'Power BI Batch Feb 2025', '2025-02-15', '2025-03-15', 25, 'completed'],
+    [trainer.id, courses[2]?.id, 'B2025-03', 'React Batch Apr 2025', '2025-04-01', '2025-05-30', 20, 'completed'],
+    [trainer.id, courses[0]?.id, 'B2026-01', 'SQL Batch Jun 2026', '2026-06-01', '2026-07-15', 30, 'active'],
+  ];
+  const batchIds = batchData.map(b => insBatch.run(...b).lastInsertRowid);
+
+  // ── Batch Enrollments ──
+  const insEnroll = db.prepare(`INSERT OR IGNORE INTO batch_enrollments (batch_id,candidate_id,assessment_score,passed,status) VALUES (?,?,?,?,?)`);
+  const scores = [82, 76, 91, 68, 85, 73, 95, 61, 88, 79, 55, 92, 70, 84, 67];
+  candidates.forEach((c, i) => {
+    batchIds.slice(0, 3).forEach((bid, j) => {
+      const score = scores[(i * 3 + j) % scores.length];
+      insEnroll.run(bid, c.id, score, score >= 60 ? 1 : 0, 'completed');
+    });
+    insEnroll.run(batchIds[3], c.id, null, 0, 'enrolled');
+  });
+
+  // ── Attendance (last 30 sessions per active batch) ──
+  const insAtt = db.prepare(`INSERT OR IGNORE INTO attendance (batch_id,candidate_id,date,present) VALUES (?,?,?,?)`);
+  const sessions = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date('2026-07-06');
+    d.setDate(d.getDate() - i);
+    if (d.getDay() !== 0 && d.getDay() !== 6) sessions.push(d.toISOString().slice(0, 10));
+  }
+  candidates.forEach(c => {
+    sessions.forEach(date => {
+      const present = Math.random() > 0.1 ? 1 : 0;
+      insAtt.run(batchIds[3], c.id, date, present);
+    });
+  });
+
+  // ── Placements ──
+  if (agency && employer) {
+    const insPlace = db.prepare(`INSERT INTO placements (agency_id,candidate_id,employer_id,job_title,company,location,ctc,placement_date,status) VALUES (?,?,?,?,?,?,?,?,?)`);
+    const placementData = [
+      ['Junior Data Analyst','TechNova Pvt Ltd','Bengaluru', 480000,'2025-03-15','joined'],
+      ['Frontend Developer','Infosys','Hyderabad', 550000,'2025-04-10','joined'],
+      ['Business Analyst','Wipro','Mumbai', 520000,'2025-05-01','joined'],
+      ['Data Entry Operator','HDFC Bank','Chennai', 320000,'2025-06-01','placed'],
+      ['SQL Developer','TCS','Pune', 600000,'2025-07-10','joined'],
+      ['React Developer','Capgemini','Bengaluru', 700000,'2025-08-20','joined'],
+      ['QA Analyst','HCL','Noida', 450000,'2025-09-05','joined'],
+      ['Power BI Analyst','Deloitte','Hyderabad', 650000,'2025-10-12','joined'],
+      ['Junior Developer','Accenture','Mumbai', 480000,'2025-11-03','placed'],
+      ['Data Analyst','Cognizant','Chennai', 520000,'2026-01-15','joined'],
+      ['Web Developer','Mindtree','Bengaluru', 580000,'2026-02-20','joined'],
+      ['Business Analyst','IBM','Delhi', 620000,'2026-03-10','dropped'],
+      ['Frontend Dev','Mphasis','Pune', 560000,'2026-04-05','joined'],
+      ['SQL Analyst','Tech Mahindra','Hyderabad', 490000,'2026-05-18','placed'],
+      ['React Developer','Persistent','Nagpur', 640000,'2026-06-01','joined'],
+    ];
+    candidates.forEach((c, i) => {
+      if (i < placementData.length) {
+        const [jt, co, loc, ctc, pd, st] = placementData[i];
+        insPlace.run(agency.id, c.id, employer.id, jt, co, loc, ctc, pd, st);
+      }
+    });
+  }
+
+  // ── Certificates ──
+  const insCert = db.prepare(`INSERT OR IGNORE INTO candidate_certificates (candidate_id,enrollment_id,course_title,issuer,nsqf_level,issued_date,cert_no,status) VALUES (?,?,?,?,?,?,?,?)`);
+  const enrollments = db.prepare('SELECT * FROM enrollments').all();
+  enrollments.forEach((e, i) => {
+    const course = db.prepare('SELECT title,provider FROM courses WHERE id=?').get(e.course_id);
+    if (course) {
+      try {
+        insCert.run(e.candidate_id, e.id, course.title, course.provider, 'Level 4',
+          '2025-03-' + String(10 + i).padStart(2,'0'),
+          `SNJ-CERT-${String(2025001 + i).padStart(7,'0')}`, 'valid');
+      } catch (_) {}
+    }
+  });
+}
+
+seedNewTables();
 
 const _insertLog = db.prepare(
   `INSERT INTO audit_logs (user_id, user_name, user_role, action, entity, entity_id, detail, ip)

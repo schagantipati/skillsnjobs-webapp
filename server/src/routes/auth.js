@@ -68,11 +68,15 @@ router.post('/register', (req, res) => {
   if (!email || !password || !role) return res.status(400).json({ error: 'email, password and role are required' });
   if (!validRoles.includes(role)) return res.status(400).json({ error: `Invalid role` });
 
-  // For candidates, enforce OTP verification
-  if (role === 'candidate') {
+  // For candidates, trainers, employers and CSR orgs, enforce OTP verification
+  if (['candidate', 'trainer', 'employer', 'csr_org', 'placement_agency'].includes(role)) {
     if (!mobile_verified) return res.status(400).json({ error: 'Mobile OTP verification is required' });
     if (!email_verified) return res.status(400).json({ error: 'Email OTP verification is required' });
-    if (!first_name || !last_name) return res.status(400).json({ error: 'First name and last name are required' });
+    if (role === 'candidate' || role === 'trainer') {
+      if (!first_name || !last_name) return res.status(400).json({ error: 'First name and last name are required' });
+    } else {
+      if (!first_name) return res.status(400).json({ error: 'Contact Person Name is required' });
+    }
   }
 
   const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
@@ -107,9 +111,9 @@ router.post('/register', (req, res) => {
     }
   }
 
-  const fullName = role === 'candidate'
+  const fullName = (role === 'candidate' || role === 'trainer')
     ? [first_name, middle_name, last_name].filter(Boolean).join(' ')
-    : (name || email.split('@')[0]);
+    : (first_name || name || email.split('@')[0]);
 
   const password_hash = bcrypt.hashSync(password, 10);
   const info = db.prepare(`
