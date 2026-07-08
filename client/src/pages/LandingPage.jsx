@@ -191,14 +191,9 @@ function ContactForm() {
 /* ─── main component ─────────────────────────────────────────────── */
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { login, register: registerUser } = useAuth();
+  const { register: registerUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const [showLogin, setShowLogin] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loggingIn, setLoggingIn] = useState(false);
 
   // ticker
   const [tickIdx, setTickIdx] = useState(0);
@@ -206,20 +201,6 @@ export default function LandingPage() {
     const id = setInterval(() => setTickIdx(i => (i+1) % TICKER_ITEMS.length), 3500);
     return () => clearInterval(id);
   }, []);
-
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoginError(''); setLoggingIn(true);
-    try {
-      await login(email, password);
-      navigate('/dashboard');
-    } catch (err) {
-      setLoginError(err.message || 'Invalid email or password');
-    } finally { setLoggingIn(false); }
-  }
-
-  function openLogin() { setShowLogin(true); setLoginError(''); setEmail(''); setPassword(''); }
-  function closeLogin() { setShowLogin(false); }
 
   const [showRegister, setShowRegister] = useState(false);
   const [regRole, setRegRole] = useState('');
@@ -290,7 +271,7 @@ export default function LandingPage() {
           ))}
         </ul>
         <div ref={menuRef} style={{ display:'flex', gap:10 }}>
-          <button onClick={openLogin} style={{ padding:'7px 18px', border:'1.5px solid #002060', borderRadius:8, background:'transparent', color:'#002060', fontSize:13, fontWeight:700, cursor:'pointer' }}>Login</button>
+          <button onClick={() => navigate('/login')} style={{ padding:'7px 18px', border:'1.5px solid #002060', borderRadius:8, background:'transparent', color:'#002060', fontSize:13, fontWeight:700, cursor:'pointer' }}>Login</button>
           <button onClick={openRegister} style={{ padding:'7px 18px', border:'none', borderRadius:8, background:'#002060', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>Register</button>
         </div>
       </nav>
@@ -332,7 +313,7 @@ export default function LandingPage() {
             <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 24px rgba(0,0,0,.25)' }}>
               Start learning for free →
             </button>
-            <button onClick={openLogin} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>
+            <button onClick={() => navigate('/login')} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>
               Sign in to your portal
             </button>
           </div>
@@ -363,7 +344,7 @@ export default function LandingPage() {
         {sub('Whether you\'re a learner, employer, trainer, or government body — SkillsNJobs has a dedicated workspace for you.')}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
           {PORTALS.map(p => (
-            <div key={p.title} onClick={() => p.loginRole ? navigate('/login?role='+p.loginRole) : openLogin()}
+            <div key={p.title} onClick={() => navigate('/login' + (p.loginRole ? '?role='+p.loginRole : ''))}
               style={{ border:`1px solid #e8eef7`, borderTop:`3px solid ${p.border}`, borderRadius:16, padding:'24px 20px', cursor:'pointer', background:'#fff', transition:'all .22s', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}
               onMouseEnter={e => { e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='0 16px 40px rgba(0,32,96,.11)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.04)'; }}>
@@ -600,7 +581,7 @@ export default function LandingPage() {
         </p>
         <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap' }}>
           <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer' }}>Register as a candidate</button>
-          <button onClick={openLogin} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>Sign in to portal →</button>
+          <button onClick={() => navigate('/login')} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>Sign in to portal →</button>
         </div>
       </div>
 
@@ -685,46 +666,6 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* ── LOGIN MODAL ── */}
-      {showLogin && (
-        <div onClick={closeLogin} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background:'#fff', borderRadius:22, padding:'38px 34px', width:420, boxShadow:'0 40px 100px rgba(0,0,0,.45)', position:'relative' }}>
-            <button onClick={closeLogin} style={{ position:'absolute', top:16, right:18, background:'none', border:'none', fontSize:24, color:'#94A3B8', cursor:'pointer', lineHeight:1 }}>×</button>
-            <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:26 }}>
-              <img src="/logo.png" alt="SkillsNJobs" style={{ height:46, width:46, objectFit:'contain' }} />
-              <div>
-                <div style={{ fontSize:19, fontWeight:800, color:'#002060' }}>SkillsNJobs</div>
-                <div style={{ fontSize:10.5, color:'#8899BB' }}>Sign in to your portal</div>
-              </div>
-            </div>
-            {loginError && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', color:'#B91C1C', fontSize:13, marginBottom:16 }}>{loginError}</div>}
-            <form onSubmit={handleLogin}>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#64748B', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>Email</label>
-                <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com"
-                  style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #E2E8F0', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box' }}
-                  onFocus={e => e.target.style.borderColor='#1A56C4'} onBlur={e => e.target.style.borderColor='#E2E8F0'} />
-              </div>
-              <div style={{ marginBottom:8 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                  <label style={{ fontSize:11, fontWeight:700, color:'#64748B', letterSpacing:0.5, textTransform:'uppercase' }}>Password</label>
-                  <span onClick={() => { closeLogin(); navigate('/forgot-password'); }} style={{ fontSize:12, color:'#1A56C4', cursor:'pointer', fontWeight:600 }}>Forgot password?</span>
-                </div>
-                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
-                  style={{ width:'100%', padding:'11px 14px', border:'1.5px solid #E2E8F0', borderRadius:9, fontSize:14, outline:'none', boxSizing:'border-box' }}
-                  onFocus={e => e.target.style.borderColor='#1A56C4'} onBlur={e => e.target.style.borderColor='#E2E8F0'} />
-              </div>
-              <button type="submit" disabled={loggingIn} style={{ width:'100%', padding:'13px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:15, fontWeight:700, cursor:loggingIn?'not-allowed':'pointer', marginTop:18, opacity:loggingIn?.7:1 }}>
-                {loggingIn?'Signing in…':'Sign In →'}
-              </button>
-            </form>
-            <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
-              No account?{' '}<span onClick={() => { closeLogin(); openRegister(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Create one</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── REGISTER MODAL ── */}
       {showRegister && (
         <div onClick={closeRegister} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)' }}>
@@ -752,7 +693,7 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
-                  Already have an account?{' '}<span onClick={() => { closeRegister(); openLogin(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
+                  Already have an account?{' '}<span onClick={() => { closeRegister(); navigate('/login'); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
                 </div>
               </div>
             )}
@@ -783,7 +724,7 @@ export default function LandingPage() {
                     </button>
                   </form>
                   <div style={{ textAlign:'center', marginTop:20, fontSize:13, color:'#64748B' }}>
-                    Already have an account?{' '}<span onClick={() => { closeRegister(); openLogin(); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
+                    Already have an account?{' '}<span onClick={() => { closeRegister(); navigate('/login'); }} style={{ color:'#1A56C4', fontWeight:700, cursor:'pointer' }}>Sign in</span>
                   </div>
                 </div>
               );
