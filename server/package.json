@@ -6,8 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "seed": "node src/seed.js"
+    "dev": "node --watch src/index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -17,8 +16,5 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.2.0",
     "pg": "^8.22.0"
-  },
-  "allowScripts": {
-    "better-sqlite3@11.10.0": true
   }
 }
