@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { db } = require('./db');
+const { initDb, query } = require('./db');
 const { authRequired } = require('./middleware/auth');
 
 const authRoutes = require('./routes/auth');
@@ -28,12 +28,6 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, service: 'skillsnjobs-api' }));
 
-// TEMP DEBUG — remove before production
-app.get('/api/debug/users', (req, res) => {
-  const users = db.prepare('SELECT id, name, email, role, is_active, created_at FROM users ORDER BY id').all();
-  res.json({ total: users.length, users });
-});
-
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
@@ -51,69 +45,69 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/placements', placementRoutes);
 app.use('/api/trainer', trainerRoutes);
 
-// Lightweight dashboard stats
-app.get('/api/stats/summary', authRequired, (req, res) => {
-  const openJobs = db.prepare(`SELECT COUNT(*) c FROM jobs WHERE status='open'`).get().c;
-  const candidates = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='candidate'`).get().c;
-  const employers = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='employer'`).get().c;
-  const courses = db.prepare(`SELECT COUNT(*) c FROM courses`).get().c;
-  const applications = db.prepare(`SELECT COUNT(*) c FROM applications`).get().c;
-  const hired = db.prepare(`SELECT COUNT(*) c FROM applications WHERE status='hired'`).get().c;
-
-  const out = { openJobs, candidates, employers, courses, applications, hired };
-
-  if (req.user.role === 'candidate') {
-    out.myApplications = db.prepare(`SELECT COUNT(*) c FROM applications WHERE candidate_id=?`).get(req.user.id).c;
-    out.myEnrollments  = db.prepare(`SELECT COUNT(*) c FROM enrollments WHERE candidate_id=?`).get(req.user.id).c;
-    out.myCertificates = db.prepare(`SELECT COUNT(*) c FROM candidate_certificates WHERE candidate_id=?`).get(req.user.id).c;
-    out.myShortlisted  = db.prepare(`SELECT COUNT(*) c FROM applications WHERE candidate_id=? AND status='shortlisted'`).get(req.user.id).c;
-  }
-  if (req.user.role === 'employer') {
-    out.myJobs        = db.prepare(`SELECT COUNT(*) c FROM jobs WHERE employer_id=?`).get(req.user.id).c;
-    out.myOpenJobs    = db.prepare(`SELECT COUNT(*) c FROM jobs WHERE employer_id=? AND status='open'`).get(req.user.id).c;
-    out.myApplicants  = db.prepare(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=?`).get(req.user.id).c;
-    out.myShortlisted = db.prepare(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=? AND a.status='shortlisted'`).get(req.user.id).c;
-    out.myHired       = db.prepare(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=? AND a.status='hired'`).get(req.user.id).c;
-  }
-  if (req.user.role === 'trainer') {
-    out.myBatches       = db.prepare(`SELECT COUNT(*) c FROM batches WHERE trainer_id=?`).get(req.user.id).c;
-    out.myActiveBatches = db.prepare(`SELECT COUNT(*) c FROM batches WHERE trainer_id=? AND status='active'`).get(req.user.id).c;
-    out.myLearners      = db.prepare(`SELECT COUNT(*) c FROM batch_enrollments be JOIN batches b ON b.id=be.batch_id WHERE b.trainer_id=?`).get(req.user.id).c;
-    const attRow = db.prepare(`SELECT AVG(present)*100 pct FROM attendance a JOIN batches b ON b.id=a.batch_id WHERE b.trainer_id=?`).get(req.user.id);
-    out.avgAttendance   = attRow?.pct ? Math.round(attRow.pct) : 0;
-    const passRow = db.prepare(`SELECT AVG(passed)*100 pct FROM batch_enrollments be JOIN batches b ON b.id=be.batch_id WHERE b.trainer_id=? AND be.assessment_score IS NOT NULL`).get(req.user.id);
-    out.assessmentPassRate = passRow?.pct ? Math.round(passRow.pct) : 0;
-  }
-  if (req.user.role === 'placement_agency') {
-    out.totalPlacements  = db.prepare(`SELECT COUNT(*) c FROM placements WHERE agency_id=?`).get(req.user.id).c;
-    out.placedThisYear   = db.prepare(`SELECT COUNT(*) c FROM placements WHERE agency_id=? AND strftime('%Y',placement_date)=strftime('%Y','now')`).get(req.user.id).c;
-    out.joinedCount      = db.prepare(`SELECT COUNT(*) c FROM placements WHERE agency_id=? AND status='joined'`).get(req.user.id).c;
-    const ctcRow = db.prepare(`SELECT AVG(ctc) avg FROM placements WHERE agency_id=? AND status IN ('placed','joined')`).get(req.user.id);
-    out.avgCTC           = ctcRow?.avg ? Math.round(ctcRow.avg / 100000 * 10) / 10 : 0;
-  }
-  if (req.user.role === 'superadmin' || req.user.role === 'admin') {
-    out.totalBatches      = db.prepare(`SELECT COUNT(*) c FROM batches`).get().c;
-    out.totalPlacements   = db.prepare(`SELECT COUNT(*) c FROM placements`).get().c;
-    out.totalCertificates = db.prepare(`SELECT COUNT(*) c FROM candidate_certificates`).get().c;
-    out.trainers          = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='trainer'`).get().c;
-    out.placementAgencies = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='placement_agency'`).get().c;
-    out.csrOrgs           = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='csr_org'`).get().c;
-    out.trainingVendors   = db.prepare(`SELECT COUNT(*) c FROM users WHERE role='training_vendor'`).get().c;
-    out.sgTPs             = db.prepare(`SELECT COUNT(*) c FROM sg_training_partners`).get().c;
-    out.sgTPsVerified     = db.prepare(`SELECT COUNT(*) c FROM sg_training_partners WHERE status='verified'`).get().c;
-    out.sgTPsPending      = db.prepare(`SELECT COUNT(*) c FROM sg_training_partners WHERE status='pending'`).get().c;
-    out.sgTPsSuspended    = db.prepare(`SELECT COUNT(*) c FROM sg_training_partners WHERE status='suspended'`).get().c;
-    out.sgCandidates      = db.prepare(`SELECT COUNT(*) c FROM sg_candidates`).get().c;
-    out.placedCandidates  = db.prepare(`SELECT COUNT(*) c FROM placements WHERE status IN ('placed','joined')`).get().c;
-    out.activeBatches     = db.prepare(`SELECT COUNT(*) c FROM batches WHERE status='active'`).get().c;
-    out.totalUsers        = db.prepare(`SELECT COUNT(*) c FROM users WHERE is_active=1`).get().c;
-    out.sgGrievancesOpen  = db.prepare(`SELECT COUNT(*) c FROM sg_grievances WHERE status='open'`).get().c;
-    out.vendorCentres     = db.prepare(`SELECT COUNT(*) c FROM vendor_centres WHERE status='active'`).get().c;
-  }
-  res.json(out);
+app.get('/api/stats/summary', authRequired, async (req, res) => {
+  try {
+    const n = async (sql, p) => parseInt((await query(sql, p))[0]?.c || 0);
+    const out = {
+      openJobs:     await n(`SELECT COUNT(*) c FROM jobs WHERE status='open'`),
+      candidates:   await n(`SELECT COUNT(*) c FROM users WHERE role='candidate'`),
+      employers:    await n(`SELECT COUNT(*) c FROM users WHERE role='employer'`),
+      courses:      await n(`SELECT COUNT(*) c FROM courses`),
+      applications: await n(`SELECT COUNT(*) c FROM applications`),
+      hired:        await n(`SELECT COUNT(*) c FROM applications WHERE status='hired'`),
+    };
+    const u = req.user;
+    if (u.role === 'candidate') {
+      out.myApplications = await n(`SELECT COUNT(*) c FROM applications WHERE candidate_id=$1`, [u.id]);
+      out.myEnrollments  = await n(`SELECT COUNT(*) c FROM enrollments WHERE candidate_id=$1`, [u.id]);
+      out.myCertificates = await n(`SELECT COUNT(*) c FROM candidate_certificates WHERE candidate_id=$1`, [u.id]);
+      out.myShortlisted  = await n(`SELECT COUNT(*) c FROM applications WHERE candidate_id=$1 AND status='shortlisted'`, [u.id]);
+    }
+    if (u.role === 'employer') {
+      out.myJobs        = await n(`SELECT COUNT(*) c FROM jobs WHERE employer_id=$1`, [u.id]);
+      out.myOpenJobs    = await n(`SELECT COUNT(*) c FROM jobs WHERE employer_id=$1 AND status='open'`, [u.id]);
+      out.myApplicants  = await n(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=$1`, [u.id]);
+      out.myShortlisted = await n(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=$1 AND a.status='shortlisted'`, [u.id]);
+      out.myHired       = await n(`SELECT COUNT(*) c FROM applications a JOIN jobs j ON j.id=a.job_id WHERE j.employer_id=$1 AND a.status='hired'`, [u.id]);
+    }
+    if (u.role === 'trainer') {
+      out.myBatches       = await n(`SELECT COUNT(*) c FROM batches WHERE trainer_id=$1`, [u.id]);
+      out.myActiveBatches = await n(`SELECT COUNT(*) c FROM batches WHERE trainer_id=$1 AND status='active'`, [u.id]);
+      out.myLearners      = await n(`SELECT COUNT(*) c FROM batch_enrollments be JOIN batches b ON b.id=be.batch_id WHERE b.trainer_id=$1`, [u.id]);
+      const attRow = (await query(`SELECT AVG(present::int)*100 pct FROM attendance a JOIN batches b ON b.id=a.batch_id WHERE b.trainer_id=$1`, [u.id]))[0];
+      out.avgAttendance   = attRow?.pct ? Math.round(attRow.pct) : 0;
+      const passRow = (await query(`SELECT AVG(passed::int)*100 pct FROM batch_enrollments be JOIN batches b ON b.id=be.batch_id WHERE b.trainer_id=$1 AND be.assessment_score IS NOT NULL`, [u.id]))[0];
+      out.assessmentPassRate = passRow?.pct ? Math.round(passRow.pct) : 0;
+    }
+    if (u.role === 'placement_agency') {
+      out.totalPlacements = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1`, [u.id]);
+      out.placedThisYear  = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1 AND EXTRACT(YEAR FROM placement_date)=EXTRACT(YEAR FROM CURRENT_DATE)`, [u.id]);
+      out.joinedCount     = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1 AND status='joined'`, [u.id]);
+      const ctcRow = (await query(`SELECT AVG(ctc) avg FROM placements WHERE agency_id=$1 AND status IN ('placed','joined')`, [u.id]))[0];
+      out.avgCTC = ctcRow?.avg ? Math.round(ctcRow.avg / 100000 * 10) / 10 : 0;
+    }
+    if (u.role === 'superadmin' || u.role === 'admin') {
+      out.totalBatches      = await n(`SELECT COUNT(*) c FROM batches`);
+      out.totalPlacements   = await n(`SELECT COUNT(*) c FROM placements`);
+      out.totalCertificates = await n(`SELECT COUNT(*) c FROM candidate_certificates`);
+      out.trainers          = await n(`SELECT COUNT(*) c FROM users WHERE role='trainer'`);
+      out.placementAgencies = await n(`SELECT COUNT(*) c FROM users WHERE role='placement_agency'`);
+      out.csrOrgs           = await n(`SELECT COUNT(*) c FROM users WHERE role='csr_org'`);
+      out.trainingVendors   = await n(`SELECT COUNT(*) c FROM users WHERE role='training_vendor'`);
+      out.sgTPs             = await n(`SELECT COUNT(*) c FROM sg_training_partners`);
+      out.sgTPsVerified     = await n(`SELECT COUNT(*) c FROM sg_training_partners WHERE status='verified'`);
+      out.sgTPsPending      = await n(`SELECT COUNT(*) c FROM sg_training_partners WHERE status='pending'`);
+      out.sgCandidates      = await n(`SELECT COUNT(*) c FROM sg_candidates`);
+      out.placedCandidates  = await n(`SELECT COUNT(*) c FROM placements WHERE status IN ('placed','joined')`);
+      out.activeBatches     = await n(`SELECT COUNT(*) c FROM batches WHERE status='active'`);
+      out.totalUsers        = await n(`SELECT COUNT(*) c FROM users WHERE is_active=1`);
+      out.sgGrievancesOpen  = await n(`SELECT COUNT(*) c FROM sg_grievances WHERE status='open'`);
+      out.vendorCentres     = await n(`SELECT COUNT(*) c FROM vendor_centres WHERE status='active'`);
+    }
+    res.json(out);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-// Serve React frontend in production
 if (process.env.NODE_ENV === 'production') {
   const path = require('path');
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
@@ -122,15 +116,10 @@ if (process.env.NODE_ENV === 'production') {
 } else {
   app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 }
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-if (!process.env.JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET env var not set — using insecure default. Set JWT_SECRET in production.');
-}
+app.use((err, req, res, next) => { console.error(err); res.status(500).json({ error: 'Internal server error' }); });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`SkillsNJobs API running on http://localhost:${PORT}`));
+
+initDb()
+  .then(() => app.listen(PORT, () => console.log(`SkillsNJobs API running on http://localhost:${PORT}`)))
+  .catch(err => { console.error('DB init failed:', err.message); process.exit(1); });

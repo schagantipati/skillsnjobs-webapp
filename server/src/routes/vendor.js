@@ -1,5 +1,5 @@
 const express = require('express');
-const { db, logAudit } = require('../db');
+const { query, queryOne, execute, logAudit } = require('../db');
 const { authRequired } = require('../middleware/auth');
 
 const router = express.Router();
@@ -12,279 +12,342 @@ function vendorOnly(req, res, next) {
 const auth = [authRequired, vendorOnly];
 
 // ── Dashboard stats ──────────────────────────────────────────────────────────
-router.get('/stats', auth, (req, res) => {
-  const vid = req.user.id;
-  const centres = db.prepare('SELECT COUNT(*) c FROM vendor_centres WHERE vendor_id=? AND status!=?').get(vid, 'deleted').c;
-  const trainers = db.prepare('SELECT COUNT(*) c FROM vendor_trainers WHERE vendor_id=? AND status=?').get(vid, 'active').c;
-  const batches  = db.prepare("SELECT COUNT(*) c FROM vendor_batches WHERE vendor_id=? AND status IN ('active','upcoming')").get(vid).c;
-  const candidates = db.prepare("SELECT COUNT(*) c FROM vendor_candidates WHERE vendor_id=? AND status='active'").get(vid).c;
-  const docs_pending = db.prepare("SELECT COUNT(*) c FROM vendor_documents WHERE vendor_id=? AND status='expiring'").get(vid).c;
-  const tickets_open = db.prepare("SELECT COUNT(*) c FROM vendor_grievances WHERE vendor_id=? AND status='open'").get(vid).c;
-  res.json({ centres, trainers, batches, candidates, docs_pending, tickets_open });
+router.get('/stats', auth, async (req, res) => {
+  try {
+    const vid = req.user.id;
+    const n = async (sql, p) => parseInt((await queryOne(sql, p)).c || 0);
+    const centres = await n('SELECT COUNT(*) c FROM vendor_centres WHERE vendor_id=$1 AND status!=$2', [vid, 'deleted']);
+    const trainers = await n('SELECT COUNT(*) c FROM vendor_trainers WHERE vendor_id=$1 AND status=$2', [vid, 'active']);
+    const batches  = await n("SELECT COUNT(*) c FROM vendor_batches WHERE vendor_id=$1 AND status IN ('active','upcoming')", [vid]);
+    const candidates = await n("SELECT COUNT(*) c FROM vendor_candidates WHERE vendor_id=$1 AND status='active'", [vid]);
+    const docs_pending = await n("SELECT COUNT(*) c FROM vendor_documents WHERE vendor_id=$1 AND status='expiring'", [vid]);
+    const tickets_open = await n("SELECT COUNT(*) c FROM vendor_grievances WHERE vendor_id=$1 AND status='open'", [vid]);
+    res.json({ centres, trainers, batches, candidates, docs_pending, tickets_open });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Centres ──────────────────────────────────────────────────────────────────
-router.get('/centres', auth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM vendor_centres WHERE vendor_id=? ORDER BY created_at DESC').all(req.user.id);
-  res.json(rows);
+router.get('/centres', auth, async (req, res) => {
+  try {
+    const rows = await query('SELECT * FROM vendor_centres WHERE vendor_id=$1 ORDER BY created_at DESC', [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/centres', auth, (req, res) => {
-  const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
-          seating_capacity, internet, power_backup, accessibility, equipment } = req.body;
-  if (!name) return res.status(400).json({ error: 'Centre name required' });
-  const info = db.prepare(`INSERT INTO vendor_centres
-    (vendor_id,name,address,state_name,district,city,pincode,geo,classrooms,labs,
-     seating_capacity,internet,power_backup,accessibility,equipment)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(req.user.id, name, address, state_name, district, city, pincode, geo,
-         classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment);
-  logAudit({ user: req.user, action: 'centre_created', entity: 'vendor_centre', entityId: info.lastInsertRowid });
-  res.json({ id: info.lastInsertRowid });
+router.post('/centres', auth, async (req, res) => {
+  try {
+    const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
+            seating_capacity, internet, power_backup, accessibility, equipment } = req.body;
+    if (!name) return res.status(400).json({ error: 'Centre name required' });
+    const result = await execute(`INSERT INTO vendor_centres
+      (vendor_id,name,address,state_name,district,city,pincode,geo,classrooms,labs,
+       seating_capacity,internet,power_backup,accessibility,equipment)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [req.user.id, name, address, state_name, district, city, pincode, geo,
+       classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment]);
+    await logAudit({ user: req.user, action: 'centre_created', entity: 'vendor_centre', entityId: result.rows[0].id });
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/centres/:id', auth, (req, res) => {
-  const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
-          seating_capacity, internet, power_backup, accessibility, equipment, status } = req.body;
-  db.prepare(`UPDATE vendor_centres SET
-    name=?,address=?,state_name=?,district=?,city=?,pincode=?,geo=?,classrooms=?,labs=?,
-    seating_capacity=?,internet=?,power_backup=?,accessibility=?,equipment=?,status=COALESCE(?,status)
-    WHERE id=? AND vendor_id=?`)
-    .run(name, address, state_name, district, city, pincode, geo,
-         classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment,
-         status||null, req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/centres/:id', auth, async (req, res) => {
+  try {
+    const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
+            seating_capacity, internet, power_backup, accessibility, equipment, status } = req.body;
+    await execute(`UPDATE vendor_centres SET
+      name=$1,address=$2,state_name=$3,district=$4,city=$5,pincode=$6,geo=$7,classrooms=$8,labs=$9,
+      seating_capacity=$10,internet=$11,power_backup=$12,accessibility=$13,equipment=$14,status=COALESCE($15,status)
+      WHERE id=$16 AND vendor_id=$17`,
+      [name, address, state_name, district, city, pincode, geo,
+       classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment,
+       status||null, req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/centres/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_centres SET status=? WHERE id=? AND vendor_id=?').run('deleted', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/centres/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_centres SET status=$1 WHERE id=$2 AND vendor_id=$3', ['deleted', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Trainers ──────────────────────────────────────────────────────────────────
-router.get('/trainers', auth, (req, res) => {
-  const rows = db.prepare(`SELECT t.*, c.name AS centre_name FROM vendor_trainers t
-    LEFT JOIN vendor_centres c ON c.id=t.centre_id
-    WHERE t.vendor_id=? AND t.status!='deleted' ORDER BY t.created_at DESC`).all(req.user.id);
-  res.json(rows);
+router.get('/trainers', auth, async (req, res) => {
+  try {
+    const rows = await query(`SELECT t.*, c.name AS centre_name FROM vendor_trainers t
+      LEFT JOIN vendor_centres c ON c.id=t.centre_id
+      WHERE t.vendor_id=$1 AND t.status!='deleted' ORDER BY t.created_at DESC`, [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/trainers', auth, (req, res) => {
-  const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id } = req.body;
-  if (!name) return res.status(400).json({ error: 'Trainer name required' });
-  const info = db.prepare(`INSERT INTO vendor_trainers
-    (vendor_id,centre_id,name,email,mobile,qualification,sector,experience_years,nsqf_level)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(req.user.id, centre_id||null, name, email, mobile, qualification, sector, experience_years||0, nsqf_level);
-  res.json({ id: info.lastInsertRowid });
+router.post('/trainers', auth, async (req, res) => {
+  try {
+    const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id } = req.body;
+    if (!name) return res.status(400).json({ error: 'Trainer name required' });
+    const result = await execute(`INSERT INTO vendor_trainers
+      (vendor_id,centre_id,name,email,mobile,qualification,sector,experience_years,nsqf_level)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [req.user.id, centre_id||null, name, email, mobile, qualification, sector, experience_years||0, nsqf_level]);
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/trainers/:id', auth, (req, res) => {
-  const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id, status } = req.body;
-  db.prepare(`UPDATE vendor_trainers SET
-    name=COALESCE(?,name),email=COALESCE(?,email),mobile=COALESCE(?,mobile),
-    qualification=COALESCE(?,qualification),sector=COALESCE(?,sector),
-    experience_years=COALESCE(?,experience_years),nsqf_level=COALESCE(?,nsqf_level),
-    centre_id=COALESCE(?,centre_id),status=COALESCE(?,status) WHERE id=? AND vendor_id=?`)
-    .run(name||null, email||null, mobile||null, qualification||null, sector||null,
-         experience_years!=null?experience_years:null, nsqf_level||null,
-         centre_id||null, status||null, req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/trainers/:id', auth, async (req, res) => {
+  try {
+    const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id, status } = req.body;
+    await execute(`UPDATE vendor_trainers SET
+      name=COALESCE($1,name),email=COALESCE($2,email),mobile=COALESCE($3,mobile),
+      qualification=COALESCE($4,qualification),sector=COALESCE($5,sector),
+      experience_years=COALESCE($6,experience_years),nsqf_level=COALESCE($7,nsqf_level),
+      centre_id=COALESCE($8,centre_id),status=COALESCE($9,status) WHERE id=$10 AND vendor_id=$11`,
+      [name||null, email||null, mobile||null, qualification||null, sector||null,
+       experience_years!=null?experience_years:null, nsqf_level||null,
+       centre_id||null, status||null, req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/trainers/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_trainers SET status=? WHERE id=? AND vendor_id=?').run('deleted', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/trainers/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_trainers SET status=$1 WHERE id=$2 AND vendor_id=$3', ['deleted', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Courses ───────────────────────────────────────────────────────────────────
-router.get('/courses', auth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM vendor_courses WHERE vendor_id=? AND status!=? ORDER BY created_at DESC').all(req.user.id, 'deleted');
-  res.json(rows);
+router.get('/courses', auth, async (req, res) => {
+  try {
+    const rows = await query('SELECT * FROM vendor_courses WHERE vendor_id=$1 AND status!=$2 ORDER BY created_at DESC', [req.user.id, 'deleted']);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/courses', auth, (req, res) => {
-  const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme } = req.body;
-  if (!title) return res.status(400).json({ error: 'Course title required' });
-  const info = db.prepare(`INSERT INTO vendor_courses
-    (vendor_id,title,sector,qp_code,nos_code,nsqf_level,duration_hours,fee_type,fee_amount,scheme)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(req.user.id, title, sector, qp_code, nos_code, nsqf_level, duration_hours||0, fee_type||'fee-based', fee_amount||0, scheme);
-  res.json({ id: info.lastInsertRowid });
+router.post('/courses', auth, async (req, res) => {
+  try {
+    const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme } = req.body;
+    if (!title) return res.status(400).json({ error: 'Course title required' });
+    const result = await execute(`INSERT INTO vendor_courses
+      (vendor_id,title,sector,qp_code,nos_code,nsqf_level,duration_hours,fee_type,fee_amount,scheme)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [req.user.id, title, sector, qp_code, nos_code, nsqf_level, duration_hours||0, fee_type||'fee-based', fee_amount||0, scheme]);
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/courses/:id', auth, (req, res) => {
-  const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme, status } = req.body;
-  db.prepare(`UPDATE vendor_courses SET
-    title=?,sector=?,qp_code=?,nos_code=?,nsqf_level=?,duration_hours=?,fee_type=?,fee_amount=?,
-    scheme=?,status=COALESCE(?,status) WHERE id=? AND vendor_id=?`)
-    .run(title, sector, qp_code, nos_code, nsqf_level, duration_hours||0, fee_type, fee_amount||0,
-         scheme, status||null, req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/courses/:id', auth, async (req, res) => {
+  try {
+    const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme, status } = req.body;
+    await execute(`UPDATE vendor_courses SET
+      title=$1,sector=$2,qp_code=$3,nos_code=$4,nsqf_level=$5,duration_hours=$6,fee_type=$7,fee_amount=$8,
+      scheme=$9,status=COALESCE($10,status) WHERE id=$11 AND vendor_id=$12`,
+      [title, sector, qp_code, nos_code, nsqf_level, duration_hours||0, fee_type, fee_amount||0,
+       scheme, status||null, req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/courses/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_courses SET status=? WHERE id=? AND vendor_id=?').run('deleted', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/courses/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_courses SET status=$1 WHERE id=$2 AND vendor_id=$3', ['deleted', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Batches ───────────────────────────────────────────────────────────────────
-router.get('/batches', auth, (req, res) => {
-  const rows = db.prepare(`SELECT b.*,
-    c.name AS centre_name, vc.title AS course_title, t.name AS trainer_name
-    FROM vendor_batches b
-    LEFT JOIN vendor_centres c ON c.id=b.centre_id
-    LEFT JOIN vendor_courses vc ON vc.id=b.course_id
-    LEFT JOIN vendor_trainers t ON t.id=b.trainer_id
-    WHERE b.vendor_id=? ORDER BY b.created_at DESC`).all(req.user.id);
-  res.json(rows);
+router.get('/batches', auth, async (req, res) => {
+  try {
+    const rows = await query(`SELECT b.*,
+      c.name AS centre_name, vc.title AS course_title, t.name AS trainer_name
+      FROM vendor_batches b
+      LEFT JOIN vendor_centres c ON c.id=b.centre_id
+      LEFT JOIN vendor_courses vc ON vc.id=b.course_id
+      LEFT JOIN vendor_trainers t ON t.id=b.trainer_id
+      WHERE b.vendor_id=$1 ORDER BY b.created_at DESC`, [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/batches', auth, (req, res) => {
-  const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id } = req.body;
-  const code = batch_code || `BT-${Date.now().toString().slice(-6)}`;
-  const info = db.prepare(`INSERT INTO vendor_batches
-    (vendor_id,centre_id,course_id,batch_code,start_date,end_date,capacity,trainer_id,status)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(req.user.id, centre_id||null, course_id||null, code, start_date, end_date, capacity||30, trainer_id||null, 'upcoming');
-  res.json({ id: info.lastInsertRowid, batch_code: code });
+router.post('/batches', auth, async (req, res) => {
+  try {
+    const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id } = req.body;
+    const code = batch_code || `BT-${Date.now().toString().slice(-6)}`;
+    const result = await execute(`INSERT INTO vendor_batches
+      (vendor_id,centre_id,course_id,batch_code,start_date,end_date,capacity,trainer_id,status)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [req.user.id, centre_id||null, course_id||null, code, start_date, end_date, capacity||30, trainer_id||null, 'upcoming']);
+    res.json({ id: result.rows[0].id, batch_code: code });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/batches/:id', auth, (req, res) => {
-  const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id, status } = req.body;
-  db.prepare(`UPDATE vendor_batches SET
-    centre_id=?,course_id=?,batch_code=?,start_date=?,end_date=?,capacity=?,
-    trainer_id=?,status=COALESCE(?,status) WHERE id=? AND vendor_id=?`)
-    .run(centre_id||null, course_id||null, batch_code, start_date, end_date, capacity||30,
-         trainer_id||null, status||null, req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/batches/:id', auth, async (req, res) => {
+  try {
+    const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id, status } = req.body;
+    await execute(`UPDATE vendor_batches SET
+      centre_id=$1,course_id=$2,batch_code=$3,start_date=$4,end_date=$5,capacity=$6,
+      trainer_id=$7,status=COALESCE($8,status) WHERE id=$9 AND vendor_id=$10`,
+      [centre_id||null, course_id||null, batch_code, start_date, end_date, capacity||30,
+       trainer_id||null, status||null, req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/batches/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_batches SET status=? WHERE id=? AND vendor_id=?').run('cancelled', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/batches/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_batches SET status=$1 WHERE id=$2 AND vendor_id=$3', ['cancelled', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Candidates ────────────────────────────────────────────────────────────────
-router.get('/candidates', auth, (req, res) => {
-  const { batch_id } = req.query;
-  let q = 'SELECT vc.*, vb.batch_code, vco.title AS course_title FROM vendor_candidates vc LEFT JOIN vendor_batches vb ON vb.id=vc.batch_id LEFT JOIN vendor_courses vco ON vco.id=vb.course_id WHERE vc.vendor_id=?';
-  const params = [req.user.id];
-  if (batch_id) { q += ' AND vc.batch_id=?'; params.push(batch_id); }
-  q += ' ORDER BY vc.created_at DESC';
-  res.json(db.prepare(q).all(...params));
+router.get('/candidates', auth, async (req, res) => {
+  try {
+    const { batch_id } = req.query;
+    let sql = 'SELECT vc.*, vb.batch_code, vco.title AS course_title FROM vendor_candidates vc LEFT JOIN vendor_batches vb ON vb.id=vc.batch_id LEFT JOIN vendor_courses vco ON vco.id=vb.course_id WHERE vc.vendor_id=$1';
+    const params = [req.user.id];
+    if (batch_id) { sql += ' AND vc.batch_id=$2'; params.push(batch_id); }
+    sql += ' ORDER BY vc.created_at DESC';
+    res.json(await query(sql, params));
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/candidates', auth, (req, res) => {
-  const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id } = req.body;
-  if (!name) return res.status(400).json({ error: 'Candidate name required' });
-  const info = db.prepare(`INSERT INTO vendor_candidates
-    (vendor_id,batch_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(req.user.id, batch_id||null, name, mobile, aadhaar_masked, dob, gender, category, scheme);
-  if (batch_id) {
-    db.prepare('UPDATE vendor_batches SET enrolled=enrolled+1 WHERE id=?').run(batch_id);
-  }
-  res.json({ id: info.lastInsertRowid });
+router.post('/candidates', auth, async (req, res) => {
+  try {
+    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id } = req.body;
+    if (!name) return res.status(400).json({ error: 'Candidate name required' });
+    const result = await execute(`INSERT INTO vendor_candidates
+      (vendor_id,batch_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [req.user.id, batch_id||null, name, mobile, aadhaar_masked, dob, gender, category, scheme]);
+    if (batch_id) {
+      await execute('UPDATE vendor_batches SET enrolled=enrolled+1 WHERE id=$1', [batch_id]);
+    }
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/candidates/:id', auth, (req, res) => {
-  const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id, status, attendance_pct, placement_status } = req.body;
-  db.prepare(`UPDATE vendor_candidates SET
-    name=COALESCE(?,name),mobile=COALESCE(?,mobile),aadhaar_masked=COALESCE(?,aadhaar_masked),
-    dob=COALESCE(?,dob),gender=COALESCE(?,gender),category=COALESCE(?,category),
-    scheme=COALESCE(?,scheme),batch_id=COALESCE(?,batch_id),
-    status=COALESCE(?,status),attendance_pct=COALESCE(?,attendance_pct),placement_status=COALESCE(?,placement_status)
-    WHERE id=? AND vendor_id=?`)
-    .run(name||null, mobile||null, aadhaar_masked||null, dob||null, gender||null, category||null,
-         scheme||null, batch_id||null,
-         status||null, attendance_pct!=null?attendance_pct:null, placement_status||null,
-         req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/candidates/:id', auth, async (req, res) => {
+  try {
+    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id, status, attendance_pct, placement_status } = req.body;
+    await execute(`UPDATE vendor_candidates SET
+      name=COALESCE($1,name),mobile=COALESCE($2,mobile),aadhaar_masked=COALESCE($3,aadhaar_masked),
+      dob=COALESCE($4,dob),gender=COALESCE($5,gender),category=COALESCE($6,category),
+      scheme=COALESCE($7,scheme),batch_id=COALESCE($8,batch_id),
+      status=COALESCE($9,status),attendance_pct=COALESCE($10,attendance_pct),placement_status=COALESCE($11,placement_status)
+      WHERE id=$12 AND vendor_id=$13`,
+      [name||null, mobile||null, aadhaar_masked||null, dob||null, gender||null, category||null,
+       scheme||null, batch_id||null,
+       status||null, attendance_pct!=null?attendance_pct:null, placement_status||null,
+       req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/candidates/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_candidates SET status=? WHERE id=? AND vendor_id=?').run('withdrawn', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/candidates/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_candidates SET status=$1 WHERE id=$2 AND vendor_id=$3', ['withdrawn', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Assessments ───────────────────────────────────────────────────────────────
-router.get('/assessments', auth, (req, res) => {
-  const rows = db.prepare(`SELECT a.*, vb.batch_code, vc.title AS course_title FROM vendor_assessments a
-    LEFT JOIN vendor_batches vb ON vb.id=a.batch_id
-    LEFT JOIN vendor_courses vc ON vc.id=vb.course_id
-    WHERE a.vendor_id=? ORDER BY a.created_at DESC`).all(req.user.id);
-  res.json(rows);
+router.get('/assessments', auth, async (req, res) => {
+  try {
+    const rows = await query(`SELECT a.*, vb.batch_code, vc.title AS course_title FROM vendor_assessments a
+      LEFT JOIN vendor_batches vb ON vb.id=a.batch_id
+      LEFT JOIN vendor_courses vc ON vc.id=vb.course_id
+      WHERE a.vendor_id=$1 ORDER BY a.created_at DESC`, [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/assessments', auth, (req, res) => {
-  const { batch_id, agency, scheduled_date, time_slot, candidate_count } = req.body;
-  const info = db.prepare(`INSERT INTO vendor_assessments
-    (vendor_id,batch_id,agency,scheduled_date,time_slot,candidate_count)
-    VALUES (?,?,?,?,?,?)`)
-    .run(req.user.id, batch_id||null, agency, scheduled_date, time_slot, candidate_count||0);
-  res.json({ id: info.lastInsertRowid });
+router.post('/assessments', auth, async (req, res) => {
+  try {
+    const { batch_id, agency, scheduled_date, time_slot, candidate_count } = req.body;
+    const result = await execute(`INSERT INTO vendor_assessments
+      (vendor_id,batch_id,agency,scheduled_date,time_slot,candidate_count)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [req.user.id, batch_id||null, agency, scheduled_date, time_slot, candidate_count||0]);
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/assessments/:id', auth, (req, res) => {
-  const { agency, scheduled_date, time_slot, candidate_count, results, status } = req.body;
-  db.prepare(`UPDATE vendor_assessments SET
-    agency=?,scheduled_date=?,time_slot=?,candidate_count=?,
-    results=COALESCE(?,results),status=COALESCE(?,status) WHERE id=? AND vendor_id=?`)
-    .run(agency, scheduled_date, time_slot, candidate_count||0,
-         results ? JSON.stringify(results) : null, status||null,
-         req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/assessments/:id', auth, async (req, res) => {
+  try {
+    const { agency, scheduled_date, time_slot, candidate_count, results, status } = req.body;
+    await execute(`UPDATE vendor_assessments SET
+      agency=$1,scheduled_date=$2,time_slot=$3,candidate_count=$4,
+      results=COALESCE($5,results),status=COALESCE($6,status) WHERE id=$7 AND vendor_id=$8`,
+      [agency, scheduled_date, time_slot, candidate_count||0,
+       results ? JSON.stringify(results) : null, status||null,
+       req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/assessments/:id', auth, (req, res) => {
-  db.prepare('UPDATE vendor_assessments SET status=? WHERE id=? AND vendor_id=?').run('cancelled', req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/assessments/:id', auth, async (req, res) => {
+  try {
+    await execute('UPDATE vendor_assessments SET status=$1 WHERE id=$2 AND vendor_id=$3', ['cancelled', req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Documents ─────────────────────────────────────────────────────────────────
-router.get('/documents', auth, (req, res) => {
-  const rows = db.prepare('SELECT id,doc_type,filename,expiry_date,status,created_at FROM vendor_documents WHERE vendor_id=? ORDER BY doc_type').all(req.user.id);
-  res.json(rows);
+router.get('/documents', auth, async (req, res) => {
+  try {
+    const rows = await query('SELECT id,doc_type,filename,expiry_date,status,created_at FROM vendor_documents WHERE vendor_id=$1 ORDER BY doc_type', [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/documents', auth, (req, res) => {
-  const { doc_type, filename, file_data, expiry_date } = req.body;
-  const existing = db.prepare('SELECT id FROM vendor_documents WHERE vendor_id=? AND doc_type=?').get(req.user.id, doc_type);
-  if (existing) {
-    db.prepare('UPDATE vendor_documents SET filename=?,file_data=?,expiry_date=?,status=?,created_at=datetime("now") WHERE id=?')
-      .run(filename, file_data||null, expiry_date||null, 'uploaded', existing.id);
-    return res.json({ id: existing.id, updated: true });
-  }
-  const info = db.prepare('INSERT INTO vendor_documents (vendor_id,doc_type,filename,file_data,expiry_date,status) VALUES (?,?,?,?,?,?)')
-    .run(req.user.id, doc_type, filename, file_data||null, expiry_date||null, 'uploaded');
-  res.json({ id: info.lastInsertRowid });
+router.post('/documents', auth, async (req, res) => {
+  try {
+    const { doc_type, filename, file_data, expiry_date } = req.body;
+    const existing = await queryOne('SELECT id FROM vendor_documents WHERE vendor_id=$1 AND doc_type=$2', [req.user.id, doc_type]);
+    if (existing) {
+      await execute('UPDATE vendor_documents SET filename=$1,file_data=$2,expiry_date=$3,status=$4,created_at=NOW() WHERE id=$5',
+        [filename, file_data||null, expiry_date||null, 'uploaded', existing.id]);
+      return res.json({ id: existing.id, updated: true });
+    }
+    const result = await execute('INSERT INTO vendor_documents (vendor_id,doc_type,filename,file_data,expiry_date,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [req.user.id, doc_type, filename, file_data||null, expiry_date||null, 'uploaded']);
+    res.json({ id: result.rows[0].id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.delete('/documents/:id', auth, (req, res) => {
-  db.prepare('DELETE FROM vendor_documents WHERE id=? AND vendor_id=?').run(req.params.id, req.user.id);
-  res.json({ ok: true });
+router.delete('/documents/:id', auth, async (req, res) => {
+  try {
+    await execute('DELETE FROM vendor_documents WHERE id=$1 AND vendor_id=$2', [req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 // ── Grievances ────────────────────────────────────────────────────────────────
-router.get('/grievances', auth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM vendor_grievances WHERE vendor_id=? ORDER BY created_at DESC').all(req.user.id);
-  res.json(rows);
+router.get('/grievances', auth, async (req, res) => {
+  try {
+    const rows = await query('SELECT * FROM vendor_grievances WHERE vendor_id=$1 ORDER BY created_at DESC', [req.user.id]);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.post('/grievances', auth, (req, res) => {
-  const { category, priority, subject, details } = req.body;
-  if (!subject) return res.status(400).json({ error: 'Subject required' });
-  const ticket_no = `TK-${Date.now().toString().slice(-6)}`;
-  const info = db.prepare('INSERT INTO vendor_grievances (vendor_id,ticket_no,category,priority,subject,details) VALUES (?,?,?,?,?,?)')
-    .run(req.user.id, ticket_no, category, priority||'normal', subject, details);
-  res.json({ id: info.lastInsertRowid, ticket_no });
+router.post('/grievances', auth, async (req, res) => {
+  try {
+    const { category, priority, subject, details } = req.body;
+    if (!subject) return res.status(400).json({ error: 'Subject required' });
+    const ticket_no = `TK-${Date.now().toString().slice(-6)}`;
+    const result = await execute('INSERT INTO vendor_grievances (vendor_id,ticket_no,category,priority,subject,details) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+      [req.user.id, ticket_no, category, priority||'normal', subject, details]);
+    res.json({ id: result.rows[0].id, ticket_no });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-router.put('/grievances/:id', auth, (req, res) => {
-  const { status } = req.body;
-  db.prepare('UPDATE vendor_grievances SET status=? WHERE id=? AND vendor_id=?').run(status, req.params.id, req.user.id);
-  res.json({ ok: true });
+router.put('/grievances/:id', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    await execute('UPDATE vendor_grievances SET status=$1 WHERE id=$2 AND vendor_id=$3', [status, req.params.id, req.user.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 module.exports = router;
