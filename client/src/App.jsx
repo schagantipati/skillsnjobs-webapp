@@ -26,6 +26,7 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import ContactUs from './pages/ContactUs.jsx';
 import { SkillsProvider } from './context/SkillsContext.jsx';
+import { LanguageProvider } from './context/LanguageContext.jsx';
 
 function Protected({ children, roles, vendorOk }) {
   const { user, loading } = useAuth();
@@ -60,6 +61,7 @@ export default function App() {
   const isPortalUser = isVendor || isCandidate || isTrainer || isPlacementAgency || isCsrOrg || isEmployer || isSuperadmin || isStateGovt;
 
   return (
+    <LanguageProvider>
     <SkillsProvider>
     <div className="app-shell">
       <div style={{ display: 'flex', flex: 1, alignItems: 'flex-start' }}>
@@ -121,5 +123,6 @@ export default function App() {
       </div>
     </div>
     </SkillsProvider>
+    </LanguageProvider>
   );
 }

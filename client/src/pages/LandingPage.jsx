@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 
 /* ─── data ──────────────────────────────────────────────────────── */
 const TICKER_ITEMS = [
@@ -188,10 +189,65 @@ function ContactForm() {
   );
 }
 
+/* ─── Language switcher ──────────────────────────────────────────── */
+function LanguageSwitcher() {
+  const { lang, changeLang, LANGUAGES, t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const current = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={t('lang_select')}
+        style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 12px', border:'1.5px solid #e0e8f4', borderRadius:8, background:'#fff', color:'#002060', fontSize:13, fontWeight:600, cursor:'pointer', transition:'border-color .15s' }}
+        onMouseEnter={e => e.currentTarget.style.borderColor='#002060'}
+        onMouseLeave={e => e.currentTarget.style.borderColor='#e0e8f4'}
+      >
+        <span style={{ fontSize:16 }}>🌐</span>
+        <span>{current.native}</span>
+        <span style={{ fontSize:10, color:'#94a3b8' }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 6px)', right:0, background:'#fff', border:'1.5px solid #e0e8f4', borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,.12)', zIndex:9999, minWidth:210, overflow:'hidden' }}>
+          <div style={{ padding:'8px 14px 6px', fontSize:10, fontWeight:700, color:'#94a3b8', letterSpacing:0.8, textTransform:'uppercase', borderBottom:'1px solid #f1f5f9' }}>
+            {t('lang_select')}
+          </div>
+          <div style={{ maxHeight:340, overflowY:'auto' }}>
+            {LANGUAGES.map(l => (
+              <div key={l.code}
+                onClick={() => { changeLang(l.code); setOpen(false); }}
+                style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 14px', cursor:'pointer', background: l.code === lang ? '#EFF6FF':'transparent', transition:'background .1s' }}
+                onMouseEnter={e => { if (l.code !== lang) e.currentTarget.style.background='#f8fafc'; }}
+                onMouseLeave={e => { if (l.code !== lang) e.currentTarget.style.background='transparent'; }}
+              >
+                <div>
+                  <span style={{ fontSize:13, fontWeight:600, color:'#001845' }}>{l.native}</span>
+                  <span style={{ fontSize:11, color:'#94a3b8', marginLeft:6 }}>{l.label}</span>
+                </div>
+                {l.code === lang && <span style={{ color:'#1A56C4', fontSize:14, fontWeight:700 }}>✓</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── main component ─────────────────────────────────────────────── */
 export default function LandingPage() {
   const navigate = useNavigate();
   const { register: registerUser } = useAuth();
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -270,9 +326,10 @@ export default function LandingPage() {
               style={{ fontSize:13, color:'#5a6a8a', textDecoration:'none', fontWeight:500, cursor:'pointer' }}>{lbl}</a></li>
           ))}
         </ul>
-        <div ref={menuRef} style={{ display:'flex', gap:10 }}>
-          <button onClick={() => navigate('/login')} style={{ padding:'7px 18px', border:'1.5px solid #002060', borderRadius:8, background:'transparent', color:'#002060', fontSize:13, fontWeight:700, cursor:'pointer' }}>Login</button>
-          <button onClick={openRegister} style={{ padding:'7px 18px', border:'none', borderRadius:8, background:'#002060', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>Register</button>
+        <div ref={menuRef} style={{ display:'flex', gap:10, alignItems:'center' }}>
+          <LanguageSwitcher />
+          <button onClick={() => navigate('/login')} style={{ padding:'7px 18px', border:'1.5px solid #002060', borderRadius:8, background:'transparent', color:'#002060', fontSize:13, fontWeight:700, cursor:'pointer' }}>{t('btn_signin')}</button>
+          <button onClick={openRegister} style={{ padding:'7px 18px', border:'none', borderRadius:8, background:'#002060', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>{t('btn_register')}</button>
         </div>
       </nav>
 
@@ -304,17 +361,17 @@ export default function LandingPage() {
           </div>
           <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
           <h1 style={{ fontSize:50, fontWeight:900, color:'#fff', lineHeight:1.12, marginBottom:18, letterSpacing:-1.5 }}>
-            From <span style={{ color:'#60A5FA' }}>skill</span> to <span style={{ color:'#60A5FA' }}>career</span> —<br />one unified platform
+            {t('hero_title')}
           </h1>
           <p style={{ fontSize:16, color:'rgba(255,255,255,.6)', maxWidth:560, margin:'0 auto 36px', lineHeight:1.85 }}>
-            SkillsNJobs connects learners, trainers, employers, and government — bridging the gap between vocational education and meaningful employment across India.
+            {t('hero_subtitle')}
           </p>
           <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap', marginBottom:64 }}>
             <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer', boxShadow:'0 4px 24px rgba(0,0,0,.25)' }}>
-              Start learning for free →
+              {t('hero_cta_candidate')} →
             </button>
             <button onClick={() => navigate('/login')} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>
-              Sign in to your portal
+              {t('btn_signin')}
             </button>
           </div>
           {/* Stats bar */}
@@ -339,7 +396,7 @@ export default function LandingPage() {
 
       {/* ── PORTALS ── */}
       <section id="portals" style={sec}>
-        {pill('Choose your portal')}
+        {pill(t('section_portals'))}
         {h2('One platform, every stakeholder')}
         {sub('Whether you\'re a learner, employer, trainer, or government body — SkillsNJobs has a dedicated workspace for you.')}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
@@ -351,7 +408,7 @@ export default function LandingPage() {
               <div style={{ width:48, height:48, borderRadius:12, background:p.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, marginBottom:16 }}>{p.icon}</div>
               <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:6 }}>{p.title}</div>
               <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.7, marginBottom:14 }}>{p.desc}</div>
-              <div style={{ fontSize:12.5, fontWeight:700, color:p.color }}>Enter portal →</div>
+              <div style={{ fontSize:12.5, fontWeight:700, color:p.color }}>{t('btn_enter_portal')}</div>
             </div>
           ))}
         </div>
@@ -379,7 +436,7 @@ export default function LandingPage() {
       {/* ── SCHEMES ── */}
       <section id="schemes" style={{ ...sec, background:'#F8FAFF' }}>
         <div style={{ textAlign:'center' }}>
-          {pill('Government schemes')}
+          {pill(t('section_schemes'))}
           {h2('Aligned with National Skill Development')}
           {sub('SkillsNJobs is fully integrated with major government skilling schemes. Apply directly through the platform.')}
         </div>
@@ -402,7 +459,7 @@ export default function LandingPage() {
 
       {/* ── SECTORS ── */}
       <section id="sectors" style={sec}>
-        {pill('Industry sectors')}
+        {pill(t('section_sectors'))}
         {h2('Skills for every industry')}
         {sub('Over 900+ courses across 10 high-demand sectors — all government-aligned and industry-certified.')}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
@@ -465,7 +522,7 @@ export default function LandingPage() {
 
       {/* ── PARTNERS ── */}
       <section id="partners" style={sec}>
-        {pill('Ecosystem')}
+        {pill(t('section_partners'))}
         {h2('Trusted by 1,200+ organisations')}
         {sub('From sector skill councils to Fortune 500 employers — SkillsNJobs powers India\'s largest skilling ecosystem.')}
         <div style={{ display:'flex', flexWrap:'wrap', gap:10, justifyContent:'center' }}>
@@ -482,7 +539,7 @@ export default function LandingPage() {
       {/* ── TESTIMONIALS ── */}
       <section style={{ ...sec, background:'#F8FAFF' }}>
         <div style={{ textAlign:'center' }}>
-          {pill('Success stories')}
+          {pill(t('section_stories'))}
           {h2('Real impact, real people')}
           {sub('Join over 1.24 lakh learners who found their career through SkillsNJobs.')}
         </div>
@@ -505,7 +562,7 @@ export default function LandingPage() {
 
       {/* ── NEWS ── */}
       <section id="news" style={sec}>
-        {pill('Latest news')}
+        {pill(t('section_news'))}
         {h2('Updates & announcements')}
         {sub('Stay current with the latest policy updates, scheme launches, and platform news.')}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:22 }}>
@@ -557,7 +614,7 @@ export default function LandingPage() {
       <section id="faq" style={{ ...sec, paddingTop:0 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:60, alignItems:'start' }}>
           <div style={{ position:'sticky', top:80 }}>
-            {pill('FAQ')}
+            {pill(t('section_faq'))}
             {h2('Frequently asked questions')}
             <p style={{ fontSize:14, color:'#5a6a8a', lineHeight:1.8 }}>Can't find your answer? Reach out to our support team and we'll respond within 24 hours.</p>
             <button onClick={() => document.querySelector('#contact')?.scrollIntoView({ behavior:'smooth' })} style={{ marginTop:20, padding:'12px 24px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer' }}>
@@ -623,7 +680,7 @@ export default function LandingPage() {
               </div>
               <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>SkillsNJobs</div>
             </div>
-            <p style={{ fontSize:12.5, color:'rgba(255,255,255,.28)', lineHeight:1.85, maxWidth:240, marginBottom:20 }}>India's unified platform for skill development, vocational training, and meaningful employment.</p>
+            <p style={{ fontSize:12.5, color:'rgba(255,255,255,.28)', lineHeight:1.85, maxWidth:240, marginBottom:20 }}>{t('footer_tagline')}</p>
             <div style={{ display:'flex', gap:10 }}>
               {['𝕏','in','f','▶'].map(s => (
                 <div key={s} style={{ width:34, height:34, borderRadius:8, background:'rgba(255,255,255,.07)', border:'1px solid rgba(255,255,255,.1)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:13, color:'rgba(255,255,255,.5)', fontWeight:700 }}
@@ -655,7 +712,7 @@ export default function LandingPage() {
           ))}
         </div>
         <div style={{ borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:22, display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
-          <p style={{ fontSize:11.5, color:'rgba(255,255,255,.18)' }}>© 2026 SkillsNJobs AI Technologies Pvt. Ltd. All rights reserved.</p>
+          <p style={{ fontSize:11.5, color:'rgba(255,255,255,.18)' }}>{t('footer_rights')}</p>
           <div style={{ display:'flex', gap:16 }}>
             {['Privacy','Terms','Cookies'].map(l => (
               <a key={l} href="#" style={{ fontSize:11.5, color:'rgba(255,255,255,.18)', textDecoration:'none' }}
