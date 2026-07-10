@@ -430,6 +430,7 @@ async function initDb() {
       ['State Admin','stateadmin@skillsnjobs.in',hash('Welcome@123'),'state_government'],
       ['Pioneer Placements','pioneer@placements.in',hash('password123'),'placement_agency'],
       ['Cipla Foundation','csr@cipla.com',hash('password123'),'csr_org'],
+      ['NetApp Training','netapp@gmail.com',hash('Welcome@123'),'training_vendor'],
     ];
     for (const [name, email, password_hash, role] of users) {
       await pool.query(
