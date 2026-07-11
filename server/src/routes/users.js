@@ -298,6 +298,24 @@ router.get('/stats', authRequired, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Superadmin: all training sessions with trainer & batch info
+router.get('/admin/sessions', authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+    const rows = await query(`
+      SELECT ts.id, ts.topic, ts.session_date, ts.start_time, ts.duration_hrs,
+             ts.venue, ts.mode, ts.status, ts.created_at,
+             u.name AS trainer_name, u.email AS trainer_email,
+             b.batch_code, b.batch_name, b.course_name
+      FROM trainer_sessions ts
+      JOIN users u ON u.id = ts.trainer_id
+      LEFT JOIN batches b ON b.id = ts.batch_id
+      ORDER BY ts.session_date DESC, ts.start_time
+    `, []);
+    res.json(rows);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // ── Trainer: Qualifications ──
 router.get('/me/qualifications', authRequired, async (req, res) => {
   try {

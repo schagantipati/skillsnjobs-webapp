@@ -40,6 +40,7 @@ export const api = {
   candidates: () => request('/users/candidates'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
   auditLogs: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/audit-logs' + (qs ? `?${qs}` : '')); },
+  adminSessions: () => request('/users/admin/sessions'),
   allUsers: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/all' + (qs ? `?${qs}` : '')); },
   setUserStatus: (id, is_active) => request(`/users/${id}/status`, { method: 'PUT', body: { is_active } }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),

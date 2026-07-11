@@ -1531,6 +1531,111 @@ function PanelSchemeCSR() {
 }
 
 // Generic "no backend yet" panel
+function PanelSessions({ subview }) {
+  const [sessions, loading] = useLoad(() => api.adminSessions());
+  const list = Array.isArray(sessions) ? sessions : [];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const scheduled  = list.filter(s => s.status === 'scheduled');
+  const completed  = list.filter(s => s.status === 'completed');
+  const cancelled  = list.filter(s => s.status === 'cancelled');
+  const todayList  = list.filter(s => s.session_date === today);
+
+  const modeCount = list.reduce((acc, s) => { acc[s.mode] = (acc[s.mode] || 0) + 1; return acc; }, {});
+
+  const STATUS_COLOR = { scheduled: 'blue', completed: 'green', cancelled: 'red', ongoing: 'amber' };
+
+  // Filter by subview
+  const viewMap = {
+    'sessions-all':        list,
+    'sessions-schedule':   scheduled,
+    'sessions-attendance': todayList,
+    'sessions-content':    list,
+  };
+  const display = viewMap[subview] || list;
+
+  const titles = {
+    'sessions-all':        'All Sessions',
+    'sessions-schedule':   'Scheduled Sessions',
+    'sessions-attendance': "Today's Sessions",
+    'sessions-content':    'Course Content & Materials',
+  };
+
+  return (
+    <>
+      <div className="ph">
+        <h1>{titles[subview] || 'Session Management'}</h1>
+        <p>All training sessions across trainers and batches</p>
+      </div>
+
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{list.length}</div><div className="lbl">Total Sessions</div></div>
+        <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{scheduled.length}</div><div className="lbl">Scheduled</div></div>
+        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{completed.length}</div><div className="lbl">Completed</div></div>
+        <div className="kpi" style={{'--c':'#DC2626'}}><div className="val">{cancelled.length}</div><div className="lbl">Cancelled</div></div>
+        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{todayList.length}</div><div className="lbl">Today</div></div>
+      </div>
+
+      {Object.keys(modeCount).length > 0 && (
+        <div className="card" style={{marginBottom:14}}>
+          <div className="card-title">📊 Sessions by Mode</div>
+          <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+            {Object.entries(modeCount).map(([mode, cnt]) => (
+              <div key={mode} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 14px',background:'#F8FAFC',borderRadius:8,border:'1px solid #E0E6EF'}}>
+                <span style={{fontWeight:700,color:'#003366',fontSize:18}}>{cnt}</span>
+                <span style={{fontSize:12,color:'#6B7FA3'}}>{mode}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-hdr">
+          <div className="card-title" style={{margin:0}}>{titles[subview] || 'All Sessions'} ({display.length})</div>
+        </div>
+        {loading ? <Loading /> : display.length === 0 ? <Empty icon="📅" msg="No sessions found." /> : (
+          <table className="sa-table">
+            <thead>
+              <tr>
+                <th>Topic</th>
+                <th>Trainer</th>
+                <th>Batch</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Duration</th>
+                <th>Mode</th>
+                <th>Venue</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {display.map(s => (
+                <tr key={s.id}>
+                  <td style={{fontWeight:600,maxWidth:200}}>{s.topic}</td>
+                  <td>
+                    <div style={{fontWeight:600,fontSize:12}}>{s.trainer_name || '—'}</div>
+                    <div style={{fontSize:10.5,color:'#6B7FA3'}}>{s.trainer_email}</div>
+                  </td>
+                  <td style={{fontSize:11}}>
+                    {s.batch_code ? <><span className="pill blue" style={{fontSize:9}}>{s.batch_code}</span><div style={{fontSize:10.5,color:'#6B7FA3',marginTop:2}}>{s.batch_name || s.course_name || ''}</div></> : '—'}
+                  </td>
+                  <td style={{whiteSpace:'nowrap',fontSize:12}}>{s.session_date || '—'}</td>
+                  <td style={{fontSize:12,color:'#6B7FA3'}}>{s.start_time || '—'}</td>
+                  <td style={{fontSize:12}}>{s.duration_hrs ? `${s.duration_hrs}h` : '—'}</td>
+                  <td><span className="pill gray" style={{fontSize:9}}>{s.mode || '—'}</span></td>
+                  <td style={{fontSize:11,color:'#6B7FA3',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.venue || '—'}</td>
+                  <td><Pill v={s.status || 'scheduled'} map={STATUS_COLOR} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 function PanelComingSoon({ title, desc, icon = '🚧' }) {
   return (
     <>
@@ -1606,6 +1711,12 @@ export default function SuperadminDashboard() {
       case 'tr-list':
       case 'tr-assess':
       case 'tr-certs': return <PanelTrainers subview={activeId} />;
+
+      case 'sessions':
+      case 'sessions-all':
+      case 'sessions-schedule':
+      case 'sessions-attendance':
+      case 'sessions-content': return <PanelSessions subview={activeId} />;
 
       case 'course-catalogue':
       case 'course-nsqf':
