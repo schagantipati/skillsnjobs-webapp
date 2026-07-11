@@ -10,6 +10,7 @@ export const PATTERNS = {
   tan:     /^[A-Z]{4}\d{5}[A-Z]{1}$/,
   cin:     /^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/,
   udyam:   /^UDYAM-[A-Z]{2}-\d{2}-\d{7}$/,
+  msme:    /^[A-Z]{2}-[A-Z]{2}-\d{2}-\d{7}$/,
   ifsc:    /^[A-Z]{4}0[A-Z0-9]{6}$/,
   aadhaar: /^\d{12}$/,
   website: /^https?:\/\/.+\..+/,
@@ -26,6 +27,7 @@ export const MESSAGES = {
   tan:     'Invalid TAN — format: PDES03028F (10 chars)',
   cin:     'Invalid CIN — format: U72200KA2015PTC082341 (21 chars)',
   udyam:   'Invalid Udyam number — format: UDYAM-MH-00-0000000 (19 chars)',
+  msme:    'Invalid MSME number — format: MH-MU-00-0000000 (16 chars)',
   ifsc:    'Invalid IFSC — format: HDFC0001234 (11 chars)',
   aadhaar: 'Must be a 12-digit Aadhaar number',
   website: 'Enter a valid URL starting with http:// or https://',
@@ -33,7 +35,7 @@ export const MESSAGES = {
 };
 
 // Fields that should be auto-uppercased
-export const UPPERCASE_FIELDS = new Set(['gst', 'pan', 'tan', 'cin', 'udyam', 'ifsc']);
+export const UPPERCASE_FIELDS = new Set(['gst', 'pan', 'tan', 'cin', 'udyam', 'msme', 'ifsc']);
 
 export function validate(type, value) {
   if (!value || !value.trim()) return '';

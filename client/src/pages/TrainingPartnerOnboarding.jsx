@@ -160,6 +160,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [gstNo, setGstNo]   = useState(user?.gstin || '');
   const [gstError, setGstError] = useState('');
   const [msme, setMsme]     = useState('');
+  const [msmeError, setMsmeError] = useState('');
   const [udyam, setUdyam]       = useState('');
   const [udyamError, setUdyamError] = useState('');
 
@@ -345,6 +346,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       if (!panNo.trim() || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo)) {
         setPanError('Invalid PAN — format: ABCDE1234F (10 chars)');
         return 'Valid PAN is required (e.g. ABCDE1234F)';
+      }
+      if (msme) {
+        const msmeErr = fieldValidate('msme', msme);
+        if (msmeErr) { setMsmeError(msmeErr); return msmeErr; }
       }
       if (udyam) {
         const udyamErr = fieldValidate('udyam', udyam);
@@ -845,7 +850,15 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               </F>
               <G2>
                 <F label="MSME Registration Number" hint="If applicable">
-                  <Inp value={msme} onChange={e => setMsme(e.target.value.toUpperCase())} placeholder="MH-MU-00-0000000" />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={msme}
+                      onChange={e => { setMsme(e.target.value.toUpperCase()); setMsmeError(''); }}
+                      onBlur={() => { if (msme) setMsmeError(fieldValidate('msme', msme)); }}
+                      placeholder="MH-MU-00-0000000"
+                      maxLength={16}
+                      style={msmeError ? { border:'1px solid #C0392B' } : {}} />
+                    {msmeError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {msmeError}</div>}
+                  </div>
                 </F>
                 <F label="Udyam Registration Number" hint="Udyam Aadhar certificate">
                   <div style={{ width:'100%' }}>
