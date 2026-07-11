@@ -33,13 +33,14 @@ function Protected({ children, roles, vendorOk }) {
   const location = useLocation();
   if (loading) return <div className="spinner-wrap">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // Superadmin bypasses all role restrictions — full access to every portal route
+  if (user.role === 'superadmin') return children;
   if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
   if (user.role === 'training_vendor' && !vendorOk) return <Navigate to="/vendor-portal" replace />;
   if (user.role === 'trainer' && !roles?.includes('trainer')) return <Navigate to="/trainer-portal" replace />;
   if (user.role === 'placement_agency' && !roles?.includes('placement_agency')) return <Navigate to="/placement-partner-portal" replace />;
   if (user.role === 'csr_org' && !roles?.includes('csr_org')) return <Navigate to="/csr-portal" replace />;
   if (user.role === 'employer' && !roles?.includes('employer')) return <Navigate to="/employer-portal" replace />;
-  if (user.role === 'superadmin' && roles && !roles.includes('superadmin')) return <Navigate to="/superadmin" replace />;
   if (user.role === 'state_government' && !roles?.includes('state_government')) return <Navigate to="/state-govt-portal" replace />;
   return children;
 }

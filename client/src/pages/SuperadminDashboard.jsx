@@ -124,6 +124,12 @@ const NAV = [
       { id: 'tr-assess', label: 'Assessor Registry' },
       { id: 'tr-certs', label: 'Certifications & Badges' },
     ]},
+    { id: 'sessions', icon: '📅', label: 'Session Management', children: [
+      { id: 'sessions-all', label: 'All Sessions' },
+      { id: 'sessions-schedule', label: 'Schedule Session' },
+      { id: 'sessions-attendance', label: 'Attendance Tracking' },
+      { id: 'sessions-content', label: 'Course Content & Materials' },
+    ]},
   ]},
   { section: 'COURSES & CURRICULUM', items: [
     { id: 'courses', icon: '📚', label: 'Courses', children: [
@@ -143,13 +149,42 @@ const NAV = [
     { id: 'fee-prog', icon: '💰', label: 'Fee-Based Programs' },
     { id: 'scheme-config', icon: '⚙️', label: 'Scheme Configuration' },
   ]},
+  { section: 'CSR MANAGEMENT', items: [
+    { id: 'csr-projects', icon: '📂', label: 'CSR Projects', children: [
+      { id: 'csr-proj-active', label: 'Active Projects' },
+      { id: 'csr-proj-draft', label: 'Draft Projects' },
+      { id: 'csr-proj-completed', label: 'Completed Projects' },
+      { id: 'csr-proj-approval', label: 'Approval Queue' },
+    ]},
+    { id: 'csr-orgs', icon: '🏢', label: 'CSR Organisations' },
+    { id: 'csr-beneficiaries', icon: '👥', label: 'CSR Beneficiaries', children: [
+      { id: 'csr-bene-list', label: 'Beneficiary List' },
+      { id: 'csr-bene-track', label: 'Track Progress' },
+      { id: 'csr-bene-outcomes', label: 'Placement Outcomes' },
+    ]},
+    { id: 'csr-funds', icon: '💰', label: 'CSR Fund Management', children: [
+      { id: 'csr-fund-alloc', label: 'Fund Allocation' },
+      { id: 'csr-fund-disbursed', label: 'Disbursements' },
+      { id: 'csr-fund-utilization', label: 'Utilization Reports' },
+      { id: 'csr-fund-unspent', label: 'Unspent Funds' },
+    ]},
+    { id: 'csr-impact', icon: '📈', label: 'Impact Reports' },
+  ]},
   { section: 'CANDIDATES & ENROLMENT', items: [
     { id: 'candidate-reg', icon: '👤', label: 'Candidate Registry' },
+    { id: 'skill-passport', icon: '🏅', label: 'Skill Passport', tag: 'New', tagType: 'new' },
     { id: 'enrolments', icon: '📋', label: 'Enrolments' },
     { id: 'batches', icon: '📅', label: 'Batch Management' },
     { id: 'attendance', icon: '✅', label: 'Attendance' },
     { id: 'dropout', icon: '⚠️', label: 'Dropout Management' },
     { id: 'target-ben', icon: '🎯', label: 'Target Beneficiaries' },
+    { id: 'financial-aid', icon: '💳', label: 'Financial Assistance' },
+    { id: 'career-services', icon: '🚀', label: 'Career Services', children: [
+      { id: 'career-counseling', label: 'Career Counselling' },
+      { id: 'career-resume', label: 'Resume Builder' },
+      { id: 'career-mock', label: 'Mock Interviews' },
+      { id: 'career-mentor', label: 'Mentorship' },
+    ]},
   ]},
   { section: 'ASSESSMENTS & CERTIFICATIONS', items: [
     { id: 'assess-agencies', icon: '🏅', label: 'Assessment Agencies' },
@@ -166,6 +201,18 @@ const NAV = [
     { id: 'place-partners', icon: '🤝', label: 'Placement Partners' },
     { id: 'emp-verify', icon: '✔️', label: 'Employment Verification' },
     { id: 'apprentice', icon: '🔧', label: 'Apprenticeship Portal' },
+    { id: 'skill-dev', icon: '💡', label: 'Skill Gap & Development', children: [
+      { id: 'skill-gap', label: 'Skill Gap Analysis' },
+      { id: 'skill-tp-connect', label: 'Training Partner Connect' },
+      { id: 'skill-requirements', label: 'Training Requirements' },
+      { id: 'skill-pmkvy', label: 'PMKVY Partnership' },
+    ]},
+  ]},
+  { section: 'COLLABORATION', items: [
+    { id: 'collab-consortium', icon: '🏗️', label: 'Consortium Builder' },
+    { id: 'collab-partnership', icon: '🤝', label: 'Partnership Requests' },
+    { id: 'collab-resources', icon: '📦', label: 'Resource Sharing' },
+    { id: 'collab-invitations', icon: '✉️', label: 'Invitations' },
   ]},
   { section: 'FINANCIAL MANAGEMENT', items: [
     { id: 'fund-alloc', icon: '💵', label: 'Fund Allocation' },
@@ -174,6 +221,15 @@ const NAV = [
     { id: 'scheme-budget', icon: '📊', label: 'Scheme-wise Budgets' },
     { id: 'fin-audit', icon: '🔎', label: 'Audit & Compliance' },
     { id: 'pay-reports', icon: '📑', label: 'Payment Reports' },
+  ]},
+  { section: 'GRIEVANCE & SUPPORT', items: [
+    { id: 'grievance-all', icon: '📣', label: 'Grievance Management', children: [
+      { id: 'grievance-open', label: 'Open Grievances' },
+      { id: 'grievance-resolved', label: 'Resolved' },
+      { id: 'grievance-escalated', label: 'Escalated' },
+    ]},
+    { id: 'helpdesk', icon: '🎧', label: 'Help Desk / Support Tickets' },
+    { id: 'faq-mgmt', icon: '❓', label: 'FAQ Management' },
   ]},
   { section: 'REPORTS & ANALYTICS', items: [
     { id: 'mis', icon: '📊', label: 'MIS Dashboard' },
