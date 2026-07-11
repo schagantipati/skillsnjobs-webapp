@@ -180,6 +180,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
   const [centres, setCentres]       = useState([{ name:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centreNameErrors, setCentreNameErrors] = useState(['']);
 
   /* Step 7 */
   const [ftTrainers, setFtTrainers]     = useState('');
@@ -253,7 +254,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
     /* Step 6 */
     if (vp.step6?.numCentres) setNumCentres(vp.step6.numCentres);
-    if (vp.step6?.centres?.length) setCentres(vp.step6.centres);
+    if (vp.step6?.centres?.length) { setCentres(vp.step6.centres); setCentreNameErrors(vp.step6.centres.map(() => '')); }
 
     /* Step 7 */
     setFtTrainers(  vp.step7?.ftTrainers   || '');
@@ -362,6 +363,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     }
     if (step === 6) {
       if (!numCentres || parseInt(numCentres) < 1) return 'At least 1 Training Centre is required';
+      const nameErrs = centres.map((c, i) => validateCentreName(c.name, centres, i));
+      setCentreNameErrors(nameErrs);
+      const first = nameErrs.find(e => e);
+      if (first) return first;
     }
     if (step === 8) {
       if (!courses[0]?.name.trim()) return 'At least one Course name is required';
@@ -431,13 +436,49 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   }
 
   /* ── Centre helpers ──────────────────────────────────────── */
+  const CENTRE_NAME_RE = /^[A-Za-z0-9\s&\-]+$/;
+  function validateCentreName(name, allCentres, selfIdx) {
+    const trimmed = name.trim();
+    if (!trimmed) return 'Centre name is required';
+    if (trimmed.length < 5) return 'Centre name must be at least 5 characters';
+    if (trimmed.length > 50) return 'Centre name must be at most 50 characters';
+    if (!CENTRE_NAME_RE.test(trimmed)) return 'Only letters, numbers, spaces, & and - are allowed';
+    const lower = trimmed.toLowerCase();
+    const dup = allCentres.some((c, idx) => idx !== selfIdx && c.name.trim().toLowerCase() === lower);
+    if (dup) return 'Duplicate centre name within the same organisation';
+    return '';
+  }
   function updateCentre(i, key, val) {
-    setCentres(prev => prev.map((c, idx) => idx === i ? { ...c, [key]: val } : c));
+    setCentres(prev => {
+      const next = prev.map((c, idx) => idx === i ? { ...c, [key]: key === 'name' ? val : val } : c);
+      if (key === 'name') {
+        setCentreNameErrors(errs => {
+          const e = [...errs];
+          e[i] = validateCentreName(val, next, i);
+          // re-validate others in case duplicate status changed
+          next.forEach((c, idx) => { if (idx !== i) e[idx] = e[idx] ? validateCentreName(c.name, next, idx) : ''; });
+          return e;
+        });
+      }
+      return next;
+    });
   }
   function addCentre() {
     setCentres(prev => [...prev, { name:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+    setCentreNameErrors(prev => [...prev, '']);
   }
-  function removeCentre(i) { setCentres(prev => prev.filter((_, idx) => idx !== i)); }
+  function removeCentre(i) {
+    setCentres(prev => {
+      const next = prev.filter((_, idx) => idx !== i);
+      setCentreNameErrors(errs => {
+        const e = errs.filter((_, idx) => idx !== i);
+        // re-validate all after removal
+        next.forEach((c, idx) => { if (e[idx]) e[idx] = validateCentreName(c.name, next, idx); });
+        return e;
+      });
+      return next;
+    });
+  }
 
   /* ── Job role helpers ────────────────────────────────────── */
   function updateJR(i, key, val) { setJobRoles(prev => prev.map((r, idx) => idx === i ? { ...r, [key]: val } : r)); }
@@ -965,7 +1006,17 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               {centres.map((c, i) => (
                 <SubCard key={i} title={`Training Centre #${i+1}`} onRemove={centres.length > 1 ? () => removeCentre(i) : null}>
                   <G2>
-                    <F label="Centre Name"><Inp value={c.name} onChange={e => updateCentre(i,'name',e.target.value)} placeholder="Centre / campus name" /></F>
+                    <F label="Centre Name" required>
+                      <div style={{ width:'100%' }}>
+                        <Inp value={c.name}
+                          onChange={e => updateCentre(i, 'name', e.target.value)}
+                          onBlur={e => updateCentre(i, 'name', e.target.value.trim())}
+                          placeholder="Centre / campus name"
+                          maxLength={50}
+                          style={centreNameErrors[i] ? { border:'1px solid #C0392B' } : {}} />
+                        {centreNameErrors[i] && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {centreNameErrors[i]}</div>}
+                      </div>
+                    </F>
                     <F label="Ownership">
                       <Sel value={c.own} onChange={e => updateCentre(i,'own',e.target.value)}>
                         <option>Owned</option><option>Rented / Leased</option><option>Government Allotted</option>
