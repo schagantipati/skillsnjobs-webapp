@@ -179,7 +179,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
-  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
   const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
 
@@ -537,7 +537,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   function addCentre() {
     setCentres(prev => {
-      const newCentre = { name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
+      const newCentre = { name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
       return [...prev, newCentre];
     });
     setCentreNameErrors(prev => [...prev, '']);
@@ -1079,7 +1079,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   setNumCentres(String(n));
                   setCentres(prev => {
                     const arr = [...prev];
-                    while(arr.length < n) arr.push({ name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
+                    while(arr.length < n) arr.push({ name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
                     return arr.slice(0, n);
                   });
                 }} placeholder="e.g. 5" min={1} />
@@ -1118,7 +1118,22 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                         <option>Assessment Centre</option>
                       </Sel>
                     </F>
+                    <F label="Centre Status">
+                      <Sel value={c.status} onChange={e => updateCentre(i,'status',e.target.value)}>
+                        <option value="">Select status</option>
+                        <option>Active</option>
+                        <option>Inactive</option>
+                        <option>Under Construction</option>
+                        <option>Temporarily Closed</option>
+                        <option>Permanently Closed</option>
+                      </Sel>
+                    </F>
                   </G2>
+                  <F label="Year Started" hint="Year the centre began operations">
+                    <Inp type="number" value={c.yearStarted}
+                      onChange={e => updateCentre(i,'yearStarted', e.target.value.replace(/\D/g,'').slice(0,4))}
+                      placeholder="e.g. 2018" min={1900} max={2026} />
+                  </F>
                   <F label="Centre Code" required hint="3-character unique code for search & tracking">
                     <div style={{ width:'100%' }}>
                       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
