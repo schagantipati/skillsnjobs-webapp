@@ -14,14 +14,14 @@ const TICKER_ITEMS = [
 ];
 
 const PORTALS = [
-  { title:'Candidate',         desc:'Browse courses, apply to jobs, track your skill journey.',                   icon:'🎓', color:'#16A34A', bg:'#DCFCE7', border:'#4ADE80', href:'/candidate-portal' },
-  { title:'Employer',          desc:'Post jobs, discover skilled candidates, manage hiring.',                     icon:'🏢', color:'#1D4ED8', bg:'#DBEAFE', border:'#60A5FA', href:'/employer-portal' },
-  { title:'Trainer',           desc:'Manage batches, track learner progress, submit assessments.',                icon:'📋', color:'#BE185D', bg:'#FCE7F3', border:'#F472B6', href:'/trainer-portal' },
-  { title:'Training Vendor',   desc:'Register your centre, manage programmes, get govt tie-ups.',                 icon:'🏫', color:'#D97706', bg:'#FEF3C7', border:'#FBBF24', href:'/vendor-portal' },
-  { title:'CSR Organisation',  desc:'Channel CSR funds into verified skilling projects and track impact.',        icon:'🤝', color:'#7C3AED', bg:'#EDE9FE', border:'#A78BFA', href:'/csr-portal' },
-  { title:'Placement Partner', desc:'Connect trained candidates to employers, track placements.',                 icon:'🔗', color:'#EA580C', bg:'#FFEDD5', border:'#FB923C', href:'/placement-partner-portal' },
-  { title:'State Government',  desc:'Monitor targets, disburse funds, access district-level MIS.',              icon:'🏛️', color:'#059669', bg:'#D1FAE5', border:'#34D399', href:'/state-govt-portal', loginRole:'state_gov' },
-  { title:'Administrator',     desc:'Platform-wide oversight, user management, audit logs.',                     icon:'🛡️', color:'#475569', bg:'#F1F5F9', border:'#94A3B8', href:'/dashboard',          loginRole:'superadmin' },
+  { tKey:'portal_candidate',  desc:'Browse courses, apply to jobs, track your skill journey.',                   icon:'🎓', color:'#16A34A', bg:'#DCFCE7', border:'#4ADE80', href:'/candidate-portal' },
+  { tKey:'portal_employer',   desc:'Post jobs, discover skilled candidates, manage hiring.',                     icon:'🏢', color:'#1D4ED8', bg:'#DBEAFE', border:'#60A5FA', href:'/employer-portal' },
+  { tKey:'portal_trainer',    desc:'Manage batches, track learner progress, submit assessments.',                icon:'📋', color:'#BE185D', bg:'#FCE7F3', border:'#F472B6', href:'/trainer-portal' },
+  { tKey:'portal_vendor',     desc:'Register your centre, manage programmes, get govt tie-ups.',                 icon:'🏫', color:'#D97706', bg:'#FEF3C7', border:'#FBBF24', href:'/vendor-portal' },
+  { tKey:'portal_csr',        desc:'Channel CSR funds into verified skilling projects and track impact.',        icon:'🤝', color:'#7C3AED', bg:'#EDE9FE', border:'#A78BFA', href:'/csr-portal' },
+  { tKey:'portal_placement',  desc:'Connect trained candidates to employers, track placements.',                 icon:'🔗', color:'#EA580C', bg:'#FFEDD5', border:'#FB923C', href:'/placement-partner-portal' },
+  { tKey:'portal_stategov',   desc:'Monitor targets, disburse funds, access district-level MIS.',              icon:'🏛️', color:'#059669', bg:'#D1FAE5', border:'#34D399', href:'/state-govt-portal', loginRole:'state_gov' },
+  { tKey:'portal_admin',      desc:'Platform-wide oversight, user management, audit logs.',                     icon:'🛡️', color:'#475569', bg:'#F1F5F9', border:'#94A3B8', href:'/dashboard',          loginRole:'superadmin' },
 ];
 
 const SECTORS = [
@@ -321,9 +321,9 @@ export default function LandingPage() {
           </div>
         </div>
         <ul style={{ display:'flex', gap:26, listStyle:'none', margin:0, padding:0 }}>
-          {[['About','#about'],['Schemes','#schemes'],['Sectors','#sectors'],['Partners','#partners'],['News','#news'],['FAQ','#faq'],['Contact','#contact']].map(([lbl,href]) => (
-            <li key={lbl}><a href={href} onClick={e => { e.preventDefault(); document.querySelector(href)?.scrollIntoView({ behavior:'smooth' }); }}
-              style={{ fontSize:13, color:'#5a6a8a', textDecoration:'none', fontWeight:500, cursor:'pointer' }}>{lbl}</a></li>
+          {[['nav_about','#about'],['nav_schemes','#schemes'],['nav_sectors','#sectors'],['nav_partners','#partners'],['nav_news','#news'],['nav_faq','#faq'],['nav_contact','#contact']].map(([key,href]) => (
+            <li key={key}><a href={href} onClick={e => { e.preventDefault(); document.querySelector(href)?.scrollIntoView({ behavior:'smooth' }); }}
+              style={{ fontSize:13, color:'#5a6a8a', textDecoration:'none', fontWeight:500, cursor:'pointer' }}>{t(key)}</a></li>
           ))}
         </ul>
         <div ref={menuRef} style={{ display:'flex', gap:10, alignItems:'center' }}>
@@ -357,7 +357,7 @@ export default function LandingPage() {
         <div style={{ position:'relative', zIndex:1 }}>
           <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,.08)', border:'1px solid rgba(255,255,255,.18)', borderRadius:24, padding:'6px 18px', fontSize:11, color:'rgba(255,255,255,.8)', letterSpacing:0.6, textTransform:'uppercase', marginBottom:28 }}>
             <span style={{ width:7, height:7, background:'#4ADE80', borderRadius:'50%', display:'inline-block', animation:'pulse 2s infinite' }} />
-            India's Unified Skill & Career Platform
+            {t('hero_badge')}
           </div>
           <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
           <h1 style={{ fontSize:50, fontWeight:900, color:'#fff', lineHeight:1.12, marginBottom:18, letterSpacing:-1.5 }}>
@@ -388,7 +388,7 @@ export default function LandingPage() {
 
       {/* ── TRUST BAR ── */}
       <div style={{ background:'#f8fafc', borderBottom:'1px solid #e0e8f4', padding:'20px 40px', display:'flex', alignItems:'center', gap:32, justifyContent:'center', flexWrap:'wrap' }}>
-        <span style={{ fontSize:12, color:'#94a3b8', fontWeight:600, letterSpacing:0.5 }}>RECOGNISED BY</span>
+        <span style={{ fontSize:12, color:'#94a3b8', fontWeight:600, letterSpacing:0.5 }}>{t('trust_recognised')}</span>
         {['Ministry of Skill Development & Entrepreneurship','NSDC','ASCI','National Career Service'].map(p => (
           <span key={p} style={{ fontSize:12.5, fontWeight:700, color:'#5a6a8a', padding:'6px 16px', borderRadius:6, border:'1px solid #e0e8f4', background:'#fff' }}>{p}</span>
         ))}
@@ -397,8 +397,8 @@ export default function LandingPage() {
       {/* ── PORTALS ── */}
       <section id="portals" style={sec}>
         {pill(t('section_portals'))}
-        {h2('One platform, every stakeholder')}
-        {sub('Whether you\'re a learner, employer, trainer, or government body — SkillsNJobs has a dedicated workspace for you.')}
+        {h2(t('portals_h2'))}
+        {sub(t('portals_sub'))}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
           {PORTALS.map(p => (
             <div key={p.title} onClick={() => navigate('/login' + (p.loginRole ? '?role='+p.loginRole : ''))}
@@ -406,7 +406,7 @@ export default function LandingPage() {
               onMouseEnter={e => { e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='0 16px 40px rgba(0,32,96,.11)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.04)'; }}>
               <div style={{ width:48, height:48, borderRadius:12, background:p.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, marginBottom:16 }}>{p.icon}</div>
-              <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:6 }}>{p.title}</div>
+              <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:6 }}>{t(p.tKey)}</div>
               <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.7, marginBottom:14 }}>{p.desc}</div>
               <div style={{ fontSize:12.5, fontWeight:700, color:p.color }}>{t('btn_enter_portal')}</div>
             </div>
@@ -418,16 +418,16 @@ export default function LandingPage() {
       <div style={{ background:'linear-gradient(90deg,#001845 0%,#0a3a8c 100%)', padding:'50px 40px' }}>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:0, maxWidth:1100, margin:'0 auto' }}>
           {[
-            ['1.24L+','Learners Trained'],
-            ['2,340','Training Centres'],
-            ['67%','Avg Placement Rate'],
-            ['28','States Covered'],
-            ['₹480Cr','CSR Funds Channelled'],
-            ['13','Languages Supported'],
+            ['1.24L+','impact_learners'],
+            ['2,340','impact_centres'],
+            ['67%','impact_placement'],
+            ['28','impact_states'],
+            ['₹480Cr','impact_csr'],
+            ['13','impact_languages'],
           ].map(([n,l],i) => (
             <div key={l} style={{ textAlign:'center', padding:'12px 8px', borderRight:i<5?'1px solid rgba(255,255,255,.1)':'none' }}>
               <div style={{ fontSize:28, fontWeight:900, color:'#60A5FA', letterSpacing:-0.5 }}>{n}</div>
-              <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', marginTop:4, fontWeight:500 }}>{l}</div>
+              <div style={{ fontSize:11, color:'rgba(255,255,255,.45)', marginTop:4, fontWeight:500 }}>{t(l)}</div>
             </div>
           ))}
         </div>
@@ -437,8 +437,8 @@ export default function LandingPage() {
       <section id="schemes" style={{ ...sec, background:'#F8FAFF' }}>
         <div style={{ textAlign:'center' }}>
           {pill(t('section_schemes'))}
-          {h2('Aligned with National Skill Development')}
-          {sub('SkillsNJobs is fully integrated with major government skilling schemes. Apply directly through the platform.')}
+          {h2(t('schemes_h2'))}
+          {sub(t('schemes_sub'))}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:22 }}>
           {SCHEMES.map(s => (
@@ -460,8 +460,8 @@ export default function LandingPage() {
       {/* ── SECTORS ── */}
       <section id="sectors" style={sec}>
         {pill(t('section_sectors'))}
-        {h2('Skills for every industry')}
-        {sub('Over 900+ courses across 10 high-demand sectors — all government-aligned and industry-certified.')}
+        {h2(t('sectors_h2'))}
+        {sub(t('sectors_sub'))}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:14 }}>
           {SECTORS.map(s => (
             <div key={s.label} style={{ background:'#fff', border:'1px solid #e0e8f4', borderRadius:14, padding:'22px 16px', textAlign:'center', cursor:'pointer', transition:'all .2s' }}
@@ -478,9 +478,9 @@ export default function LandingPage() {
       {/* ── HOW IT WORKS ── */}
       <section style={{ ...sec, background:'#F8FAFF' }}>
         <div style={{ textAlign:'center' }}>
-          {pill('How it works')}
-          {h2('Skill to career in 4 steps')}
-          {sub('A clear, supported pathway from enrolment to employment — tracked end to end on one platform.')}
+          {pill(t('how_pill'))}
+          {h2(t('how_h2'))}
+          {sub(t('how_sub'))}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:0, position:'relative', maxWidth:1000, margin:'0 auto' }}>
           <div style={{ position:'absolute', top:32, left:'12.5%', right:'12.5%', height:2, background:'linear-gradient(90deg,#1A56C4,#60A5FA)', zIndex:0, borderRadius:2 }} />
@@ -492,7 +492,7 @@ export default function LandingPage() {
           ].map(s => (
             <div key={s.n} style={{ textAlign:'center', padding:'0 20px', position:'relative', zIndex:1 }}>
               <div style={{ width:64, height:64, borderRadius:'50%', background:'#002060', border:'3px solid #60A5FA', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', fontSize:26 }}>{s.icon}</div>
-              <div style={{ fontSize:11, fontWeight:700, color:'#1A56C4', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>Step {s.n}</div>
+              <div style={{ fontSize:11, fontWeight:700, color:'#1A56C4', letterSpacing:0.5, textTransform:'uppercase', marginBottom:6 }}>{t('how_step')} {s.n}</div>
               <div style={{ fontSize:14.5, fontWeight:800, color:'#001845', marginBottom:8 }}>{s.title}</div>
               <div style={{ fontSize:12.5, color:'#5a6a8a', lineHeight:1.75 }}>{s.desc}</div>
             </div>
@@ -503,9 +503,9 @@ export default function LandingPage() {
       {/* ── FEATURES ── */}
       <section id="about" style={{ ...sec, background:'#001845' }}>
         <div style={{ textAlign:'center' }}>
-          {pill('Platform features', true)}
-          {h2('Built for scale, built for India', true)}
-          {sub('Designed to handle the complexity of national skilling — multilingual, accessible, and real-time.', true)}
+          {pill(t('features_pill'), true)}
+          {h2(t('features_h2'), true)}
+          {sub(t('features_sub'), true)}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:24 }}>
           {FEATURES.map(f => (
@@ -523,8 +523,8 @@ export default function LandingPage() {
       {/* ── PARTNERS ── */}
       <section id="partners" style={sec}>
         {pill(t('section_partners'))}
-        {h2('Trusted by 1,200+ organisations')}
-        {sub('From sector skill councils to Fortune 500 employers — SkillsNJobs powers India\'s largest skilling ecosystem.')}
+        {h2(t('partners_h2'))}
+        {sub(t('partners_sub'))}
         <div style={{ display:'flex', flexWrap:'wrap', gap:10, justifyContent:'center' }}>
           {PARTNERS.map(p => (
             <div key={p} style={{ background:'#F8FAFF', border:'1px solid #e0e8f4', borderRadius:24, padding:'9px 22px', fontSize:12.5, fontWeight:600, color:'#002060', transition:'all .2s', cursor:'default' }}
@@ -540,8 +540,8 @@ export default function LandingPage() {
       <section style={{ ...sec, background:'#F8FAFF' }}>
         <div style={{ textAlign:'center' }}>
           {pill(t('section_stories'))}
-          {h2('Real impact, real people')}
-          {sub('Join over 1.24 lakh learners who found their career through SkillsNJobs.')}
+          {h2(t('stories_h2'))}
+          {sub(t('stories_sub'))}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:22 }}>
           {TESTIMONIALS.map(t => (
@@ -563,8 +563,8 @@ export default function LandingPage() {
       {/* ── NEWS ── */}
       <section id="news" style={sec}>
         {pill(t('section_news'))}
-        {h2('Updates & announcements')}
-        {sub('Stay current with the latest policy updates, scheme launches, and platform news.')}
+        {h2(t('news_h2'))}
+        {sub(t('news_sub'))}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:22 }}>
           {NEWS.map(n => (
             <div key={n.title} style={{ background:'#fff', border:'1px solid #e0e8f4', borderRadius:16, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,.04)', cursor:'pointer', transition:'box-shadow .2s' }}
@@ -579,7 +579,7 @@ export default function LandingPage() {
               </div>
               <div style={{ padding:'14px 22px 22px' }}>
                 <div style={{ fontSize:13, color:'#5a6a8a', lineHeight:1.75 }}>{n.desc}</div>
-                <div style={{ fontSize:12.5, fontWeight:700, color:n.color, marginTop:14 }}>Read more →</div>
+                <div style={{ fontSize:12.5, fontWeight:700, color:n.color, marginTop:14 }}>{t('btn_read_more')}</div>
               </div>
             </div>
           ))}
@@ -589,9 +589,9 @@ export default function LandingPage() {
       {/* ── APP DOWNLOAD BANNER ── */}
       <div style={{ background:'linear-gradient(135deg,#002060,#1A56C4)', margin:'0 40px 80px', borderRadius:24, padding:'52px 48px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:32, boxShadow:'0 20px 60px rgba(0,32,96,.2)' }}>
         <div>
-          <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,.5)', letterSpacing:1, textTransform:'uppercase', marginBottom:10 }}>Mobile App — Coming Soon</div>
-          <h3 style={{ fontSize:28, fontWeight:900, color:'#fff', margin:'0 0 12px', letterSpacing:-0.5 }}>Take SkillsNJobs in your pocket</h3>
-          <p style={{ fontSize:14, color:'rgba(255,255,255,.6)', maxWidth:480, lineHeight:1.8, margin:'0 0 28px' }}>Browse courses, track applications, mark attendance, and get real-time placement notifications — all from your smartphone.</p>
+          <div style={{ fontSize:11, fontWeight:700, color:'rgba(255,255,255,.5)', letterSpacing:1, textTransform:'uppercase', marginBottom:10 }}>{t('app_pill')}</div>
+          <h3 style={{ fontSize:28, fontWeight:900, color:'#fff', margin:'0 0 12px', letterSpacing:-0.5 }}>{t('app_h3')}</h3>
+          <p style={{ fontSize:14, color:'rgba(255,255,255,.6)', maxWidth:480, lineHeight:1.8, margin:'0 0 28px' }}>{t('app_sub')}</p>
           <div style={{ display:'flex', gap:12 }}>
             {['📱 Google Play','🍎 App Store'].map(lbl => (
               <button key={lbl} style={{ padding:'12px 22px', background:'rgba(255,255,255,.12)', border:'1.5px solid rgba(255,255,255,.3)', borderRadius:10, color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}
@@ -605,7 +605,7 @@ export default function LandingPage() {
         <div style={{ textAlign:'center', flexShrink:0 }}>
           <div style={{ width:160, height:160, borderRadius:28, background:'rgba(255,255,255,.1)', border:'2px solid rgba(255,255,255,.2)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10 }}>
             <div style={{ fontSize:52 }}>📲</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontWeight:600 }}>Scan QR to download</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,.5)', fontWeight:600 }}>{t('app_scan')}</div>
           </div>
         </div>
       </div>
@@ -616,9 +616,9 @@ export default function LandingPage() {
           <div style={{ position:'sticky', top:80 }}>
             {pill(t('section_faq'))}
             {h2('Frequently asked questions')}
-            <p style={{ fontSize:14, color:'#5a6a8a', lineHeight:1.8 }}>Can't find your answer? Reach out to our support team and we'll respond within 24 hours.</p>
+            <p style={{ fontSize:14, color:'#5a6a8a', lineHeight:1.8 }}>{t('faq_support_txt')}</p>
             <button onClick={() => document.querySelector('#contact')?.scrollIntoView({ behavior:'smooth' })} style={{ marginTop:20, padding:'12px 24px', background:'#002060', border:'none', borderRadius:10, color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer' }}>
-              Contact Support →
+              {t('btn_contact_sup')}
             </button>
           </div>
           <div>
@@ -630,24 +630,24 @@ export default function LandingPage() {
       {/* ── CTA BAND ── */}
       <div style={{ background:'linear-gradient(135deg,#001228,#0a3a8c)', padding:'80px 40px', textAlign:'center' }}>
         <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,.08)', border:'1px solid rgba(255,255,255,.15)', borderRadius:24, padding:'6px 18px', fontSize:11, color:'rgba(255,255,255,.7)', letterSpacing:0.6, textTransform:'uppercase', marginBottom:24 }}>
-          🚀 Join the movement
+          {t('cta_pill')}
         </div>
-        <h2 style={{ fontSize:38, fontWeight:900, color:'#fff', letterSpacing:-0.8, marginBottom:12 }}>Ready to start your journey?</h2>
+        <h2 style={{ fontSize:38, fontWeight:900, color:'#fff', letterSpacing:-0.8, marginBottom:12 }}>{t('cta_h2')}</h2>
         <p style={{ fontSize:15, color:'rgba(255,255,255,.55)', marginBottom:36, lineHeight:1.8, maxWidth:520, margin:'0 auto 36px' }}>
-          Join over 1.24 lakh learners, 2,300 training partners, and 4,000 employers on one platform.
+          {t('cta_sub')}
         </p>
         <div style={{ display:'flex', justifyContent:'center', gap:14, flexWrap:'wrap' }}>
-          <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer' }}>Register as a candidate</button>
-          <button onClick={() => navigate('/login')} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>Sign in to portal →</button>
+          <button onClick={openRegister} style={{ padding:'14px 34px', background:'#fff', border:'none', borderRadius:12, color:'#002060', fontSize:15, fontWeight:800, cursor:'pointer' }}>{t('btn_reg_candidate')}</button>
+          <button onClick={() => navigate('/login')} style={{ padding:'14px 34px', background:'rgba(255,255,255,.1)', border:'1.5px solid rgba(255,255,255,.28)', borderRadius:12, color:'#fff', fontSize:15, fontWeight:600, cursor:'pointer' }}>{t('btn_signin_portal')}</button>
         </div>
       </div>
 
       {/* ── CONTACT ── */}
       <section id="contact" style={{ ...sec, background:'#f0f4f8' }}>
         <div style={{ textAlign:'center', marginBottom:52 }}>
-          {pill('Get in touch')}
-          {h2('Contact Us')}
-          <p style={{ fontSize:14.5, color:'#5a6a8a', maxWidth:480, margin:'0 auto', lineHeight:1.8 }}>Have a question or need help? Reach out and our team will respond within 24 hours.</p>
+          {pill(t('contact_pill'))}
+          {h2(t('contact_h2'))}
+          <p style={{ fontSize:14.5, color:'#5a6a8a', maxWidth:480, margin:'0 auto', lineHeight:1.8 }}>{t('contact_sub')}</p>
         </div>
         <div style={{ maxWidth:1060, margin:'0 auto', display:'grid', gridTemplateColumns:'1fr 1.6fr', gap:36, alignItems:'start' }}>
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -692,14 +692,14 @@ export default function LandingPage() {
             </div>
           </div>
           {[
-            { h:'Platform', links:['Candidate portal','Employer portal','Training vendor','Trainer portal','CSR portal','State govt portal'] },
-            { h:'Schemes',  links:['PMKVY 4.0','DDU-GKY','NAPS','State schemes','Digital skills'] },
-            { h:'Company',  links:['About us','Careers','Press','Blog','Sector Skill Councils'] },
-            { h:'Legal',    links:['Privacy policy','Terms of use','Grievance portal','Refund policy','Cookie policy'] },
+            { hKey:'footer_platform', links:['Candidate portal','Employer portal','Training vendor','Trainer portal','CSR portal','State govt portal'] },
+            { hKey:'footer_schemes',  links:['PMKVY 4.0','DDU-GKY','NAPS','State schemes','Digital skills'] },
+            { hKey:'footer_company',  links:['About us','Careers','Press','Blog','Sector Skill Councils'] },
+            { hKey:'footer_legal',    links:['Privacy policy','Terms of use','Grievance portal','Refund policy','Cookie policy'] },
           ].map(col => (
-            <div key={col.h}>
-              <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,.35)', letterSpacing:1, textTransform:'uppercase', marginBottom:16 }}>{col.h}</div>
-              <ul style={{ listStyle:'none', padding:0 }}>
+            <div key={col.hKey}>
+              <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,.35)', letterSpacing:1, textTransform:'uppercase', marginBottom:16 }}>{t(col.hKey)}</div>
+              <ul style={{ listStyle:'none', padding:0, margin:0 }}>
                 {col.links.map(l => (
                   <li key={l} style={{ marginBottom:10 }}>
                     <a href="#" style={{ fontSize:12.5, color:'rgba(255,255,255,.28)', textDecoration:'none', transition:'color .15s' }}

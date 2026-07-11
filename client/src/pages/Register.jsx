@@ -145,26 +145,34 @@ export default function Register() {
       if (err) { setError(err); return; }
       setOtpBusy('mobile');
       try {
+        await api.checkDuplicate('phone', countryCode + phone);
         const res = await api.sendOtp('mobile', countryCode + phone);
         setMobileOtpSent(true);
         setMobileVerified(false);
         setMobileOtp('');
         if (res.dev_otp) setDevMobileOtp(res.dev_otp);
         setError('');
-      } catch (e) { setError(e.message); }
+      } catch (e) {
+        if (e.field === 'phone') setPhoneError(e.message);
+        else setError(e.message);
+      }
       finally { setOtpBusy(''); }
     } else {
       const err = validateEmail();
       if (err) { setEmailError(err); return; }
       setOtpBusy('email');
       try {
+        await api.checkDuplicate('email', email);
         const res = await api.sendOtp('email', email);
         setEmailOtpSent(true);
         setEmailVerified(false);
         setEmailOtp('');
         if (res.dev_otp) setDevEmailOtp(res.dev_otp);
         setError('');
-      } catch (e) { setError(e.message); }
+      } catch (e) {
+        if (e.field === 'email') setEmailError(e.message);
+        else setError(e.message);
+      }
       finally { setOtpBusy(''); }
     }
   }
@@ -237,6 +245,7 @@ export default function Register() {
       navigate('/');
     } catch (err) {
       if (err.field === 'email') { setEmailError(err.message); setError(''); }
+      else if (err.field === 'phone') { setPhoneError(err.message); setError(''); }
       else if (err.field === 'org_name') { setOrgNameError(err.message); setError(''); }
       else setError(err.message);
     } finally {

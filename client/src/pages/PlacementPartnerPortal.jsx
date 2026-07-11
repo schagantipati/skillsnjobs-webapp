@@ -64,13 +64,14 @@ function CardTitle({ children }) {
 function SectionHead({ title }) {
   return <div style={{ fontSize:22, fontWeight:800, color:C.navy, marginBottom:18 }}>{title}</div>;
 }
-function Btn({ children, onClick, style, outline, danger, sm }) {
-  return <button onClick={onClick} style={{
+function Btn({ children, onClick, style, outline, danger, sm, disabled }) {
+  return <button onClick={onClick} disabled={disabled} style={{
     padding: sm ? '5px 12px' : '8px 18px',
     borderRadius:8, border: outline ? `1.5px solid ${C.blue}` : 'none',
     background: danger ? C.red : outline ? '#fff' : C.blue,
     color: outline ? C.blue : '#fff',
-    fontSize: sm ? 12 : 13, fontWeight:600, cursor:'pointer', ...style,
+    fontSize: sm ? 12 : 13, fontWeight:600, cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.6 : 1, ...style,
   }}>{children}</button>;
 }
 function Badge({ children, color='blue' }) {
@@ -191,7 +192,13 @@ export default function PlacementPartnerPortal() {
   const [plForm, setPlForm] = useState({ candidate_id:'', job_title:'', company:'', location:'', ctc:'', placement_date:'', status:'placed' });
   const [plSaving, setPlSaving] = useState(false);
   const [plMsg, setPlMsg] = useState('');
+  const [showAddPlacement, setShowAddPlacement] = useState(false);
   const [candidateList, setCandidateList] = useState([]);
+  const [jobForm, setJobForm] = useState({ title:'', description:'', required_skills:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'' });
+  const [jobSaving, setJobSaving] = useState(false);
+  const [jobMsg, setJobMsg] = useState('');
+  const [allApps, setAllApps] = useState([]);
+  const [appsLoaded, setAppsLoaded] = useState(false);
 
   // ── Agency Info state ──
   const [agInfo, setAgInfo] = useState({ org_name:'', cin:'', gstin:'', pan:'', tan:'', website:'', phone:'', email:'' });
@@ -441,15 +448,33 @@ export default function PlacementPartnerPortal() {
     if (jobsLoaded) return;
     api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
   }
+  function refreshJobs() {
+    api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
+  }
+  function loadCandidates() {
+    if (candidateList.length) return;
+    api.candidates().then(setCandidateList).catch(() => {});
+  }
+  function loadApps() {
+    if (appsLoaded) return;
+    refreshApps();
+  }
+  function refreshApps() {
+    api.myJobs().then(jobs => {
+      Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(a => ({ ...a, job_title: j.title }))).catch(() => [])))
+        .then(all => { setAllApps(all.flat()); setAppsLoaded(true); });
+    }).catch(() => {});
+  }
 
   function toggleMenu(id) {
     setOpenMenus(m => ({ ...m, [id]: !m[id] }));
   }
   function go(key) {
     setPanel(key);
-    if (['pl-active','pl-completed','pl-dropout'].includes(key)) loadPlacements();
+    if (['pl-active','pl-completed','pl-dropout'].includes(key)) { loadPlacements(); loadCandidates(); }
     if (['jobs-active','jobs-draft','jobs-closed'].includes(key)) loadJobs();
-    if (key === 'cand-search') api.candidates().then(setCandidateList).catch(() => {});
+    if (key === 'cand-search') loadCandidates();
+    if (['cand-applications','cand-interview'].includes(key)) loadApps();
     if (key === 'profile-info') loadAgInfo();
     if (key === 'profile-contact') loadContact();
     if (key === 'profile-bank') loadBank();
@@ -640,7 +665,7 @@ export default function PlacementPartnerPortal() {
         <KpiCard val={dbStats.joinedCount ?? '—'} label="Joined" sub="Confirmed joinings" color={C.teal} />
         <KpiCard val={dbStats.openJobs ?? '—'} label="Open Jobs" sub="Platform-wide" color={C.green} />
         <KpiCard val={dbStats.avgCTC ? `₹${dbStats.avgCTC}L` : '—'} label="Avg CTC" sub="Placed candidates" color={C.gold} />
-        <KpiCard val={dbStats.totalPlacements && dbStats.candidates ? `${Math.round(dbStats.totalPlacements/dbStats.candidates*100)}%` : '—'} label="Placement Rate" sub="Placed vs candidates" color={C.purple} />
+        <KpiCard val={dbStats.totalPlacements && dbStats.candidates ? `${Math.min(100, Math.round(dbStats.totalPlacements/dbStats.candidates*100))}%` : '—'} label="Placement Rate" sub="Placed vs candidates" color={C.purple} />
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[['📋','Post a Job','jobs-post'],['🔍','Find Candidates','cand-search'],['🗓️','Interviews Today','cand-interview'],['💰','Claim Incentive','pl-incentive']].map(([icon,lbl,k])=>(
@@ -658,7 +683,7 @@ export default function PlacementPartnerPortal() {
           {myJobs.length === 0
             ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No job postings yet</div>
             : <Table head={['Job Title','Location','Status']} rows={myJobs.slice(0,5).map(j=>[
-                j.job_title || '—',
+                j.title || '—',
                 j.location  || '—',
                 <Badge color={j.status==='open'?'green':j.status==='draft'?'gold':'red'}>
                   {j.status==='open'?'Active':j.status==='draft'?'Draft':'Closed'}
@@ -917,18 +942,34 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelJobPost() {
+    const f = jobForm;
+    async function handlePost(status) {
+      if (!f.title.trim()) { setJobMsg('❌ Job title is required.'); return; }
+      setJobSaving(true); setJobMsg('');
+      try {
+        const skills = f.required_skills.split(',').map(s => s.trim()).filter(Boolean);
+        await api.createJob({ title: f.title, description: f.description, required_skills: skills, location: f.location, job_type: f.job_type, salary_min: f.salary_min ? Number(f.salary_min) : null, salary_max: f.salary_max ? Number(f.salary_max) : null, status });
+        setJobMsg(status === 'open' ? '✅ Job published successfully!' : '✅ Saved as draft.');
+        setJobForm({ title:'', description:'', required_skills:'', location:'', job_type:'Full-time', salary_min:'', salary_max:'' });
+        refreshJobs();
+      } catch (e) { setJobMsg('❌ ' + e.message); }
+      setJobSaving(false);
+    }
+    const set = k => e => setJobForm(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Job Postings','Post a Job']} />
       <SectionHead title="Post a Job 📋" />
+      {jobMsg && <Alert type={jobMsg.startsWith('✅') ? 'info' : 'red'}>{jobMsg}</Alert>}
       <Card>
-        <Field label="Job Title"><Inp placeholder="e.g., Data Entry Operator" /></Field>
-        <Grid><Field label="Employer / Company"><Sel options={['TechNova Ltd','RetailMart','GreenHotel','LogiCo','CallFirst','+ Add New']} /></Field><Field label="Job Location"><Inp placeholder="City" /></Field></Grid>
-        <Grid><Field label="Job Sector"><Sel options={['IT-ITES','Retail','Hospitality','Logistics','BPO','Healthcare','Construction']} /></Field><Field label="NSQF Level"><Sel options={['NSQF Level 2','NSQF Level 3','NSQF Level 4','NSQF Level 5']} /></Field></Grid>
-        <Grid><Field label="Number of Vacancies"><Inp defaultValue="10" /></Field><Field label="Salary Range (₹/month)"><Inp placeholder="e.g., 12000 – 18000" /></Field></Grid>
-        <Grid><Field label="Min. Qualification"><Sel options={['10th Pass','12th Pass','Diploma','Graduate','Any']} /></Field><Field label="Experience"><Sel options={['Fresher','0–1 year','1–3 years','3+ years']} /></Field></Grid>
-        <Grid><Field label="Application Deadline"><input type="date" defaultValue="2026-07-31" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5 }} /></Field><Field label="Job Type"><Sel options={['Full-time','Part-time','Contract','Apprenticeship']} /></Field></Grid>
-        <Field label="Job Description"><textarea rows={4} placeholder="Describe roles, responsibilities, requirements…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontFamily:'inherit', fontSize:13.5 }} /></Field>
-        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}><Btn outline>Save as Draft</Btn> <Btn style={{ background:C.blue }}>🚀 Post Job</Btn></div>
+        <Field label="Job Title"><input value={f.title} onChange={set('title')} placeholder="e.g., Data Entry Operator" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <Grid><Field label="Job Location"><input value={f.location} onChange={set('location')} placeholder="City" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field><Field label="Job Type"><select value={f.job_type} onChange={set('job_type')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>{['Full-time','Part-time','Contract','Apprenticeship'].map(o=><option key={o}>{o}</option>)}</select></Field></Grid>
+        <Field label="Required Skills"><input value={f.required_skills} onChange={set('required_skills')} placeholder="e.g. Excel, Communication, MS Office (comma separated)" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <Grid><Field label="Min Salary (₹/year)"><input value={f.salary_min} onChange={set('salary_min')} type="number" placeholder="e.g. 150000" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field><Field label="Max Salary (₹/year)"><input value={f.salary_max} onChange={set('salary_max')} type="number" placeholder="e.g. 220000" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field></Grid>
+        <Field label="Job Description"><textarea value={f.description} onChange={set('description')} rows={4} placeholder="Describe roles, responsibilities, requirements…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontFamily:'inherit', fontSize:13.5 }} /></Field>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <Btn outline onClick={() => handlePost('draft')} disabled={jobSaving}>Save as Draft</Btn>
+          <Btn style={{ background:C.blue }} onClick={() => handlePost('open')} disabled={jobSaving}>🚀 Post Job</Btn>
+        </div>
       </Card>
     </>;
   }
@@ -1042,42 +1083,55 @@ export default function PlacementPartnerPortal() {
   }
 
   function PanelCandApplications() {
-    const total    = myPlacements.length;
-    const placed   = myPlacements.filter(p=>['placed','joined'].includes(p.status)).length;
-    const pending  = myPlacements.filter(p=>!['placed','joined'].includes(p.status)).length;
+    const total   = allApps.length;
+    const shortlisted = allApps.filter(a=>['shortlisted','interview','hired'].includes(a.status)).length;
+    const pending  = allApps.filter(a=>a.status==='applied').length;
+    const statusColor = { applied:'blue', shortlisted:'green', interview:'teal', hired:'purple', rejected:'red' };
     return <>
       <Bc parts={['Candidates','Applications Received']} />
       <SectionHead title="Applications Received 📥" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:20 }}>
-        <KpiCard val={total}   label="Total Candidates" sub="All time" />
-        <KpiCard val={placed}  label="Placed / Joined"  sub="Confirmed"      color={C.green} />
-        <KpiCard val={pending} label="In Progress"      sub="Active cases"   color={C.blue} />
+        <KpiCard val={total}       label="Total Applications" sub="Across my jobs" />
+        <KpiCard val={shortlisted} label="Shortlisted+"       sub="Progressed"     color={C.green} />
+        <KpiCard val={pending}     label="New / Pending"      sub="Awaiting review" color={C.blue} />
       </div>
       <Card>
-        <Table head={['Candidate','Job Applied','Applied On','Experience','Status','Action']} rows={[
-          ['Amit Sharma','Data Entry Operator','Jul 4, 2026','Fresher',<Badge color="blue">New</Badge>,<Btn sm style={{ background:C.blue }}>Review</Btn>],
-          ['Kavita Joshi','Sales Executive','Jul 4, 2026','1 yr',<Badge color="blue">New</Badge>,<Btn sm style={{ background:C.blue }}>Review</Btn>],
-          ['Mohan Das','BPO Associate','Jul 3, 2026','Fresher',<Badge color="gold">Reviewed</Badge>,<Btn sm outline>Shortlist</Btn>],
-          ['Lata Rao','Housekeeping','Jul 3, 2026','2 yrs',<Badge color="green">Shortlisted</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
+        {!appsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
+         allApps.length === 0 ? <div style={{ color:'#888', padding:16 }}>No applications yet. Post a job to start receiving applications.</div> :
+        <Table head={['Candidate','Job Applied','Experience','Status','Action']} rows={allApps.map(a => [
+          a.candidate_name || `Candidate #${a.candidate_id}`,
+          a.job_title || '—',
+          a.experience_years != null ? `${a.experience_years} yr` : 'Fresher',
+          <Badge color={statusColor[a.status] || 'blue'}>{a.status}</Badge>,
+          <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
+            value={a.status}
+            onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(refreshApps)}>
+            {['applied','shortlisted','interview','hired','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        ])} />}
       </Card>
     </>;
   }
 
   function PanelCandInterview() {
-    const inProgress = myPlacements.filter(p=>!['placed','joined'].includes(p.status));
+    const inPipeline = allApps.filter(a => a.status === 'interview');
     const si = k => e => setPpInterview(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Candidates','Interview Pipeline']} />
       <SectionHead title="Interview Pipeline 🗓️" />
       <Card>
         <CardTitle>Active Candidates in Pipeline</CardTitle>
-        {inProgress.length === 0
-          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No candidates in pipeline</div>
-          : <Table head={['Candidate','Job Role','Employer','Status','Action']} rows={inProgress.map(p=>[
-              p.candidate_name || '—', p.job_title || '—', p.company || '—',
-              <Badge color="blue">{p.status}</Badge>,
-              <Btn sm outline>View</Btn>,
+        {!appsLoaded ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>Loading…</div> :
+         inPipeline.length === 0
+          ? <div style={{ color:'#94a3b8', fontSize:13, padding:'16px 0', textAlign:'center' }}>No candidates in interview stage</div>
+          : <Table head={['Candidate','Job Role','Status','Action']} rows={inPipeline.map(a=>[
+              a.candidate_name || '—', a.job_title || '—',
+              <Badge color="teal">{a.status}</Badge>,
+              <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
+                value={a.status}
+                onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(refreshApps)}>
+                {['applied','shortlisted','interview','hired','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>,
             ])} />}
       </Card>
       <Card>
@@ -1155,6 +1209,19 @@ export default function PlacementPartnerPortal() {
 
   function PanelPlActive() {
     const active = myPlacements.filter(p => ['placed','joined'].includes(p.status));
+    async function submitPlacement() {
+      if (!plForm.candidate_id || !plForm.job_title.trim()) { setPlMsg('❌ Candidate and job title are required.'); return; }
+      setPlSaving(true); setPlMsg('');
+      try {
+        await api.createPlacement({ ...plForm, candidate_id: Number(plForm.candidate_id), ctc: plForm.ctc ? Number(plForm.ctc) : null });
+        setPlMsg('✅ Placement recorded!');
+        setPlForm({ candidate_id:'', job_title:'', company:'', location:'', ctc:'', placement_date:'', status:'placed' });
+        setShowAddPlacement(false);
+        refreshPlacements();
+      } catch (e) { setPlMsg('❌ ' + e.message); }
+      setPlSaving(false);
+    }
+    const setPl = k => e => setPlForm(v => ({ ...v, [k]: e.target.value }));
     return <>
       <Bc parts={['Placement Tracker','Active Placements']} />
       <SectionHead title="Active Placements 🎯" />
@@ -1162,8 +1229,42 @@ export default function PlacementPartnerPortal() {
         <KpiCard val={active.length || dbStats.totalPlacements || 0} label="Currently Placed" sub="In employment" />
         <KpiCard val={dbStats.placedThisYear || 0} label="This Year" sub="New placements" color={C.green} />
         <KpiCard val={dbStats.joinedCount || 0} label="Joined" sub="Confirmed joining" color={C.blue} />
-        <KpiCard val={dbStats.avgCTC ? `₹${(dbStats.avgCTC/100000).toFixed(1)}L` : '—'} label="Avg CTC" sub="Per annum" color={C.purple} />
+        <KpiCard val={dbStats.avgCTC ? `₹${dbStats.avgCTC}L` : '—'} label="Avg CTC" sub="Per annum" color={C.purple} />
       </div>
+      <div style={{ marginBottom:14 }}>
+        <Btn style={{ background:C.blue }} onClick={() => setShowAddPlacement(v => !v)}>{showAddPlacement ? 'Cancel' : '+ Add Placement'}</Btn>
+      </div>
+      {showAddPlacement && (
+        <Card style={{ marginBottom:16 }}>
+          <CardTitle>New Placement Record</CardTitle>
+          {plMsg && <Alert type={plMsg.startsWith('✅') ? 'info' : 'red'}>{plMsg}</Alert>}
+          <Grid>
+            <Field label="Candidate">
+              <select value={plForm.candidate_id} onChange={setPl('candidate_id')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+                <option value="">Select candidate…</option>
+                {candidateList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Job Title"><input value={plForm.job_title} onChange={setPl('job_title')} placeholder="e.g. Data Entry Operator" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+          </Grid>
+          <Grid>
+            <Field label="Company"><input value={plForm.company} onChange={setPl('company')} placeholder="e.g. TechNova Pvt Ltd" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+            <Field label="Location"><input value={plForm.location} onChange={setPl('location')} placeholder="e.g. Bengaluru" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+          </Grid>
+          <Grid>
+            <Field label="CTC (₹/year)"><input value={plForm.ctc} onChange={setPl('ctc')} type="number" placeholder="e.g. 350000" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+            <Field label="Placement Date"><input value={plForm.placement_date} onChange={setPl('placement_date')} type="date" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }} /></Field>
+          </Grid>
+          <Field label="Status">
+            <select value={plForm.status} onChange={setPl('status')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['placed','joined','dropped'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <div style={{ display:'flex', justifyContent:'flex-end' }}>
+            <Btn style={{ background:C.blue }} onClick={submitPlacement} disabled={plSaving}>{plSaving ? 'Saving…' : 'Save Placement'}</Btn>
+          </div>
+        </Card>
+      )}
       <Card>
         {!placementsLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
          active.length === 0 ? <div style={{ color:'#888', padding:16 }}>No active placements yet.</div> :

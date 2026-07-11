@@ -5,9 +5,9 @@ const { authRequired, requireRole } = require('../middleware/auth');
 const router = express.Router();
 
 // Placement agency: my placements
-router.get('/mine', authRequired, requireRole('placement_agency', 'admin'), async (req, res) => {
+router.get('/mine', authRequired, requireRole('placement_agency', 'admin', 'superadmin'), async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
     let sql = `SELECT p.*, u.name as candidate_name, u.email as candidate_email,
       e.name as employer_name, e.org_name
       FROM placements p
@@ -21,13 +21,13 @@ router.get('/mine', authRequired, requireRole('placement_agency', 'admin'), asyn
 });
 
 // Summary stats
-router.get('/summary', authRequired, requireRole('placement_agency', 'admin'), async (req, res) => {
+router.get('/summary', authRequired, requireRole('placement_agency', 'admin', 'superadmin'), async (req, res) => {
   try {
     const agencyId = req.user.id;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
     const where = isAdmin ? '' : 'WHERE agency_id=$1';
     const params = isAdmin ? [] : [agencyId];
-    const yearWhere = isAdmin ? "WHERE EXTRACT(YEAR FROM placement_date)=EXTRACT(YEAR FROM CURRENT_DATE)" : "WHERE agency_id=$1 AND EXTRACT(YEAR FROM placement_date)=EXTRACT(YEAR FROM CURRENT_DATE)";
+    const yearWhere = isAdmin ? "WHERE LEFT(placement_date,4)=TO_CHAR(CURRENT_DATE,'YYYY')" : "WHERE agency_id=$1 AND LEFT(placement_date,4)=TO_CHAR(CURRENT_DATE,'YYYY')";
     const joinedWhere = isAdmin ? "WHERE status='joined'" : "WHERE agency_id=$1 AND status='joined'";
 
     const total    = await queryOne(`SELECT COUNT(*) c, AVG(ctc) avg_ctc FROM placements ${where}`, params);

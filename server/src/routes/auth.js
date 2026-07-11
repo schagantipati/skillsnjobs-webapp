@@ -8,6 +8,7 @@ const router = express.Router();
 
 // In-memory OTP store: key = "type:value", value = { otp, expires }
 const otpStore = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, v] of otpStore) if (now > v.expires) otpStore.delete(k); }, 5 * 60 * 1000);
 
 function generateOtp() {
   if (process.env.HARDCODE_OTP === 'true') return '000000';
@@ -26,6 +27,24 @@ function publicUser(u) {
     photo: u.photo,
   };
 }
+
+// Check if email or phone is already registered (used before OTP send)
+router.post('/check-duplicate', async (req, res) => {
+  try {
+    const { field, value } = req.body;
+    if (!field || !value) return res.status(400).json({ error: 'field and value required' });
+    let row;
+    if (field === 'email') {
+      row = await queryOne('SELECT id FROM users WHERE LOWER(TRIM(email))=LOWER(TRIM($1))', [value]);
+      if (row) return res.status(409).json({ error: 'Email is already registered.', field: 'email' });
+    } else if (field === 'phone') {
+      const digits = value.replace(/\D/g, '').slice(-10);
+      row = await queryOne("SELECT id FROM users WHERE RIGHT(REGEXP_REPLACE(phone,'\\D','','g'),10)=$1", [digits]);
+      if (row) return res.status(409).json({ error: 'Mobile number is already registered.', field: 'phone' });
+    }
+    res.json({ available: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
 
 // Send OTP to mobile or email
 router.post('/send-otp', (req, res) => {
@@ -88,6 +107,13 @@ router.post('/register', async (req, res) => {
 
     const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email]);
     if (existing && role !== 'training_vendor') return res.status(409).json({ error: 'Email already registered', field: 'email' });
+
+    // Phone duplicate check for non-vendor roles
+    if (role !== 'training_vendor' && phone?.trim()) {
+      const digits = phone.replace(/\D/g, '').slice(-10);
+      const dupPhone = await queryOne("SELECT id FROM users WHERE RIGHT(REGEXP_REPLACE(phone,'\\D','','g'),10)=$1", [digits]);
+      if (dupPhone) return res.status(409).json({ error: 'Mobile number is already registered with another account.', field: 'phone' });
+    }
 
     // Training vendor duplicate checks
     if (role === 'training_vendor') {

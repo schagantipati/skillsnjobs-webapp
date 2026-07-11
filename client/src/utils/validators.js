@@ -1,6 +1,7 @@
 // Standard Indian form field validators — return error string or '' if valid
 
 export const PATTERNS = {
+  name:    /^[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ\s'.\-]{1,99}$/,
   mobile:  /^[6-9]\d{9}$/,
   email:   /^[^\s@.][^\s@]{0,252}@[^\s@]+\.[^\s@]{2,}$/,
   pincode: /^\d{6}$/,
@@ -15,6 +16,7 @@ export const PATTERNS = {
 };
 
 export const MESSAGES = {
+  name:    'Name must contain only letters, spaces, hyphens, apostrophes or dots (2–100 characters)',
   mobile:  'Must be a 10-digit number starting with 6–9',
   email:   'Enter a valid email address (e.g. name@example.com)',
   pincode: 'Must be a 6-digit PIN code',

@@ -436,7 +436,7 @@ function Centres({ activeSection, onNav }) {
       <div>
         <div style={S.pageTitle}>Add Training Centre</div>
         <div style={S.pageSub}>Training Centres → Add Centre</div>
-        <CentreForm form={form} setForm={setForm} onSave={async () => { await api.createVendorCentre(form); onNav('centres'); }} onCancel={() => onNav('centres')} saving={saving} setSaving={setSaving} />
+        <CentreForm form={form} setForm={setForm} onSave={async () => { await api.createVendorCentre(form); reload(); onNav('centres'); }} onCancel={() => onNav('centres')} saving={saving} setSaving={setSaving} />
       </div>
     );
   }
@@ -1348,6 +1348,783 @@ function Grievances() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// COLLABORATION PANELS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const PARTNER_TYPES = ['Training Partner','NGO','Employer','Assessment Agency','Placement Partner','Educational Institution','CSR Implementation Partner'];
+const STATES_LIST = ['Andhra Pradesh','Telangana','Karnataka','Tamil Nadu','Maharashtra','Delhi','Uttar Pradesh','Gujarat','Rajasthan','West Bengal','Odisha','Madhya Pradesh'];
+const SECTORS_COL = ['IT / ITeS','Healthcare','Construction','Logistics','Agriculture','Retail','BFSI','Automotive','Beauty & Wellness','Green Jobs','Textile','Tourism'];
+
+// ── Org Picker Dropdown ───────────────────────────────────────────────────────
+function OrgPickerField({ partners, invitePickerPartners, invForm, setInvForm, toggleOrgSelect }) {
+  const [open, setOpen] = useState(false);
+  const selectedNames = invForm.inviteAll
+    ? [`All (${partners.length})`]
+    : partners.filter(p => invForm.selectedIds.includes(p.id)).map(p => p.org_name);
+
+  return (
+    <div style={{ ...S.fGroup, gridColumn:'1/-1', position:'relative' }}>
+      <label style={S.label}>Organisations *</label>
+
+      {/* Classification filter chips */}
+      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+        {['All', ...PARTNER_TYPES].map(cls => (
+          <button key={cls} onClick={() => {
+            if (cls === 'All') setInvForm(p => ({ ...p, classification:'', selectedIds:[], inviteAll:true }));
+            else setInvForm(p => ({ ...p, classification: p.classification === cls ? '' : cls, inviteAll:false, selectedIds:[] }));
+          }} style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:600, cursor:'pointer', border:'1px solid #CBD5E1',
+            background: cls === 'All' ? (invForm.inviteAll ? '#0A2D6E' : '#F1F5F9') : (invForm.classification === cls ? '#0A2D6E' : '#F1F5F9'),
+            color: (cls === 'All' ? invForm.inviteAll : invForm.classification === cls) ? '#fff' : '#475569' }}>
+            {cls}
+          </button>
+        ))}
+      </div>
+
+      {/* Dropdown trigger */}
+      {!invForm.inviteAll && (
+        <div style={{ position:'relative' }}>
+          <div onClick={() => setOpen(o => !o)}
+            style={{ ...S.input, cursor:'pointer', display:'flex', alignItems:'center', flexWrap:'wrap', gap:4, minHeight:38, height:'auto', padding:'6px 10px', userSelect:'none' }}>
+            {selectedNames.length === 0
+              ? <span style={{ color:'#94A3B8', fontSize:12 }}>Select organisations…</span>
+              : selectedNames.map(name => (
+                  <span key={name} style={{ background:'#EFF6FF', color:'#1D4ED8', fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:12, border:'1px solid #BFDBFE' }}>
+                    {name}
+                  </span>
+                ))
+            }
+            <span style={{ marginLeft:'auto', color:'#94A3B8', fontSize:12 }}>{open ? '▲' : '▼'}</span>
+          </div>
+
+          {open && (
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:999, background:'#fff', border:'1px solid #E2E8F0', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', maxHeight:220, overflowY:'auto', marginTop:2 }}>
+              {invitePickerPartners.length === 0
+                ? <div style={{ padding:'14px 12px', fontSize:12, color:'#94A3B8' }}>No organisations found for this classification.</div>
+                : invitePickerPartners.map(p => {
+                    const sel = invForm.selectedIds.includes(p.id);
+                    return (
+                      <div key={p.id} onClick={() => toggleOrgSelect(p.id)}
+                        style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', cursor:'pointer',
+                          background: sel ? '#EFF6FF' : '#fff', borderBottom:'1px solid #F1F5F9' }}>
+                        <div style={{ width:16, height:16, borderRadius:3, border:`2px solid ${sel ? '#0A2D6E' : '#CBD5E1'}`,
+                          background: sel ? '#0A2D6E' : '#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {sel && <span style={{ color:'#fff', fontSize:10, fontWeight:700, lineHeight:1 }}>✓</span>}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:12, fontWeight:600, color:'#0B1E3D' }}>{p.org_name}</div>
+                          <div style={{ fontSize:11, color:'#64748B' }}>{p.type || 'Training Partner'} · {p.state || '—'}{p.sector ? ` · ${p.sector}` : ''}</div>
+                        </div>
+                      </div>
+                    );
+                  })
+              }
+            </div>
+          )}
+        </div>
+      )}
+
+      {invForm.inviteAll && (
+        <div style={{ ...S.alert('info'), marginTop:0 }}>ℹ️ Invitation will be sent to <strong>all {partners.length} organisations</strong> in the directory.</div>
+      )}
+      {!invForm.inviteAll && invForm.selectedIds.length > 0 && (
+        <div style={{ fontSize:11, color:'#0A2D6E', marginTop:4, fontWeight:600 }}>{invForm.selectedIds.length} organisation{invForm.selectedIds.length > 1 ? 's' : ''} selected</div>
+      )}
+    </div>
+  );
+}
+
+// ── Consortium Builder ────────────────────────────────────────────────────────
+function CollabConsortium() {
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [sectorFilter, setSectorFilter] = useState('');
+  const [modal, setModal] = useState(null);
+  const [invForm, setInvForm] = useState({ selectedIds:[], inviteAll:false, classification:'', invitation_type:'Consortium Invitation', project_name:'', sector:'', state:'', message:'' });
+  const [partners, setPartners] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.collabConsortium().then(data => setPartners(Array.isArray(data) ? data : [])).catch(()=>{}).finally(()=>setBusy(false));
+  }, []);
+
+  const filtered = partners.filter(p => {
+    const q = search.toLowerCase();
+    return (!q || (p.org_name||'').toLowerCase().includes(q) || (p.sector||'').toLowerCase().includes(q) || (p.state||'').toLowerCase().includes(q))
+      && (!typeFilter || p.type === typeFilter)
+      && (!sectorFilter || p.sector === sectorFilter || p.sector === 'Multiple');
+  });
+
+  // Partners visible in the invite modal's org picker after classification filter
+  const invitePickerPartners = invForm.classification
+    ? partners.filter(p => p.type === invForm.classification)
+    : partners;
+
+  const toggleOrgSelect = (id) => {
+    setInvForm(p => {
+      const ids = p.selectedIds.includes(id) ? p.selectedIds.filter(x => x !== id) : [...p.selectedIds, id];
+      return { ...p, selectedIds: ids, inviteAll: false };
+    });
+  };
+
+  const sendInvitation = async () => {
+    if (!invForm.invitation_type || !invForm.project_name) return alert('Invitation type and project name are required.');
+    if (!invForm.inviteAll && invForm.selectedIds.length === 0) return alert('Select at least one organisation.');
+    setSaving(true);
+    try {
+      const targets = invForm.inviteAll ? partners : partners.filter(p => invForm.selectedIds.includes(p.id));
+      // Also allow a pre-selected partner from card button
+      const cardPartner = modal?.partner;
+      const toSend = targets.length > 0 ? targets : (cardPartner ? [cardPartner] : []);
+      if (toSend.length === 0) { alert('No organisations selected.'); setSaving(false); return; }
+      await Promise.all(toSend.map(p =>
+        api.collabSendInvitation({ to_vendor_id: p.id || null, to_org_name: p.org_name || null, invitation_type: invForm.invitation_type, project_name: invForm.project_name, sector: invForm.sector, state: invForm.state, message: invForm.message })
+      ));
+      alert(`Invitation sent to ${toSend.length} organisation${toSend.length > 1 ? 's' : ''}!`);
+      setModal(null);
+      setInvForm({ selectedIds:[], inviteAll:false, classification:'', invitation_type:'Consortium Invitation', project_name:'', sector:'', state:'', message:'' });
+    } catch(e) { alert('Failed to send invitation. Please try again.'); }
+    finally { setSaving(false); }
+  };
+
+  const typeIcon = { 'Training Partner':'🎓','NGO':'🤝','Employer':'🏭','Assessment Agency':'📋','Placement Partner':'💼','Educational Institution':'🏫','CSR Implementation Partner':'🌱' };
+
+  return (
+    <div>
+      <div style={S.pageTitle}>Consortium Builder</div>
+      <div style={S.pageSub}>Identify and connect with suitable partners for Government, CSR and Corporate projects</div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
+        <input style={{ ...S.input, width:220 }} placeholder="Search by name, sector, state…" value={search} onChange={e => setSearch(e.target.value)} />
+        <select style={{ ...S.select, width:200 }} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          <option value="">All Partner Types</option>
+          {PARTNER_TYPES.map(t => <option key={t}>{t}</option>)}
+        </select>
+        <select style={{ ...S.select, width:160 }} value={sectorFilter} onChange={e => setSectorFilter(e.target.value)}>
+          <option value="">All Sectors</option>
+          {SECTORS_COL.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <span style={{ fontSize:12, color:'#64748B' }}>{busy ? 'Loading…' : `${filtered.length} organisations found`}</span>
+        <button style={{ ...S.btnPrimary, marginLeft:'auto' }} onClick={() => setModal('invite')}>+ Send Consortium Invitation</button>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12, marginBottom:14 }}>
+        {filtered.map(p => (
+          <div key={p.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'flex-start' }}>
+            <div style={{ width:44, height:44, borderRadius:10, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{typeIcon[p.type]||'🏢'}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#0B1E3D', marginBottom:2 }}>{p.org_name}</div>
+              <div style={{ fontSize:11, color:'#64748B', marginBottom:6 }}>{p.type || 'Training Partner'} · {p.state || '—'}</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                <Pill col="blue">{p.sector || 'Multiple'}</Pill>
+                {p.city && <Pill col="gray">{p.city}</Pill>}
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                <button style={S.btnSmPrimary} onClick={() => setModal({ type:'invite', partner: p })}>Invite</button>
+                <button style={S.btnSm} onClick={() => setModal({ type:'view', partner: p })}>View Profile</button>
+                <button style={{ ...S.btnSm, borderColor:'#10B981', color:'#065F46' }}>Express Interest</button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <div style={{ gridColumn:'1/-1' }}><Empty icon="🤝" msg="No partners found. Try adjusting filters." /></div>}
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+        {[
+          { l:'Total Partners', v: partners.length, col:'#0A2D6E' },
+          { l:'Training Partners', v: partners.filter(p=>p.type==='Training Partner').length, col:'#0F6E56' },
+          { l:'Employers', v: partners.filter(p=>p.type==='Employer').length, col:'#B45309' },
+          { l:'NGOs & CSR', v: partners.filter(p=>['NGO','CSR Implementation Partner'].includes(p.type)).length, col:'#6D28D9' },
+        ].map(({ l, v, col }) => (
+          <div key={l} style={S.stat}>
+            <div style={{ fontSize:22, fontWeight:700, color:col }}>{v}</div>
+            <div style={{ fontSize:12, color:'#64748B', marginTop:2 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {modal === 'invite' || (modal && modal.type === 'invite') ? (
+        <Modal title="Send Consortium Invitation" onClose={() => setModal(null)} wide>
+          <div style={S.fGrid(2)}>
+
+            {/* ── Organisation Picker ── */}
+            <OrgPickerField
+              partners={partners}
+              invitePickerPartners={invitePickerPartners}
+              invForm={invForm}
+              setInvForm={setInvForm}
+              toggleOrgSelect={toggleOrgSelect}
+            />
+
+            <div style={S.fGroup}><label style={S.label}>Invitation type *</label>
+              <select style={S.select} value={invForm.invitation_type} onChange={e => setInvForm(p=>({...p, invitation_type:e.target.value}))}>
+                {['Consortium Invitation','Partnership Invitation','Resource Sharing Request','Joint Project Invitation','Employer Collaboration Request'].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Project / Consortium name *</label>
+              <input style={S.input} value={invForm.project_name} onChange={e => setInvForm(p=>({...p, project_name:e.target.value}))} placeholder="e.g. DDU-GKY Phase 3 Consortium" /></div>
+            <div style={S.fGroup}><label style={S.label}>Sector</label>
+              <select style={S.select} value={invForm.sector} onChange={e => setInvForm(p=>({...p, sector:e.target.value}))}>
+                <option value="">Select</option>{SECTORS_COL.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>State</label>
+              <select style={S.select} value={invForm.state} onChange={e => setInvForm(p=>({...p, state:e.target.value}))}>
+                <option value="">Select</option>{STATES_LIST.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Message / Invitation note</label>
+              <textarea style={S.textarea} value={invForm.message} onChange={e => setInvForm(p=>({...p, message:e.target.value}))} placeholder="Describe the collaboration opportunity, requirements and expected contribution…" />
+            </div>
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={sendInvitation}>{saving ? 'Sending…' : 'Send Invitation'}</button>
+          </div>
+        </Modal>
+      ) : modal && modal.type === 'view' ? (
+        <Modal title={modal.partner.org_name} onClose={() => setModal(null)}>
+          <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:16 }}>
+            <div style={{ width:52, height:52, borderRadius:12, background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28 }}>{typeIcon[modal.partner.type]||'🏢'}</div>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#0B1E3D' }}>{modal.partner.org_name}</div>
+              <div style={{ fontSize:12, color:'#64748B' }}>{modal.partner.type || 'Training Partner'} · {modal.partner.state || '—'}</div>
+            </div>
+          </div>
+          {[['Sector', modal.partner.sector||'—'],['City', modal.partner.city||'—'],['State', modal.partner.state||'—'],['Member since', fmtDate(modal.partner.member_since)]].map(([l,v]) => (
+            <div key={l} style={{ display:'flex', padding:'8px 0', borderBottom:'1px solid #F8FAFF' }}>
+              <span style={{ width:180, fontSize:12, color:'#64748B' }}>{l}</span>
+              <span style={{ fontSize:12, fontWeight:600 }}>{v}</span>
+            </div>
+          ))}
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Close</button>
+            <button style={S.btnPrimary} onClick={() => setModal({ type:'invite', partner: modal.partner })}>Send Invitation</button>
+          </div>
+        </Modal>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Partnership Requests ──────────────────────────────────────────────────────
+function CollabPartnership() {
+  const [tab, setTab] = useState('browse');
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({ lookingFor:'', sector:'', state:'', description:'', project_type:'' });
+  const [allRequests, setAllRequests] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [respondMsg, setRespondMsg] = useState('');
+
+  const loadRequests = () => {
+    setBusy(true);
+    api.collabPartnershipRequests().then(data => {
+      setAllRequests(data.all || []);
+      setMyRequests(data.mine || []);
+    }).catch(()=>{}).finally(()=>setBusy(false));
+  };
+  useEffect(loadRequests, []);
+
+  const postRequest = async () => {
+    if (!form.lookingFor) return alert('Please select what you are looking for.');
+    setSaving(true);
+    try {
+      await api.collabPostPartnershipRequest({ looking_for: form.lookingFor, sector: form.sector, state: form.state, project_type: form.project_type, description: form.description });
+      setModal(null);
+      setForm({ lookingFor:'', sector:'', state:'', description:'', project_type:'' });
+      loadRequests();
+    } catch(e) { alert('Failed to post request.'); }
+    finally { setSaving(false); }
+  };
+
+  const respondToRequest = async (id) => {
+    setSaving(true);
+    try {
+      await api.collabRespondToRequest(id, respondMsg);
+      alert('Interest expressed successfully!');
+      setModal(null);
+      setRespondMsg('');
+      loadRequests();
+    } catch(e) { alert('Failed to express interest.'); }
+    finally { setSaving(false); }
+  };
+
+  const closeRequest = async (id) => {
+    if (!window.confirm('Close this partnership request?')) return;
+    try { await api.collabClosePartnershipRequest(id); loadRequests(); } catch(e) { alert('Failed to close request.'); }
+  };
+
+  const lookingForOptions = ['Training Partner','Employer Partner','Placement Partner','CSR Partner','University / College Partner','Assessment Agency'];
+
+  return (
+    <div>
+      <div style={S.pageTitle}>Partnership Requests</div>
+      <div style={S.pageSub}>Publish your collaboration requirements and respond to partner requests</div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:14, borderBottom:'1px solid #E2E8F0', paddingBottom:10 }}>
+        {[{ key:'browse', label:'Browse Requests' },{ key:'mine', label:'My Requests' }].map(t => (
+          <button key={t.key} style={{ padding:'6px 16px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', border:'none',
+            background: tab===t.key ? '#0A2D6E':'#F1F5F9', color: tab===t.key ? '#fff':'#475569' }}
+            onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+        <button style={{ ...S.btnPrimary, marginLeft:'auto' }} onClick={() => setModal('post')}>+ Post a Request</button>
+      </div>
+
+      {tab === 'browse' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && allRequests.length === 0 && <Empty icon="📢" msg="No open partnership requests found." />}
+          {allRequests.map(r => (
+            <div key={r.id} style={{ ...S.card, display:'flex', alignItems:'center', gap:14 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{r.org_name}</span>
+                  <Pill col="blue">Looking for {r.looking_for}</Pill>
+                </div>
+                <div style={{ fontSize:12, color:'#64748B', marginBottom:6 }}>Sector: {r.sector||'—'} · State: {r.state||'—'} · {fmtDate(r.created_at)}</div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <Pill col="green">{r.response_count||0} responses</Pill>
+                  {statusPill(r.status)}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                <button style={S.btnSmPrimary} onClick={() => { setRespondMsg(''); setModal({ type:'respond', req: r }); }}>Express Interest</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'mine' && (
+        <div>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && myRequests.length === 0 ? <Empty icon="📢" msg="You haven't posted any partnership requests yet." /> : (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {myRequests.map(r => (
+                <div key={r.id} style={{ ...S.card, display:'flex', alignItems:'center', gap:14 }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:4 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>Looking for {r.looking_for}</span>
+                      {statusPill(r.status)}
+                    </div>
+                    <div style={{ fontSize:12, color:'#64748B' }}>Sector: {r.sector||'—'} · State: {r.state||'—'} · {fmtDate(r.created_at)}</div>
+                    {r.description && <div style={{ fontSize:12, color:'#475569', marginTop:4 }}>{r.description}</div>}
+                  </div>
+                  <div style={{ textAlign:'center' }}>
+                    <div style={{ fontSize:20, fontWeight:700, color:'#0A2D6E' }}>{r.response_count||0}</div>
+                    <div style={{ fontSize:11, color:'#64748B' }}>Responses</div>
+                  </div>
+                  <div style={{ display:'flex', gap:6 }}>
+                    {r.status === 'open' && <button style={S.btnSmDanger} onClick={() => closeRequest(r.id)}>Close Request</button>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal === 'post' && (
+        <Modal title="Post a Partnership Request" onClose={() => setModal(null)} wide>
+          <div style={S.fGrid(2)}>
+            <div style={S.fGroup}><label style={S.label}>Looking for *</label>
+              <select style={S.select} value={form.lookingFor} onChange={e => setForm(p=>({...p,lookingFor:e.target.value}))}>
+                <option value="">Select partner type</option>{lookingForOptions.map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Sector</label>
+              <select style={S.select} value={form.sector} onChange={e => setForm(p=>({...p,sector:e.target.value}))}>
+                <option value="">Select</option>{SECTORS_COL.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Preferred State</label>
+              <select style={S.select} value={form.state} onChange={e => setForm(p=>({...p,state:e.target.value}))}>
+                <option value="">Select</option>{STATES_LIST.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Project / Requirement type</label>
+              <select style={S.select} value={form.project_type} onChange={e => setForm(p=>({...p,project_type:e.target.value}))}>
+                <option value="">Select</option>{['Government Project','CSR Project','Corporate Training','Self-financed'].map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Description *</label>
+              <textarea style={S.textarea} value={form.description} onChange={e => setForm(p=>({...p,description:e.target.value}))}
+                placeholder="Describe what kind of partner you're looking for, your project details and requirements…" />
+            </div>
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={postRequest}>{saving ? 'Posting…' : 'Post Request'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {modal && modal.type === 'respond' && (
+        <Modal title={`Express Interest — ${modal.req.org_name}`} onClose={() => setModal(null)}>
+          <div style={S.alert('info')}>ℹ️ You are expressing interest in {modal.req.org_name}'s request for a <strong>{modal.req.looking_for}</strong>.</div>
+          <div style={{ ...S.fGroup, marginBottom:12, marginTop:10 }}><label style={S.label}>Message to {modal.req.org_name}</label>
+            <textarea style={S.textarea} value={respondMsg} onChange={e => setRespondMsg(e.target.value)} placeholder="Introduce your organisation and describe why you're a good fit for this partnership…" />
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={() => respondToRequest(modal.req.id)}>{saving ? 'Sending…' : 'Send Expression of Interest'}</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── Resource Sharing ──────────────────────────────────────────────────────────
+function CollabResourceSharing() {
+  const [tab, setTab] = useState('available');
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({});
+  const [reqForm, setReqForm] = useState({ qty_needed:1, required_dates:'', message:'' });
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const [allResources, setAllResources] = useState([]);
+  const [myResources, setMyResources] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const RESOURCE_TYPES = ['Trainers','Training Centres','Classrooms','Computer Labs','Hostels','Equipment & Machinery','Mobile Training Units','Assessment Facilities'];
+
+  const resIcon = { 'Trainers':'👨‍🏫','Training Centres':'🏢','Classrooms':'🏫','Computer Labs':'💻','Hostels':'🏠','Equipment & Machinery':'🔧','Mobile Training Units':'🚌','Assessment Facilities':'📋' };
+
+  const loadResources = () => {
+    setBusy(true);
+    api.collabResources().then(data => {
+      setAllResources(data.all || []);
+      setMyResources(data.mine || []);
+    }).catch(()=>{}).finally(()=>setBusy(false));
+  };
+  useEffect(loadResources, []);
+
+  const listResource = async () => {
+    if (!form.type || !form.listing) return alert('Resource type and listing type are required.');
+    setSaving(true);
+    try {
+      await api.collabListResource({ resource_type: form.type, qty: form.qty||1, location: form.location||null, availability: form.availability||null, sector: form.sector||null, listing_type: form.listing.startsWith('Offering') ? 'offering' : 'requesting', details: form.details||null });
+      alert('Resource listed!');
+      setModal(null);
+      setForm({});
+      loadResources();
+    } catch(e) { alert('Failed to list resource.'); }
+    finally { setSaving(false); }
+  };
+
+  const requestResource = async (id) => {
+    setSaving(true);
+    try {
+      await api.collabRequestResource(id, { qty_needed: reqForm.qty_needed, required_dates: reqForm.required_dates||null, message: reqForm.message||null });
+      alert('Request sent!');
+      setModal(null);
+      setReqForm({ qty_needed:1, required_dates:'', message:'' });
+    } catch(e) { alert('Failed to send request.'); }
+    finally { setSaving(false); }
+  };
+
+  const deleteResource = async (id) => {
+    if (!window.confirm('Remove this listing?')) return;
+    try { await api.collabDeleteResource(id); loadResources(); } catch(e) { alert('Failed to delete resource.'); }
+  };
+
+  return (
+    <div>
+      <div style={S.pageTitle}>Resource Sharing</div>
+      <div style={S.pageSub}>Offer or request available resources from partner organisations</div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:14, borderBottom:'1px solid #E2E8F0', paddingBottom:10 }}>
+        {[{ key:'available', label:'Available Resources' },{ key:'requested', label:'Resources Requested' },{ key:'mine', label:'My Listings' }].map(t => (
+          <button key={t.key} style={{ padding:'6px 16px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', border:'none',
+            background: tab===t.key ? '#0A2D6E':'#F1F5F9', color: tab===t.key ? '#fff':'#475569' }}
+            onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+        <button style={{ ...S.btnPrimary, marginLeft:'auto' }} onClick={() => setModal('list')}>+ List a Resource</button>
+      </div>
+
+      {tab === 'available' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && allResources.filter(r=>r.listing_type==='offering').length === 0 && <Empty icon="📦" msg="No resources currently available." />}
+          {allResources.filter(r=>r.listing_type==='offering').map(r => (
+            <div key={r.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'center' }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{resIcon[r.resource_type]||'📦'}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{r.resource_type}</span>
+                  <Pill col="green">Available</Pill>
+                </div>
+                <div style={{ fontSize:12, color:'#64748B', marginBottom:4 }}>
+                  {r.org_name} · {r.location||'—'} · Qty: {r.qty} · {r.availability||'—'}
+                </div>
+                {r.sector && <Pill col="blue">{r.sector}</Pill>}
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                <button style={S.btnSmPrimary} onClick={() => { setReqForm({ qty_needed:1, required_dates:'', message:'' }); setModal({ type:'request', res: r }); }}>Request Resource</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'requested' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && allResources.filter(r=>r.listing_type==='requesting').length === 0 && <Empty icon="📦" msg="No resource requests at this time." />}
+          {allResources.filter(r=>r.listing_type==='requesting').map(r => (
+            <div key={r.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'center' }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'#FEF3C7', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{resIcon[r.resource_type]||'📦'}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{r.org_name} needs {r.resource_type}</span>
+                  <Pill col="amber">Requested</Pill>
+                </div>
+                <div style={{ fontSize:12, color:'#64748B', marginBottom:4 }}>{r.location||'—'} · Qty: {r.qty} · {r.availability||'—'}</div>
+                {r.sector && <Pill col="blue">{r.sector}</Pill>}
+              </div>
+              <button style={S.btnSmPrimary} onClick={() => { setReqForm({ qty_needed:1, required_dates:'', message:'' }); setModal({ type:'request', res: r }); }}>Offer Resource</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'mine' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && myResources.length === 0 && <Empty icon="📦" msg="You haven't listed any resources yet. Click 'List a Resource' to get started." />}
+          {myResources.map(r => (
+            <div key={r.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'center' }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'#F0FDF4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{resIcon[r.resource_type]||'📦'}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{r.resource_type}</span>
+                  <Pill col={r.listing_type==='offering' ? 'green' : 'amber'}>{r.listing_type==='offering' ? 'Offering' : 'Requesting'}</Pill>
+                </div>
+                <div style={{ fontSize:12, color:'#64748B', marginBottom:4 }}>{r.location||'—'} · Qty: {r.qty} · {r.availability||'—'}</div>
+                {r.sector && <Pill col="blue">{r.sector}</Pill>}
+              </div>
+              <button style={S.btnSmDanger} onClick={() => deleteResource(r.id)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal === 'list' && (
+        <Modal title="List a Resource" onClose={() => setModal(null)} wide>
+          <div style={S.fGrid(2)}>
+            <div style={S.fGroup}><label style={S.label}>Resource type *</label>
+              <select style={S.select} value={form.type||''} onChange={f('type')}>
+                <option value="">Select</option>{RESOURCE_TYPES.map(r=><option key={r}>{r}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Quantity available</label><input style={S.input} type="number" value={form.qty||''} onChange={f('qty')} /></div>
+            <div style={S.fGroup}><label style={S.label}>Location</label><input style={S.input} value={form.location||''} onChange={f('location')} placeholder="City, State" /></div>
+            <div style={S.fGroup}><label style={S.label}>Availability period</label><input style={S.input} value={form.availability||''} onChange={f('availability')} placeholder="e.g. Aug–Oct 2026" /></div>
+            <div style={S.fGroup}><label style={S.label}>Sector</label>
+              <select style={S.select} value={form.sector||''} onChange={f('sector')}>
+                <option value="">Select</option>{SECTORS_COL.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Listing type</label>
+              <select style={S.select} value={form.listing||''} onChange={f('listing')}>
+                <option value="">Select</option><option>Offering (I have this resource)</option><option>Requesting (I need this resource)</option>
+              </select>
+            </div>
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Additional details</label>
+              <textarea style={S.textarea} value={form.details||''} onChange={f('details')} placeholder="Capacity, specifications, terms of sharing, contact details…" />
+            </div>
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={listResource}>{saving ? 'Listing…' : 'List Resource'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {modal && modal.type === 'request' && (
+        <Modal title={`Request: ${modal.res.resource_type}`} onClose={() => setModal(null)}>
+          <div style={S.alert('info')}>ℹ️ Requesting <strong>{modal.res.resource_type}</strong> from <strong>{modal.res.org_name}</strong> ({modal.res.location||'—'}).</div>
+          <div style={{ ...S.fGroup, margin:'12px 0' }}><label style={S.label}>Quantity needed</label>
+            <input style={S.input} type="number" value={reqForm.qty_needed} onChange={e => setReqForm(p=>({...p, qty_needed:e.target.value}))} /></div>
+          <div style={{ ...S.fGroup, marginBottom:12 }}><label style={S.label}>Required dates</label>
+            <input style={S.input} value={reqForm.required_dates} onChange={e => setReqForm(p=>({...p, required_dates:e.target.value}))} placeholder="e.g. 1 Aug – 30 Sep 2026" /></div>
+          <div style={{ ...S.fGroup, marginBottom:12 }}><label style={S.label}>Message</label>
+            <textarea style={S.textarea} value={reqForm.message} onChange={e => setReqForm(p=>({...p, message:e.target.value}))} placeholder="Explain how you'll use the resource and your project context…" />
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={() => requestResource(modal.res.id)}>{saving ? 'Sending…' : 'Send Request'}</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── Invitations ───────────────────────────────────────────────────────────────
+function CollabInvitations() {
+  const [tab, setTab] = useState('received');
+  const [modal, setModal] = useState(null);
+  const [sendForm, setSendForm] = useState({ to_org_name:'', invitation_type:'', project_name:'', sector:'', state:'', message:'' });
+  const [received, setReceived] = useState([]);
+  const [sent, setSent] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [discussMsg, setDiscussMsg] = useState('');
+
+  const typeIcon = { 'Consortium Invitation':'🏗️','CSR Partnership Invitation':'🌱','Resource Sharing Request':'📦','Joint Project Invitation':'🤝','Employer Collaboration Request':'🏭','Partnership Invitation':'🔗' };
+  const statusCol = { pending:'amber', accepted:'green', rejected:'red' };
+
+  const loadInvitations = () => {
+    setBusy(true);
+    api.collabInvitations().then(data => {
+      setReceived(data.received || []);
+      setSent(data.sent || []);
+    }).catch(()=>{}).finally(()=>setBusy(false));
+  };
+  useEffect(loadInvitations, []);
+
+  const updateInvitation = async (id, status) => {
+    try { await api.collabUpdateInvitation(id, status); loadInvitations(); }
+    catch(e) { alert('Failed to update invitation.'); }
+  };
+
+  const sendInvitation = async () => {
+    if (!sendForm.invitation_type || !sendForm.project_name) return alert('Invitation type and project name are required.');
+    setSaving(true);
+    try {
+      await api.collabSendInvitation({ to_org_name: sendForm.to_org_name||null, invitation_type: sendForm.invitation_type, project_name: sendForm.project_name, sector: sendForm.sector||null, state: sendForm.state||null, message: sendForm.message||null });
+      alert('Invitation sent!');
+      setModal(null);
+      setSendForm({ to_org_name:'', invitation_type:'', project_name:'', sector:'', state:'', message:'' });
+      loadInvitations();
+    } catch(e) { alert('Failed to send invitation.'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+        <div style={S.pageTitle}>Invitations</div>
+        <button style={S.btnPrimary} onClick={() => setModal('send')}>+ Send Invitation</button>
+      </div>
+      <div style={S.pageSub}>Send and receive collaboration invitations for projects, consortiums and partnerships</div>
+
+      <div style={{ display:'flex', gap:8, marginBottom:14, borderBottom:'1px solid #E2E8F0', paddingBottom:10 }}>
+        {[{ key:'received', label:`Received (${received.filter(r=>r.status==='pending').length} pending)` },{ key:'sent', label:'Sent' }].map(t => (
+          <button key={t.key} style={{ padding:'6px 16px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', border:'none',
+            background: tab===t.key ? '#0A2D6E':'#F1F5F9', color: tab===t.key ? '#fff':'#475569' }}
+            onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'received' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && received.length === 0 && <Empty icon="📩" msg="No invitations received yet." />}
+          {received.map(inv => (
+            <div key={inv.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'center', borderLeft:`4px solid ${inv.status==='pending'?'#F59E0B':inv.status==='accepted'?'#10B981':'#EF4444'}` }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'#F8FAFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{typeIcon[inv.invitation_type]||'📩'}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{inv.from_org_name}</span>
+                  <Pill col="blue">{inv.invitation_type}</Pill>
+                  <Pill col={statusCol[inv.status]||'gray'}>{inv.status}</Pill>
+                  <span style={{ marginLeft:'auto', fontSize:11, color:'#94A3B8' }}>{fmtDate(inv.created_at)}</span>
+                </div>
+                <div style={{ fontSize:12, color:'#334155', marginBottom:2 }}>{inv.project_name}</div>
+                <div style={{ fontSize:11, color:'#64748B' }}>{inv.sector||'—'} · {inv.state||'—'}</div>
+              </div>
+              {inv.status === 'pending' && (
+                <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                  <button style={{ ...S.btnSmPrimary, background:'#10B981' }} onClick={() => updateInvitation(inv.id, 'accepted')}>Accept</button>
+                  <button style={S.btnSmDanger} onClick={() => updateInvitation(inv.id, 'rejected')}>Reject</button>
+                  <button style={S.btnSm} onClick={() => { setDiscussMsg(''); setModal({ type:'discuss', inv }); }}>Discuss</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'sent' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {busy && <div style={{ color:'#64748B', fontSize:13 }}>Loading…</div>}
+          {!busy && sent.length === 0 && <Empty icon="📤" msg="No invitations sent yet." />}
+          {sent.map(inv => (
+            <div key={inv.id} style={{ ...S.card, display:'flex', gap:14, alignItems:'center', borderLeft:`4px solid ${inv.status==='pending'?'#F59E0B':'#10B981'}` }}>
+              <div style={{ width:44, height:44, borderRadius:10, background:'#F8FAFF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>{typeIcon[inv.invitation_type]||'📩'}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:3 }}>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>To: {inv.to_org_name_resolved || inv.to_org_name}</span>
+                  <Pill col="blue">{inv.invitation_type}</Pill>
+                  <Pill col={statusCol[inv.status]||'gray'}>{inv.status}</Pill>
+                  <span style={{ marginLeft:'auto', fontSize:11, color:'#94A3B8' }}>{fmtDate(inv.created_at)}</span>
+                </div>
+                <div style={{ fontSize:12, color:'#334155', marginBottom:2 }}>{inv.project_name}</div>
+                <div style={{ fontSize:11, color:'#64748B' }}>{inv.sector||'—'} · {inv.state||'—'}</div>
+              </div>
+              {inv.status === 'pending' && <button style={S.btnSmDanger} onClick={() => updateInvitation(inv.id, 'withdrawn')}>Withdraw</button>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal === 'send' && (
+        <Modal title="Send Collaboration Invitation" onClose={() => setModal(null)} wide>
+          <div style={S.fGrid(2)}>
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Organisation name *</label>
+              <input style={S.input} value={sendForm.to_org_name} onChange={e => setSendForm(p=>({...p,to_org_name:e.target.value}))} placeholder="Name of organisation to invite" /></div>
+            <div style={S.fGroup}><label style={S.label}>Invitation type *</label>
+              <select style={S.select} value={sendForm.invitation_type} onChange={e => setSendForm(p=>({...p,invitation_type:e.target.value}))}>
+                <option value="">Select</option>
+                {['Consortium Invitation','Partnership Invitation','Resource Sharing Request','Joint Project Invitation','Employer Collaboration Request'].map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Project / Initiative name *</label>
+              <input style={S.input} value={sendForm.project_name} onChange={e => setSendForm(p=>({...p,project_name:e.target.value}))} placeholder="e.g. DDU-GKY Phase 3" /></div>
+            <div style={S.fGroup}><label style={S.label}>Sector</label>
+              <select style={S.select} value={sendForm.sector} onChange={e => setSendForm(p=>({...p,sector:e.target.value}))}>
+                <option value="">Select</option>{SECTORS_COL.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>State</label>
+              <select style={S.select} value={sendForm.state} onChange={e => setSendForm(p=>({...p,state:e.target.value}))}>
+                <option value="">Select</option>{STATES_LIST.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Invitation message</label>
+              <textarea style={S.textarea} value={sendForm.message} onChange={e => setSendForm(p=>({...p,message:e.target.value}))} placeholder="Describe the collaboration opportunity, your expectations and the mutual benefits…" />
+            </div>
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} disabled={saving} onClick={sendInvitation}>{saving ? 'Sending…' : 'Send Invitation'}</button>
+          </div>
+        </Modal>
+      )}
+
+      {modal && modal.type === 'discuss' && (
+        <Modal title={`Discuss: ${modal.inv.project_name}`} onClose={() => setModal(null)}>
+          <div style={S.alert('info')}>💬 Discussion with <strong>{modal.inv.from_org_name}</strong> regarding <strong>{modal.inv.project_name}</strong>.</div>
+          <div style={{ ...S.fGroup, margin:'12px 0' }}><label style={S.label}>Your message</label>
+            <textarea style={S.textarea} value={discussMsg} onChange={e => setDiscussMsg(e.target.value)} placeholder="Ask questions or share your thoughts before accepting or rejecting…" />
+          </div>
+          <div style={S.btnRow}>
+            <button style={S.btn} onClick={() => setModal(null)}>Cancel</button>
+            <button style={S.btnPrimary} onClick={() => { alert('For full discussion, use the messaging feature. Closing.'); setModal(null); }}>Close</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SIDEBAR DEFINITION
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1384,6 +2161,14 @@ const NAV = [
   { icon:'📋', label:'Assessments', children:[
     { key:'assess', label:'All assessments' },
     { key:'assess-add', label:'Schedule assessment' },
+  ]},
+
+  { section: 'Collaboration' },
+  { icon:'🤝', label:'Collaboration', children:[
+    { key:'collab-consortium', label:'Consortium Builder' },
+    { key:'collab-partnership', label:'Partnership Requests' },
+    { key:'collab-resources', label:'Resource Sharing' },
+    { key:'collab-invitations', label:'Invitations' },
   ]},
 
   { section: 'Compliance' },
@@ -1433,6 +2218,10 @@ export default function TrainingVendorPortal() {
     if (activeKey === 'batches' || activeKey === 'batches-add') return <Batches />;
     if (activeKey === 'candidates' || activeKey === 'candidates-add') return <Candidates />;
     if (activeKey === 'assess' || activeKey === 'assess-add') return <Assessments />;
+    if (activeKey === 'collab-consortium') return <CollabConsortium />;
+    if (activeKey === 'collab-partnership') return <CollabPartnership />;
+    if (activeKey === 'collab-resources') return <CollabResourceSharing />;
+    if (activeKey === 'collab-invitations') return <CollabInvitations />;
     if (activeKey === 'reports') return <Reports />;
     if (activeKey === 'docs') return <Documents />;
     if (activeKey === 'grievance') return <Grievances />;

@@ -356,6 +356,67 @@ async function initDb() {
       domain TEXT NOT NULL, courses TEXT, ssc TEXT, nsqf_level TEXT, years_exp TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS collab_invitations (
+      id SERIAL PRIMARY KEY,
+      from_vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      to_vendor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      to_org_name TEXT,
+      invitation_type TEXT NOT NULL,
+      project_name TEXT NOT NULL,
+      sector TEXT,
+      state TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS collab_partnership_requests (
+      id SERIAL PRIMARY KEY,
+      vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      looking_for TEXT NOT NULL,
+      sector TEXT,
+      state TEXT,
+      project_type TEXT,
+      description TEXT,
+      status TEXT DEFAULT 'open',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS collab_partnership_responses (
+      id SERIAL PRIMARY KEY,
+      request_id INTEGER NOT NULL REFERENCES collab_partnership_requests(id) ON DELETE CASCADE,
+      vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(request_id, vendor_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS collab_resources (
+      id SERIAL PRIMARY KEY,
+      vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      resource_type TEXT NOT NULL,
+      qty INTEGER DEFAULT 1,
+      location TEXT,
+      availability TEXT,
+      sector TEXT,
+      listing_type TEXT NOT NULL,
+      details TEXT,
+      status TEXT DEFAULT 'available',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS collab_resource_requests (
+      id SERIAL PRIMARY KEY,
+      resource_id INTEGER NOT NULL REFERENCES collab_resources(id) ON DELETE CASCADE,
+      vendor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      qty_needed INTEGER,
+      required_dates TEXT,
+      message TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Seed org_classifications

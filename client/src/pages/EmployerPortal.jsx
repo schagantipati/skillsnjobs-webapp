@@ -353,6 +353,9 @@ export default function EmployerPortal() {
   }
   function loadApps() {
     if (appsLoaded) return;
+    refreshApps();
+  }
+  function refreshApps() {
     // Load applicants for all my jobs
     api.myJobs().then(jobs => {
       Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(a => ({ ...a, job_title: j.title }))).catch(() => [])))
@@ -549,8 +552,9 @@ export default function EmployerPortal() {
 
   // ── PANELS ────────────────────────────────────────────────────────────────
   function PanelDashboard() {
+    const awaitingReview = allApps.filter(a => a.status === 'applied').length;
     return <>
-      <Alert icon="⚡" type="warn"><strong>Action required:</strong> 3 job applications are awaiting your review. <strong>Review Now →</strong></Alert>
+      {awaitingReview > 0 && <Alert icon="⚡" type="warn"><strong>Action required:</strong> {awaitingReview} job application{awaitingReview === 1 ? ' is' : 's are'} awaiting your review. <strong onClick={() => go('job-applications')} style={{ cursor:'pointer' }}>Review Now →</strong></Alert>}
       <SectionHead title={`Welcome, ${user?.org_name || ''}! 💼`} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
         <KpiCard val={dbStats.myOpenJobs ?? '—'} label="Active Job Postings" sub="My open roles" color={C.blue} />
@@ -627,7 +631,7 @@ export default function EmployerPortal() {
   }
 
   function PanelNotifications() {
-    const pending = allApps.filter(a => a.status === 'pending');
+    const pending = allApps.filter(a => a.status === 'applied');
     return <>
       <Bc parts={['Notifications']} />
       <SectionHead title="Notifications 🔔" />
@@ -1061,7 +1065,7 @@ export default function EmployerPortal() {
           <Badge color={statusColor[a.status] || 'blue'}>{a.status}</Badge>,
           <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
             value={a.status}
-            onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(loadApps)}>
+            onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(refreshApps)}>
             {['applied','shortlisted','interview','hired','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         ])} />}
@@ -1109,10 +1113,7 @@ export default function EmployerPortal() {
                 <Badge color={a.status==='interview' ? 'teal' : 'green'}>{a.status}</Badge>,
                 <select style={{ fontSize:12, padding:'3px 6px', borderRadius:6, border:'1px solid #dde2eb' }}
                   value={a.status}
-                  onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(() => api.myJobs().then(jobs =>
-                    Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(ap => ({ ...ap, job_title: j.title }))).catch(() => [])))
-                      .then(all => setAllApps(all.flat()))
-                  ))}>
+                  onChange={e => api.updateApplicationStatus(a.id, e.target.value).then(refreshApps)}>
                   {['shortlisted','interview','hired','rejected'].map(s=><option key={s} value={s}>{s}</option>)}
                 </select>
               ])} />

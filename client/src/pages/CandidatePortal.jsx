@@ -253,9 +253,19 @@ export default function CandidatePortal() {
     first_name: '', last_name: '', dob: '', gender: '', phone: '', bio: '',
     address_line1: '', address_line2: '', city: '', state_name: '', pincode: '', category: '',
     bank_account_number: '', bank_ifsc: '',
+    edu_level: '', edu_board: '', edu_year: '', edu_institute: '',
+    emp_status: '', exp_sector: '',
+    skill_category: '', skill_name: '', skill_proficiency: '',
+    pref_role: '', pref_emp_type: '', pref_salary: '', pref_sector: '', pref_state: '',
   }));
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [docFiles, setDocFiles] = useState({});
+  const [docErrors, setDocErrors] = useState({});
+  const [experiences, setExperiences] = useState([{
+    org:'', designation:'', sector:'', nature:'', joining_date:'', leaving_date:'', responsibilities:'', salary:'', reason:''
+  }]);
 
   useEffect(() => {
     if (user) setProfileDraft(d => ({
@@ -301,6 +311,51 @@ export default function CandidatePortal() {
     setProfileSaving(false);
   }
 
+  function validateStep(stepId) {
+    const d = profileDraft;
+    const errs = {};
+    if (stepId === 'profile-basic') {
+      if (!d.first_name?.trim())  errs.first_name  = 'First Name is required';
+      if (!d.last_name?.trim())   errs.last_name   = 'Last Name is required';
+      if (!d.dob)                  errs.dob         = 'Date of Birth is required';
+      if (!d.gender)               errs.gender      = 'Gender is required';
+      if (!d.phone?.trim())        errs.phone       = 'Mobile Number is required';
+      if (!d.category)             errs.category    = 'Category is required';
+      if (!d.address_line1?.trim()) errs.address_line1 = 'Address Line 1 is required';
+      if (!d.city?.trim())         errs.city        = 'City / Town is required';
+      if (!d.state_name)           errs.state_name  = 'State is required';
+      if (!d.pincode?.trim())      errs.pincode     = 'PIN Code is required';
+    }
+    if (stepId === 'profile-edu') {
+      if (!d.edu_level)            errs.edu_level    = 'Highest Education Level is required';
+      if (!d.edu_board?.trim())    errs.edu_board    = 'Board / University / Institute is required';
+      if (!d.edu_year)             errs.edu_year     = 'Year of Passing is required';
+      if (!d.edu_institute?.trim()) errs.edu_institute = 'Institute Name is required';
+    }
+    if (stepId === 'profile-exp') {
+      if (!d.emp_status)           errs.emp_status  = 'Current Employment Status is required';
+      if (!d.exp_sector)           errs.exp_sector  = 'Sector / Industry is required';
+    }
+    if (stepId === 'profile-skills') {
+      if (!d.skill_category)       errs.skill_category   = 'Skill Category is required';
+      if (!d.skill_name?.trim())   errs.skill_name       = 'Specific Skill / Trade is required';
+      if (!d.skill_proficiency)    errs.skill_proficiency = 'Proficiency Level is required';
+    }
+    if (stepId === 'profile-docs') {
+      if (!docFiles.aadhaar)    errs.aadhaar     = 'Aadhaar Card is required';
+      if (!docFiles.marksheet_10) errs.marksheet_10 = '10th Marksheet / Certificate is required';
+    }
+    if (stepId === 'profile-pref') {
+      if (!d.pref_role?.trim())    errs.pref_role     = 'Preferred Job Role is required';
+      if (!d.pref_emp_type)        errs.pref_emp_type = 'Preferred Employment Type is required';
+      if (!d.pref_salary?.trim())  errs.pref_salary   = 'Expected Monthly Salary is required';
+      if (!d.pref_sector)          errs.pref_sector   = 'Preferred Sector is required';
+      if (!d.pref_state)           errs.pref_state    = 'Preferred State is required';
+    }
+    setFieldErrors(errs);
+    return errs;
+  }
+
   const u        = user || {};
   const fields   = [u.name, u.email, u.phone, u.location, u.bio, u.skills];
   const pct      = Math.round(fields.filter(Boolean).length / fields.length * 100);
@@ -340,6 +395,7 @@ export default function CandidatePortal() {
     try {
       await api.apply(job_id);
       setMyApps(await api.myApplications() || []);
+      setDbStats(await api.dashboardStats() || {});
       toast3('Application submitted!');
     } catch (e) { toast3(e.message, false); }
     finally { setApplyingId(null); }
@@ -350,6 +406,7 @@ export default function CandidatePortal() {
     try {
       await api.enroll(id);
       setMyEnroll(await api.myEnrollments() || []);
+      setDbStats(await api.dashboardStats() || {});
       toast3('Enrolled successfully!');
     } catch (e) { toast3(e.message, false); }
     finally { setEnrollingId(null); }
@@ -1425,21 +1482,23 @@ export default function CandidatePortal() {
       </label>
     );
     const pd = profileDraft;
-    const setPd = k => e => setProfileDraft(d => ({ ...d, [k]: e.target.value }));
-    const Inp = ({ placeholder, type='text', value, draftKey, wide }) => (
+    const setPd = k => e => { setProfileDraft(d => ({ ...d, [k]: e.target.value })); if (fieldErrors[k]) setFieldErrors(f => ({ ...f, [k]: undefined })); };
+    const Inp = ({ placeholder, type='text', value, draftKey, wide, max, min }) => (
       <input type={type}
         {...(draftKey ? { value: pd[draftKey], onChange: setPd(draftKey) } : { defaultValue: value||'' })}
         placeholder={placeholder}
+        {...(max ? { max } : {})}
+        {...(min ? { min } : {})}
         style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
-          border:`1px solid ${C.border}`, background:'#fff', color:C.ink,
-          outline:'none', boxSizing:'border-box' }} />
+          border:`1px solid ${draftKey && fieldErrors[draftKey] ? '#DC2626' : C.border}`,
+          background:'#fff', color:C.ink, outline:'none', boxSizing:'border-box' }} />
     );
     const Sel = ({ opts, placeholder, draftKey }) => (
       <select
         {...(draftKey ? { value: pd[draftKey] || '', onChange: setPd(draftKey) } : { defaultValue: '' })}
         style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
-          border:`1px solid ${C.border}`, background:'#fff', color:C.ink,
-          outline:'none', appearance:'none', boxSizing:'border-box' }}>
+          border:`1px solid ${draftKey && fieldErrors[draftKey] ? '#DC2626' : C.border}`,
+          background:'#fff', color:C.ink, outline:'none', appearance:'none', boxSizing:'border-box' }}>
         <option value="" disabled>{placeholder || 'Select'}</option>
         {opts.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -1447,10 +1506,13 @@ export default function CandidatePortal() {
     const Row = ({ children, cols='1fr 1fr' }) => (
       <div style={{ display:'grid', gridTemplateColumns:cols, gap:16, marginBottom:16 }}>{children}</div>
     );
-    const Field = ({ label, req, children }) => (
+    const Field = ({ label, req, errKey, children }) => (
       <div>
         <Lbl req={req}>{label}</Lbl>
         {children}
+        {errKey && fieldErrors[errKey] && (
+          <div style={{ fontSize:11.5, color:'#DC2626', marginTop:4 }}>⚠ {fieldErrors[errKey]}</div>
+        )}
       </div>
     );
     const Divider = ({ title }) => (
@@ -1466,18 +1528,18 @@ export default function CandidatePortal() {
       if (active === 'profile-basic') return (
         <div>
           <Divider title="Personal Information" />
-          <Row><Field label="First Name" req><Inp placeholder="Enter first name" draftKey="first_name" /></Field><Field label="Last Name" req><Inp placeholder="Enter last name" draftKey="last_name" /></Field></Row>
-          <Row><Field label="Date of Birth" req><Inp type="date" draftKey="dob" /></Field><Field label="Gender" req><Sel opts={['Male','Female','Transgender','Prefer not to say']} placeholder="Select gender" draftKey="gender" /></Field></Row>
-          <Row><Field label="Mobile Number" req><ValidInp placeholder="10-digit mobile number" value={profileDraft.phone} onChange={e => setProfileDraft(d => ({ ...d, phone: e.target.value.replace(/\D/g,'').slice(0,10) }))} validate="mobile" /></Field><Field label="Email Address" req><ValidInp type="email" placeholder="Email address" value={u.email} validate="email" /></Field></Row>
-          <Row><Field label="Aadhaar Number"><ValidInp placeholder="12-digit Aadhaar number" validate="aadhaar" /></Field><Field label="Category" req><Sel opts={['General','SC','ST','OBC','EWS']} placeholder="Select category" draftKey="category" /></Field></Row>
+          <Row><Field label="First Name" req errKey="first_name"><Inp placeholder="Enter first name" draftKey="first_name" /></Field><Field label="Last Name" req errKey="last_name"><Inp placeholder="Enter last name" draftKey="last_name" /></Field></Row>
+          <Row><Field label="Date of Birth" req errKey="dob"><Inp type="date" draftKey="dob" max={new Date().toISOString().split('T')[0]} min="1900-01-01" /></Field><Field label="Gender" req errKey="gender"><Sel opts={['Male','Female','Transgender','Prefer not to say']} placeholder="Select gender" draftKey="gender" /></Field></Row>
+          <Row><Field label="Mobile Number" req errKey="phone"><ValidInp placeholder="10-digit mobile number" value={profileDraft.phone} onChange={e => { setProfileDraft(d => ({ ...d, phone: e.target.value.replace(/\D/g,'').slice(0,10) })); if (fieldErrors.phone) setFieldErrors(f => ({ ...f, phone: undefined })); }} validate="mobile" /></Field><Field label="Email Address" req><ValidInp type="email" placeholder="Email address" value={u.email} validate="email" /></Field></Row>
+          <Row><Field label="Aadhaar Number"><ValidInp placeholder="12-digit Aadhaar number" validate="aadhaar" /></Field><Field label="Category" req errKey="category"><Sel opts={['General','SC','ST','OBC','EWS']} placeholder="Select category" draftKey="category" /></Field></Row>
           <Row><Field label="Religion"><Sel opts={['Hindu','Muslim','Christian','Sikh','Buddhist','Jain','Others','Prefer not to say']} placeholder="Select religion" /></Field><Field label="Differently Abled"><Sel opts={['No','Yes — Locomotor','Yes — Visual','Yes — Hearing','Yes — Others']} placeholder="Select" /></Field></Row>
           <Row cols="1fr"><Field label="About / Bio"><textarea value={pd.bio} onChange={e => setProfileDraft(d => ({ ...d, bio: e.target.value }))} placeholder="Write a short bio about yourself, your goals and interests…" rows={3} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} /></Field></Row>
 
           <Divider title="Current Address" />
-          <Row cols="1fr"><Field label="Address Line 1" req><Inp placeholder="House/Flat No., Street, Area" draftKey="address_line1" /></Field></Row>
+          <Row cols="1fr"><Field label="Address Line 1" req errKey="address_line1"><Inp placeholder="House/Flat No., Street, Area" draftKey="address_line1" /></Field></Row>
           <Row cols="1fr"><Field label="Address Line 2"><Inp placeholder="Landmark, Colony (optional)" draftKey="address_line2" /></Field></Row>
-          <Row><Field label="State" req><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Other']} placeholder="Select state" draftKey="state_name" /></Field><Field label="District" req><Inp placeholder="Enter district" /></Field></Row>
-          <Row><Field label="City / Town" req><Inp placeholder="Enter city or town" draftKey="city" /></Field><Field label="PIN Code" req><Inp placeholder="6-digit PIN code" draftKey="pincode" /></Field></Row>
+          <Row><Field label="State" req errKey="state_name"><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Other']} placeholder="Select state" draftKey="state_name" /></Field><Field label="District" req><Inp placeholder="Enter district" /></Field></Row>
+          <Row><Field label="City / Town" req errKey="city"><Inp placeholder="Enter city or town" draftKey="city" /></Field><Field label="PIN Code" req errKey="pincode"><Inp placeholder="6-digit PIN code" draftKey="pincode" /></Field></Row>
           <Row>
             <Field label="Same as Permanent Address">
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:4 }}>
@@ -1493,10 +1555,10 @@ export default function CandidatePortal() {
       if (active === 'profile-edu') return (
         <div>
           <Divider title="Highest Qualification" />
-          <Row><Field label="Highest Education Level" req><Sel opts={['8th Pass','10th Pass (Matriculation)','12th Pass (Intermediate)','ITI / Diploma','Graduation (B.A./B.Sc./B.Com)','Graduation (B.Tech/B.E.)','Post Graduation (M.A./M.Sc./M.Com)','Post Graduation (M.Tech/M.E.)','Ph.D / Doctorate','Others']} placeholder="Select highest qualification" /></Field><Field label="Specialisation / Stream"><Inp placeholder="e.g. Science, Commerce, Computer Science" /></Field></Row>
-          <Row><Field label="Board / University / Institute" req><Inp placeholder="Name of board or university" /></Field><Field label="Year of Passing" req><Sel opts={Array.from({length:40},(_,i)=>String(2024-i))} placeholder="Select year" /></Field></Row>
+          <Row><Field label="Highest Education Level" req errKey="edu_level"><Sel opts={['8th Pass','10th Pass (Matriculation)','12th Pass (Intermediate)','ITI / Diploma','Graduation (B.A./B.Sc./B.Com)','Graduation (B.Tech/B.E.)','Post Graduation (M.A./M.Sc./M.Com)','Post Graduation (M.Tech/M.E.)','Ph.D / Doctorate','Others']} placeholder="Select highest qualification" draftKey="edu_level" /></Field><Field label="Specialisation / Stream"><Inp placeholder="e.g. Science, Commerce, Computer Science" /></Field></Row>
+          <Row><Field label="Board / University / Institute" req errKey="edu_board"><Inp placeholder="Name of board or university" draftKey="edu_board" /></Field><Field label="Year of Passing" req errKey="edu_year"><Sel opts={Array.from({length:40},(_,i)=>String(2024-i))} placeholder="Select year" draftKey="edu_year" /></Field></Row>
           <Row><Field label="Marks / Percentage / CGPA"><Inp placeholder="e.g. 75% or 8.2 CGPA" /></Field><Field label="Grade / Division"><Sel opts={['First Class / Distinction (≥60%)','Second Class (50-59%)','Pass Class (35-49%)','CGPA / Grade System']} placeholder="Select grade" /></Field></Row>
-          <Row cols="1fr"><Field label="Institute Name" req><Inp placeholder="Name of school, college or institute" /></Field></Row>
+          <Row cols="1fr"><Field label="Institute Name" req errKey="edu_institute"><Inp placeholder="Name of school, college or institute" draftKey="edu_institute" /></Field></Row>
           <Row><Field label="State of Institute"><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Other']} placeholder="Select state" /></Field><Field label="District of Institute"><Inp placeholder="Enter district" /></Field></Row>
 
           <Divider title="Additional Qualifications" />
@@ -1508,29 +1570,152 @@ export default function CandidatePortal() {
       );
 
       /* ── Work Experience ── */
-      if (active === 'profile-exp') return (
-        <div>
-          <Divider title="Employment Status" />
-          <Row><Field label="Current Employment Status" req><Sel opts={['Fresher / Never Employed','Currently Employed','Self Employed / Freelance','Unemployed (Previously Employed)','Apprentice / Trainee']} placeholder="Select status" /></Field><Field label="Total Work Experience"><Sel opts={['No Experience','Less than 6 months','6 months – 1 year','1 – 2 years','2 – 5 years','5 – 10 years','More than 10 years']} placeholder="Select experience" /></Field></Row>
+      if (active === 'profile-exp') {
+        const today = new Date().toISOString().split('T')[0];
+        const setExp = (idx, field, val) =>
+          setExperiences(prev => prev.map((e, i) => i === idx ? { ...e, [field]: val } : e));
+        const addExp = () => setExperiences(prev => [...prev, {
+          org:'', designation:'', sector:'', nature:'', joining_date:'', leaving_date:'', responsibilities:'', salary:'', reason:''
+        }]);
+        const removeExp = idx => setExperiences(prev => prev.filter((_, i) => i !== idx));
 
-          <Divider title="Current / Last Employer" />
-          <Row><Field label="Organisation Name"><Inp placeholder="Company / employer name" /></Field><Field label="Designation / Job Title"><Inp placeholder="e.g. Sales Executive, Lab Technician" /></Field></Row>
-          <Row><Field label="Sector / Industry" req><Sel opts={['Agriculture','Automotive','BFSI (Banking/Finance/Insurance)','Construction','Domestic Worker','Electronics','Food Processing','Gems & Jewellery','Green Jobs','Healthcare','Hospitality','IT / ITeS','Leather','Logistics','Manufacturing','Media & Entertainment','Mining','Plumbing','Retail','Security','Telecom','Textile','Tourism','Others']} placeholder="Select sector" /></Field><Field label="Nature of Employment"><Sel opts={['Permanent / Regular','Contract / Temporary','Part-time','Apprenticeship','Self-employed','Daily Wage']} placeholder="Select type" /></Field></Row>
-          <Row><Field label="Date of Joining"><Inp type="date" /></Field><Field label="Date of Leaving (if applicable)"><Inp type="date" /></Field></Row>
-          <Row cols="1fr"><Field label="Key Responsibilities / Role Description"><textarea placeholder="Briefly describe your key responsibilities and achievements…" rows={3} style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13, border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box' }} /></Field></Row>
-          <Row><Field label="Last Monthly Salary (₹)"><Inp placeholder="e.g. 15000" /></Field><Field label="Reason for Leaving"><Sel opts={['Better Opportunity','Career Growth','Relocation','Health Reasons','Company Closure','Contract End','Others']} placeholder="Select reason" /></Field></Row>
-          <div style={{ textAlign:'right', marginBottom:16 }}>
-            <Btn sm style={{ borderColor:C.saffron, color:C.saffron }}>+ Add Another Experience</Btn>
+        const inputSx = (hasErr) => ({
+          width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
+          border:`1px solid ${hasErr ? '#DC2626' : C.border}`,
+          background:'#fff', color:C.ink, outline:'none', boxSizing:'border-box'
+        });
+        const selSx = inputSx;
+
+        return (
+          <div>
+            <Divider title="Employment Status" />
+            <Row>
+              <Field label="Current Employment Status" req errKey="emp_status">
+                <Sel opts={['Fresher / Never Employed','Currently Employed','Self Employed / Freelance','Unemployed (Previously Employed)','Apprentice / Trainee']} placeholder="Select status" draftKey="emp_status" />
+              </Field>
+              <Field label="Total Work Experience">
+                <Sel opts={['No Experience','Less than 6 months','6 months – 1 year','1 – 2 years','2 – 5 years','5 – 10 years','More than 10 years']} placeholder="Select experience" />
+              </Field>
+            </Row>
+
+            {experiences.map((exp, idx) => {
+              const minLeaving = exp.joining_date
+                ? (() => { const d = new Date(exp.joining_date); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; })()
+                : undefined;
+              const isFirst = idx === 0;
+              const title = isFirst ? 'Current / Last Employer' : `Previous Employer ${idx + 1}`;
+              return (
+                <div key={idx} style={{ border:`1px solid ${C.border}`, borderRadius:10, marginBottom:18,
+                  background: idx === 0 ? '#FAFAFA' : '#F8F9FB', overflow:'hidden' }}>
+                  {/* Card header */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                    padding:'10px 16px', borderBottom:`1px solid ${C.border}`,
+                    background: idx === 0 ? C.saffronPale : '#EEF0F5' }}>
+                    <span style={{ fontWeight:700, fontSize:13, color:C.navy }}>
+                      💼 {exp.org || title}
+                    </span>
+                    {experiences.length > 1 && (
+                      <button onClick={() => removeExp(idx)}
+                        style={{ background:'none', border:'none', cursor:'pointer',
+                          fontSize:12, color:'#DC2626', fontWeight:600, padding:'2px 8px' }}>
+                        ✕ Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Card body */}
+                  <div style={{ padding:'16px' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                      <div>
+                        <Lbl>Organisation Name</Lbl>
+                        <input value={exp.org} onChange={e => setExp(idx,'org',e.target.value)}
+                          placeholder="Company / employer name" style={inputSx(false)} />
+                      </div>
+                      <div>
+                        <Lbl>Designation / Job Title</Lbl>
+                        <input value={exp.designation} onChange={e => setExp(idx,'designation',e.target.value)}
+                          placeholder="e.g. Sales Executive, Lab Technician" style={inputSx(false)} />
+                      </div>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                      <div>
+                        <Lbl req={isFirst}>Sector / Industry</Lbl>
+                        {isFirst
+                          ? <>
+                              <Sel opts={['Agriculture','Automotive','BFSI (Banking/Finance/Insurance)','Construction','Domestic Worker','Electronics','Food Processing','Gems & Jewellery','Green Jobs','Healthcare','Hospitality','IT / ITeS','Leather','Logistics','Manufacturing','Media & Entertainment','Mining','Plumbing','Retail','Security','Telecom','Textile','Tourism','Others']} placeholder="Select sector" draftKey="exp_sector" />
+                              {fieldErrors.exp_sector && <div style={{fontSize:11.5,color:'#DC2626',marginTop:4}}>⚠ {fieldErrors.exp_sector}</div>}
+                            </>
+                          : <select value={exp.sector} onChange={e => setExp(idx,'sector',e.target.value)} style={selSx(false)}>
+                              <option value="">Select sector</option>
+                              {['Agriculture','Automotive','BFSI (Banking/Finance/Insurance)','Construction','Domestic Worker','Electronics','Food Processing','Gems & Jewellery','Green Jobs','Healthcare','Hospitality','IT / ITeS','Leather','Logistics','Manufacturing','Media & Entertainment','Mining','Plumbing','Retail','Security','Telecom','Textile','Tourism','Others'].map(o=><option key={o} value={o}>{o}</option>)}
+                            </select>
+                        }
+                      </div>
+                      <div>
+                        <Lbl>Nature of Employment</Lbl>
+                        <select value={exp.nature} onChange={e => setExp(idx,'nature',e.target.value)} style={selSx(false)}>
+                          <option value="">Select type</option>
+                          {['Permanent / Regular','Contract / Temporary','Part-time','Apprenticeship','Self-employed','Daily Wage'].map(o=><option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                      <div>
+                        <Lbl>Date of Joining</Lbl>
+                        <input type="date" value={exp.joining_date} max={today}
+                          onChange={e => { setExp(idx,'joining_date',e.target.value); if (exp.leaving_date && exp.leaving_date <= e.target.value) setExp(idx,'leaving_date',''); }}
+                          style={inputSx(false)} />
+                      </div>
+                      <div>
+                        <Lbl>Date of Leaving (if applicable)</Lbl>
+                        <input type="date" value={exp.leaving_date} max={today}
+                          {...(minLeaving ? { min: minLeaving } : {})}
+                          onChange={e => setExp(idx,'leaving_date',e.target.value)}
+                          style={inputSx(false)} />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom:16 }}>
+                      <Lbl>Key Responsibilities / Role Description</Lbl>
+                      <textarea value={exp.responsibilities} onChange={e => setExp(idx,'responsibilities',e.target.value)}
+                        placeholder="Briefly describe your key responsibilities and achievements…" rows={3}
+                        style={{ width:'100%', padding:'9px 12px', borderRadius:7, fontSize:13,
+                          border:`1px solid ${C.border}`, resize:'vertical', fontFamily:'inherit',
+                          outline:'none', boxSizing:'border-box', background:'#fff' }} />
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+                      <div>
+                        <Lbl>Last Monthly Salary (₹)</Lbl>
+                        <input value={exp.salary} onChange={e => setExp(idx,'salary',e.target.value)}
+                          placeholder="e.g. 15000" style={inputSx(false)} />
+                      </div>
+                      <div>
+                        <Lbl>Reason for Leaving</Lbl>
+                        <select value={exp.reason} onChange={e => setExp(idx,'reason',e.target.value)} style={selSx(false)}>
+                          <option value="">Select reason</option>
+                          {['Better Opportunity','Career Growth','Relocation','Health Reasons','Company Closure','Contract End','Others'].map(o=><option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={{ textAlign:'center', marginBottom:8 }}>
+              <Btn sm onClick={addExp} style={{ borderColor:C.saffron, color:C.saffron, padding:'8px 20px' }}>
+                + Add Another Experience
+              </Btn>
+            </div>
           </div>
-        </div>
-      );
+        );
+      }
 
       /* ── Skills ── */
       if (active === 'profile-skills') return (
         <div>
           <Divider title="Technical Skills" />
-          <Row><Field label="Skill Category" req><Sel opts={['Agriculture & Allied','Apparel, Madeups & Home Furnishing','Automotive','Beauty & Wellness','BFSI','Capital Goods','Construction','Domestic Worker','Electronics & Hardware','Food Processing','Furniture & Fittings','Green Jobs & Sustainability','Gems & Jewellery','Healthcare','Hospitality & Tourism','IT & ITeS','Leather','Logistics','Media & Entertainment','Mining','Plumbing','Retail','Rubber','Security','Sporticulture','Telecom','Textile','Others']} placeholder="Select skill sector" /></Field><Field label="Specific Skill / Trade" req><Inp placeholder="e.g. Python Programming, Electrician, Beautician" /></Field></Row>
-          <Row><Field label="Proficiency Level" req><Sel opts={['Beginner (Basic awareness)','Elementary (Can do with guidance)','Intermediate (Can work independently)','Advanced (Can train others)','Expert (Specialised knowledge)']} placeholder="Select proficiency" /></Field><Field label="Years of Experience with Skill"><Sel opts={['Less than 1 year','1 – 2 years','2 – 5 years','More than 5 years']} placeholder="Select" /></Field></Row>
+          <Row><Field label="Skill Category" req errKey="skill_category"><Sel opts={['Agriculture & Allied','Apparel, Madeups & Home Furnishing','Automotive','Beauty & Wellness','BFSI','Capital Goods','Construction','Domestic Worker','Electronics & Hardware','Food Processing','Furniture & Fittings','Green Jobs & Sustainability','Gems & Jewellery','Healthcare','Hospitality & Tourism','IT & ITeS','Leather','Logistics','Media & Entertainment','Mining','Plumbing','Retail','Rubber','Security','Sporticulture','Telecom','Textile','Others']} placeholder="Select skill sector" draftKey="skill_category" /></Field><Field label="Specific Skill / Trade" req errKey="skill_name"><Inp placeholder="e.g. Python Programming, Electrician, Beautician" draftKey="skill_name" /></Field></Row>
+          <Row><Field label="Proficiency Level" req errKey="skill_proficiency"><Sel opts={['Beginner (Basic awareness)','Elementary (Can do with guidance)','Intermediate (Can work independently)','Advanced (Can train others)','Expert (Specialised knowledge)']} placeholder="Select proficiency" draftKey="skill_proficiency" /></Field><Field label="Years of Experience with Skill"><Sel opts={['Less than 1 year','1 – 2 years','2 – 5 years','More than 5 years']} placeholder="Select" /></Field></Row>
           <Row><Field label="NSQF Level (if certified)"><Sel opts={['Not Certified','Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8','Level 9','Level 10']} placeholder="Select NSQF level" /></Field><Field label="Certifying Body"><Inp placeholder="e.g. NSDC, MSME, SSC, NIELIT" /></Field></Row>
           <div style={{ textAlign:'right', marginBottom:4 }}>
             <Btn sm style={{ borderColor:C.saffron, color:C.saffron }}>+ Add Another Skill</Btn>
@@ -1574,99 +1759,115 @@ export default function CandidatePortal() {
       );
 
       /* ── Documents ── */
-      if (active === 'profile-docs') return (
-        <div>
-          <div style={{ padding:'12px 16px', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, fontSize:12.5, color:'#9A6A00', marginBottom:18 }}>
-            ⚠️ Upload clear scanned copies or photos. Accepted formats: PDF, JPG, PNG. Max size: 2 MB per document.
+      if (active === 'profile-docs') {
+        const ALLOWED_TYPES = ['application/pdf','image/jpeg','image/jpg','image/png'];
+        const ALLOWED_EXT   = ['.pdf','.jpg','.jpeg','.png'];
+        const MAX_SIZE_MB   = 2;
+        const MAX_BYTES     = MAX_SIZE_MB * 1024 * 1024;
+
+        function handleFileChange(docKey, e) {
+          const file = e.target.files[0];
+          e.target.value = '';
+          if (!file) return;
+          const ext = '.' + file.name.split('.').pop().toLowerCase();
+          if (!ALLOWED_TYPES.includes(file.type) && !ALLOWED_EXT.includes(ext)) {
+            setDocErrors(de => ({ ...de, [docKey]: `Invalid file type. Allowed: PDF, JPG, PNG.` }));
+            return;
+          }
+          if (file.size > MAX_BYTES) {
+            setDocErrors(de => ({ ...de, [docKey]: `File too large. Maximum size is ${MAX_SIZE_MB} MB (your file: ${(file.size/1024/1024).toFixed(1)} MB).` }));
+            return;
+          }
+          setDocFiles(df => ({ ...df, [docKey]: file }));
+          setDocErrors(de => ({ ...de, [docKey]: undefined }));
+          if (fieldErrors[docKey]) setFieldErrors(f => ({ ...f, [docKey]: undefined }));
+        }
+
+        function DocRow({ docKey, label, req, hint }) {
+          const file = docFiles[docKey];
+          const err  = docErrors[docKey] || fieldErrors[docKey];
+          const borderColor = err ? '#DC2626' : file ? '#16A34A' : C.border;
+          return (
+            <div style={{ border:`1px solid ${borderColor}`, borderRadius:9, marginBottom:10, background:'#fff', overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>
+                    {label}{req && <span style={{ color:'#DC2626', marginLeft:3 }}>*</span>}
+                  </div>
+                  {hint && <div style={{ fontSize:11.5, color:C.ink3, marginTop:2 }}>{hint}</div>}
+                  {file && (
+                    <div style={{ fontSize:11.5, color:'#16A34A', marginTop:4, display:'flex', alignItems:'center', gap:6 }}>
+                      ✅ {file.name} <span style={{ color:C.ink3 }}>({(file.size/1024).toFixed(0)} KB)</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                  {file && (
+                    <button onClick={() => setDocFiles(df => ({ ...df, [docKey]: undefined }))}
+                      style={{ background:'none', border:'none', cursor:'pointer', fontSize:13, color:'#DC2626', padding:'4px 6px' }}
+                      title="Remove file">✕ Remove</button>
+                  )}
+                  <label style={{ padding:'6px 14px', borderRadius:7,
+                    background: file ? C.teal : C.blue,
+                    color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    {file ? '🔄 Replace' : '📎 Upload'}
+                    <input type="file" accept={ALLOWED_EXT.join(',')} style={{ display:'none' }}
+                      onChange={e => handleFileChange(docKey, e)} />
+                  </label>
+                </div>
+              </div>
+              {err && (
+                <div style={{ padding:'8px 16px', background:'#FEF2F2', borderTop:'1px solid #FCA5A5',
+                  fontSize:12, color:'#DC2626' }}>⚠ {err}</div>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <div>
+            <div style={{ padding:'12px 16px', background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, fontSize:12.5, color:'#9A6A00', marginBottom:18 }}>
+              ⚠️ Upload clear scanned copies or photos. Accepted: <strong>PDF, JPG, PNG</strong> only. Max size: <strong>{MAX_SIZE_MB} MB</strong> per document.
+            </div>
+
+            <Divider title="Identity Documents" />
+            <DocRow docKey="aadhaar"    label="Aadhaar Card"  req hint="Front & Back pages" />
+            <DocRow docKey="pan"        label="PAN Card"           hint="Optional — required for certain schemes" />
+            <DocRow docKey="voter_id"   label="Voter ID"           hint="Optional" />
+            <DocRow docKey="passport"   label="Passport"           hint="Optional" />
+
+            <Divider title="Education Documents" />
+            <DocRow docKey="marksheet_10" label="10th Marksheet / Certificate"      req />
+            <DocRow docKey="marksheet_12" label="12th Marksheet / Certificate"          />
+            <DocRow docKey="degree"        label="Graduation / Degree Certificate"      />
+            <DocRow docKey="other_qual"    label="Other Qualification Certificate"      />
+
+            <Divider title="Skill / Training Certificates" />
+            <DocRow docKey="skill_cert"          label="Skill Training Certificate (NSQF)"       />
+            <DocRow docKey="apprenticeship_cert"  label="Apprenticeship Completion Certificate"   />
+            <DocRow docKey="other_cert"           label="Other Skill / IT Certificates"           />
+
+            <Divider title="Bank / Financial Details (for scheme benefits)" />
+            <Row><Field label="Bank Account Number"><Inp placeholder="Enter account number" draftKey="bank_account_number" /></Field><Field label="Confirm Account Number"><Inp placeholder="Re-enter account number" /></Field></Row>
+            <Row><Field label="IFSC Code"><Inp placeholder="e.g. SBIN0001234" draftKey="bank_ifsc" /></Field><Field label="Bank Name"><Inp placeholder="Name of bank" /></Field></Row>
+            <Row cols="1fr"><Field label="Branch Name & Address"><Inp placeholder="Branch name and city" /></Field></Row>
+            <Row><Field label="Passbook / Cancelled Cheque">
+              <DocRow docKey="passbook" label="" />
+            </Field></Row>
           </div>
-          <Divider title="Identity Documents" />
-          {[
-            { label:'Aadhaar Card', req:true,  hint:'Front & Back pages' },
-            { label:'PAN Card',     req:false, hint:'Optional — required for certain schemes' },
-            { label:'Voter ID',     req:false, hint:'Optional' },
-            { label:'Passport',     req:false, hint:'Optional' },
-          ].map(d => (
-            <div key={d.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'12px 16px', border:`1px solid ${C.border}`, borderRadius:9, marginBottom:10, background:'#fff' }}>
-              <div>
-                <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>{d.label}{d.req && <span style={{ color:'#DC2626', marginLeft:3 }}>*</span>}</div>
-                <div style={{ fontSize:11.5, color:C.ink3, marginTop:2 }}>{d.hint}</div>
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:11, color:C.ink3 }}>No file chosen</span>
-                <label style={{ padding:'6px 14px', borderRadius:7, background:C.blue, color:'#fff',
-                  fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📎 Upload
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} />
-                </label>
-              </div>
-            </div>
-          ))}
-
-          <Divider title="Education Documents" />
-          {[
-            { label:'10th Marksheet / Certificate', req:true },
-            { label:'12th Marksheet / Certificate', req:false },
-            { label:'Graduation / Degree Certificate', req:false },
-            { label:'Other Qualification Certificate', req:false },
-          ].map(d => (
-            <div key={d.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'12px 16px', border:`1px solid ${C.border}`, borderRadius:9, marginBottom:10, background:'#fff' }}>
-              <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>{d.label}{d.req && <span style={{ color:'#DC2626', marginLeft:3 }}>*</span>}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:11, color:C.ink3 }}>No file chosen</span>
-                <label style={{ padding:'6px 14px', borderRadius:7, background:C.blue, color:'#fff',
-                  fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📎 Upload
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} />
-                </label>
-              </div>
-            </div>
-          ))}
-
-          <Divider title="Skill / Training Certificates" />
-          {[
-            { label:'Skill Training Certificate (NSQF)', req:false },
-            { label:'Apprenticeship Completion Certificate', req:false },
-            { label:'Other Skill / IT Certificates', req:false },
-          ].map(d => (
-            <div key={d.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-              padding:'12px 16px', border:`1px solid ${C.border}`, borderRadius:9, marginBottom:10, background:'#fff' }}>
-              <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>{d.label}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:11, color:C.ink3 }}>No file chosen</span>
-                <label style={{ padding:'6px 14px', borderRadius:7, background:C.blue, color:'#fff',
-                  fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📎 Upload
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} />
-                </label>
-              </div>
-            </div>
-          ))}
-
-          <Divider title="Bank / Financial Details (for scheme benefits)" />
-          <Row><Field label="Bank Account Number"><Inp placeholder="Enter account number" draftKey="bank_account_number" /></Field><Field label="Confirm Account Number"><Inp placeholder="Re-enter account number" /></Field></Row>
-          <Row><Field label="IFSC Code"><Inp placeholder="e.g. SBIN0001234" draftKey="bank_ifsc" /></Field><Field label="Bank Name"><Inp placeholder="Name of bank" /></Field></Row>
-          <Row cols="1fr"><Field label="Branch Name & Address"><Inp placeholder="Branch name and city" /></Field></Row>
-          <Row><Field label="Passbook / Cancelled Cheque"><div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:11, color:C.ink3 }}>No file chosen</span>
-            <label style={{ padding:'6px 14px', borderRadius:7, background:C.blue, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-              📎 Upload<input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:'none' }} />
-            </label>
-          </div></Field></Row>
-        </div>
-      );
+        );
+      }
 
       /* ── Job Preferences ── */
       if (active === 'profile-pref') return (
         <div>
           <Divider title="Job / Work Preferences" />
-          <Row><Field label="Preferred Job Role / Designation" req><Inp placeholder="e.g. Data Analyst, Electrician, Sales Executive" /></Field><Field label="Preferred Employment Type" req><Sel opts={['Full-time','Part-time','Contract / Project','Freelance / Consultancy','Apprenticeship','Internship','Any']} placeholder="Select type" /></Field></Row>
-          <Row><Field label="Expected Monthly Salary (₹)" req><Inp placeholder="e.g. 20000" /></Field><Field label="Notice Period"><Sel opts={['Immediately Available','15 Days','1 Month','2 Months','3 Months','More than 3 Months']} placeholder="Select notice period" /></Field></Row>
-          <Row><Field label="Preferred Sector" req><Sel opts={['Agriculture','Automotive','BFSI','Construction','Electronics','Food Processing','Healthcare','Hospitality','IT / ITeS','Logistics','Manufacturing','Media','Retail','Security','Telecom','Textile','Others']} placeholder="Select sector" /></Field><Field label="Preferred Work Mode"><Sel opts={['On-site / Office','Work from Home','Hybrid','Open to Any']} placeholder="Select work mode" /></Field></Row>
+          <Row><Field label="Preferred Job Role / Designation" req errKey="pref_role"><Inp placeholder="e.g. Data Analyst, Electrician, Sales Executive" draftKey="pref_role" /></Field><Field label="Preferred Employment Type" req errKey="pref_emp_type"><Sel opts={['Full-time','Part-time','Contract / Project','Freelance / Consultancy','Apprenticeship','Internship','Any']} placeholder="Select type" draftKey="pref_emp_type" /></Field></Row>
+          <Row><Field label="Expected Monthly Salary (₹)" req errKey="pref_salary"><Inp placeholder="e.g. 20000" draftKey="pref_salary" /></Field><Field label="Notice Period"><Sel opts={['Immediately Available','15 Days','1 Month','2 Months','3 Months','More than 3 Months']} placeholder="Select notice period" /></Field></Row>
+          <Row><Field label="Preferred Sector" req errKey="pref_sector"><Sel opts={['Agriculture','Automotive','BFSI','Construction','Electronics','Food Processing','Healthcare','Hospitality','IT / ITeS','Logistics','Manufacturing','Media','Retail','Security','Telecom','Textile','Others']} placeholder="Select sector" draftKey="pref_sector" /></Field><Field label="Preferred Work Mode"><Sel opts={['On-site / Office','Work from Home','Hybrid','Open to Any']} placeholder="Select work mode" /></Field></Row>
 
           <Divider title="Preferred Location" />
-          <Row><Field label="Preferred State" req><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Open to Relocation']} placeholder="Select preferred state" /></Field><Field label="Preferred City / District"><Inp placeholder="Enter preferred city or district" /></Field></Row>
+          <Row><Field label="Preferred State" req errKey="pref_state"><Sel opts={['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','J&K','Ladakh','Open to Relocation']} placeholder="Select preferred state" draftKey="pref_state" /></Field><Field label="Preferred City / District"><Inp placeholder="Enter preferred city or district" /></Field></Row>
           <Row>
             <Field label="Open to Relocation">
               <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginTop:4 }}>
@@ -1784,21 +1985,37 @@ export default function CandidatePortal() {
 
           {stepContent()}
 
+          {/* Validation error summary */}
+          {Object.keys(fieldErrors).filter(k => fieldErrors[k]).length > 0 && (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:8,
+              padding:'12px 16px', marginTop:16 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#DC2626', marginBottom:6 }}>
+                ⚠ Please fix the following before saving:
+              </div>
+              <ul style={{ margin:0, paddingLeft:18 }}>
+                {Object.values(fieldErrors).filter(Boolean).map((msg, i) => (
+                  <li key={i} style={{ fontSize:12.5, color:'#B91C1C', marginBottom:2 }}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
             marginTop:24, paddingTop:16, borderTop:`1px solid ${C.border}` }}>
-            <Btn onClick={() => cur > 0 && go(STEPS[cur-1].id)}
+            <Btn onClick={() => { setFieldErrors({}); cur > 0 && go(STEPS[cur-1].id); }}
               style={{ opacity: cur===0 ? .4 : 1, pointerEvents: cur===0 ? 'none':'auto' }}>
               ← Previous
             </Btn>
             <div style={{ display:'flex', gap:10, alignItems:'center' }}>
               {profileMsg && <span style={{ fontSize:12, color: profileMsg.includes('failed') ? '#DC2626' : C.teal }}>{profileMsg}</span>}
-              <Btn onClick={saveProfileDraft} style={{ borderColor:C.teal, color:C.teal, opacity: profileSaving ? .7 : 1 }}>
+              <Btn onClick={() => { const errs = validateStep(active); if (Object.keys(errs).length === 0) saveProfileDraft(); }}
+                style={{ borderColor:C.teal, color:C.teal, opacity: profileSaving ? .7 : 1 }}>
                 {profileSaving ? 'Saving…' : '💾 Save Draft'}
               </Btn>
               {cur < STEPS.length-1
-                ? <Btn primary onClick={async () => { await saveProfileDraft(); go(STEPS[cur+1].id); }}>Save & Continue →</Btn>
-                : <Btn primary onClick={async () => { await saveProfileDraft(); setProfileMsg('Profile submitted successfully!'); }} style={{ background:C.blue }}>✅ Submit Profile</Btn>
+                ? <Btn primary onClick={() => { const errs = validateStep(active); if (Object.keys(errs).length === 0) { saveProfileDraft(); setFieldErrors({}); go(STEPS[cur+1].id); } }}>Save & Continue →</Btn>
+                : <Btn primary onClick={() => { const errs = validateStep(active); if (Object.keys(errs).length === 0) { saveProfileDraft(); setProfileMsg('Profile submitted successfully!'); } }} style={{ background:C.blue }}>✅ Submit Profile</Btn>
               }
             </div>
           </div>

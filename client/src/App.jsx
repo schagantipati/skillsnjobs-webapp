@@ -103,7 +103,7 @@ export default function App() {
             <Route path="/my-jobs" element={<Protected roles={['employer', 'admin']}><MyJobs /></Protected>} />
             <Route path="/applications" element={<Protected roles={['candidate', 'administrator']}><Applications /></Protected>} />
             <Route path="/courses" element={<Protected><Courses /></Protected>} />
-            <Route path="/candidates" element={<Protected roles={['employer', 'admin', 'state_government', 'central_government']}><Candidates /></Protected>} />
+            <Route path="/candidates" element={<Protected roles={['employer', 'admin', 'state_government', 'central_government', 'placement_agency', 'csr_org']}><Candidates /></Protected>} />
             <Route path="/profile" element={<Protected><Profile /></Protected>} />
 
             <Route path="*" element={<Navigate to={

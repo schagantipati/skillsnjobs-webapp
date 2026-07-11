@@ -40,13 +40,14 @@ function F({ label, required, hint, children }) {
   );
 }
 
-function Inp({ id, value, onChange, onBlur, placeholder, type='text', maxLength, disabled, readOnly }) {
+function Inp({ id, value, onChange, onBlur, placeholder, type='text', maxLength, disabled, readOnly, style: extraStyle }) {
   return (
     <input id={id} type={type} value={value||''} onChange={onChange} onBlur={onBlur}
       placeholder={placeholder} maxLength={maxLength}
       disabled={disabled} readOnly={readOnly}
       style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #DDE3EE', borderRadius:9,
-        fontSize:13, color:'#0A2D6E', background: disabled||readOnly ? '#F8FAFC' : '#fff', outline:'none' }} />
+        fontSize:13, color:'#0A2D6E', background: disabled||readOnly ? '#F8FAFC' : '#fff', outline:'none',
+        ...extraStyle }} />
   );
 }
 
@@ -127,14 +128,18 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   /* Step 1 */
   const [orgType, setOrgType]     = useState('');
   const [dateIncorp, setDateIncorp] = useState('');
+  const [dateIncorpError, setDateIncorpError] = useState('');
   const [cinReg, setCinReg]       = useState('');
   const [website, setWebsite]     = useState('');
   const [websiteError, setWebsiteError] = useState('');
   const [headAddr, setHeadAddr]   = useState('');
+  const [headAddrError, setHeadAddrError] = useState('');
   const [headState, setHeadState] = useState('');
   const [headDistrict, setHeadDistrict] = useState('');
   const [headCity, setHeadCity]   = useState('');
   const [headPin, setHeadPin]     = useState('');
+  const [headPinError, setHeadPinError] = useState('');
+  const [headPinLoading, setHeadPinLoading] = useState(false);
 
   /* Step 2 */
   const [spocName, setSpocName]   = useState(user?.first_name || '');
@@ -143,6 +148,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [altMobile, setAltMobile] = useState('');
   const [altEmail, setAltEmail]   = useState('');
   const [altEmailError, setAltEmailError] = useState('');
+  const [spocNameError, setSpocNameError] = useState('');
+  const [altNameError,  setAltNameError]  = useState('');
 
   /* Step 3 */
   const [panNo, setPanNo]   = useState(user?.pan || '');
@@ -204,8 +211,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     const vp = user.vendor_profile || {};
 
     /* Step 1 */
-    setOrgType(     vp.step1?.orgType      || user.gender          || '');
-    setDateIncorp(  vp.step1?.dateIncorp   || toISODate(user.dob)  || '');
+    setOrgType(     vp.step1?.orgType      || '');
+    setDateIncorp(  vp.step1?.dateIncorp   || toISODate(user.year_established) || '');
     setCinReg(      vp.step1?.cinReg       || user.registration_number || '');
     setWebsite(     vp.step1?.website      || '');
     setHeadAddr(    vp.step1?.headAddr     || user.address_line1   || '');
@@ -269,17 +276,63 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   }, [user?.id]);
 
   /* ── Validate step ─────────────────────────────────────────── */
+  function validateAddress(val) {
+    if (!val || !val.trim()) return 'Street Address is required';
+    const v = val.trim();
+    if (v.length < 10) return 'Address must be at least 10 characters';
+    if (/[<>{}|\\^`~\[\]@#$%*=+]/.test(v)) return 'Address contains invalid characters';
+    if (/^[^a-zA-Z0-9]/.test(v)) return 'Address must start with a letter or number';
+    return '';
+  }
+
+  async function lookupPin(pin) {
+    if (pin.length !== 6) return;
+    setHeadPinLoading(true);
+    setHeadPinError('');
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = await res.json();
+      if (data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+        const po = data[0].PostOffice[0];
+        setHeadState(po.State || headState);
+        setHeadDistrict(po.District || headDistrict);
+        setHeadCity(po.Division || po.District || headCity);
+        setHeadPinError('');
+      } else {
+        setHeadPinError('PIN code not found in India Post directory. Please verify.');
+      }
+    } catch {
+      setHeadPinError('Could not fetch PIN details. Please fill state and city manually.');
+    }
+    setHeadPinLoading(false);
+  }
+
+  function validateDateIncorp(val) {
+    if (!val) return 'Date of Incorporation is required';
+    const d = new Date(val);
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (d > today) return 'Date of Incorporation cannot be a future date';
+    if (d < new Date('1900-01-01')) return 'Date of Incorporation seems too old — please enter a valid date (1900 or later)';
+    return '';
+  }
+
   function validate() {
     if (step === 1) {
       if (!orgType) return 'Organisation Type is required';
-      if (!dateIncorp) return 'Date of Incorporation is required';
+      if (!dateIncorp) { setDateIncorpError('Date of Incorporation is required'); return 'Date of Incorporation is required'; }
+      const incorpErr = validateDateIncorp(dateIncorp);
+      if (incorpErr) { setDateIncorpError(incorpErr); return incorpErr; }
       if (!(user?.org_name || '').trim()) return 'Organisation Name is required — update your profile';
+      const addrErr = validateAddress(headAddr);
+      if (addrErr) { setHeadAddrError(addrErr); return addrErr; }
       if (!headState) return 'Head Office State is required';
       if (!headCity.trim()) return 'Head Office City is required';
-      if (headPin.length !== 6) return 'Valid 6-digit PIN code is required';
+      if (headPin.length !== 6) { setHeadPinError('Valid 6-digit PIN code is required'); return 'Valid 6-digit PIN code is required'; }
     }
     if (step === 2) {
-      if (!spocName.trim()) return 'SPOC Name is required';
+      if (!spocName.trim()) { setSpocNameError('SPOC Name is required'); return 'SPOC Name is required'; }
+      const nameErr = fieldValidate('name', spocName);
+      if (nameErr) { setSpocNameError(nameErr); return nameErr; }
       if (!spocDesig.trim()) return 'SPOC Designation is required';
     }
     if (step === 3) {
@@ -319,9 +372,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     const vp = buildVendorProfile();
     setSaving(true);
     try {
-      await api.updateMe({ vendor_profile: vp, pan: panNo, gstin: gstNo,
+      await api.updateMe({ vendor_profile: vp, pan: panNo, gstin: gstNo, tan: tanNo,
+        website,
         bank_ifsc: bankIfsc, bank_account_name: bankAccName, bank_account_number: bankAccNum,
-        spoc_name: spocName, dob: dateIncorp, city: headCity, state_name: headState, pincode: headPin,
+        spoc_name: spocName, year_established: dateIncorp, city: headCity, state_name: headState, pincode: headPin,
         address_line1: headAddr, registration_number: cinReg });
       await refresh();
       if (step === STEPS.length) {
@@ -594,7 +648,15 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   </Sel>
                 </F>
                 <F label="Date of Incorporation" required>
-                  <Inp type="date" value={dateIncorp} onChange={e => setDateIncorp(e.target.value)} max={new Date().toISOString().slice(0,10)} />
+                  <div style={{ width:'100%' }}>
+                    <Inp type="date" value={dateIncorp}
+                      min="1900-01-01"
+                      max={new Date().toISOString().slice(0,10)}
+                      onChange={e => { setDateIncorp(e.target.value); setDateIncorpError(validateDateIncorp(e.target.value)); }}
+                      onBlur={e => setDateIncorpError(validateDateIncorp(e.target.value))}
+                      style={dateIncorpError ? { border:'1px solid #C0392B' } : {}} />
+                    {dateIncorpError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {dateIncorpError}</div>}
+                  </div>
                 </F>
               </G2>
               <G2>
@@ -613,7 +675,38 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               </G2>
               <SBox title="🏠 Head Office Address">
                 <F label="Street Address" required>
-                  <Inp value={headAddr} onChange={e => setHeadAddr(e.target.value)} placeholder="Building no., street name, area/locality" />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={headAddr}
+                      onChange={e => { setHeadAddr(e.target.value); setHeadAddrError(''); }}
+                      onBlur={e => setHeadAddrError(validateAddress(e.target.value))}
+                      placeholder="Building no., street name, area/locality"
+                      style={headAddrError ? { border:'1px solid #C0392B' } : {}} />
+                    {headAddrError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {headAddrError}</div>}
+                    <div style={{ fontSize:10.5, color:'#94A3B8', marginTop:3 }}>Min 10 characters · No special characters like {'< > { } @ # $ %'}</div>
+                  </div>
+                </F>
+                <F label="PIN Code" required>
+                  <div style={{ width:'100%' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <Inp value={headPin}
+                        onChange={e => {
+                          const v = e.target.value.replace(/\D/g,'').slice(0,6);
+                          setHeadPin(v);
+                          setHeadPinError('');
+                          if (v.length === 6) lookupPin(v);
+                        }}
+                        placeholder="6-digit PIN" maxLength={6}
+                        style={headPinError ? { border:'1px solid #C0392B' } : {}} />
+                      {headPinLoading && <span style={{ fontSize:12, color:'#64748B', whiteSpace:'nowrap' }}>🔍 Looking up…</span>}
+                      {!headPinLoading && headPin.length === 6 && !headPinError && headState && (
+                        <span style={{ fontSize:12, color:'#16A34A', whiteSpace:'nowrap' }}>✅ Verified</span>
+                      )}
+                    </div>
+                    {headPinError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {headPinError}</div>}
+                    {!headPinError && headPin.length === 6 && !headPinLoading && headState && (
+                      <div style={{ fontSize:11, color:'#16A34A', marginTop:3 }}>Auto-filled from India Post directory</div>
+                    )}
+                  </div>
                 </F>
                 <G3>
                   <F label="State" required>
@@ -629,9 +722,6 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                     <Inp value={headCity} onChange={e => setHeadCity(e.target.value)} placeholder="City" />
                   </F>
                 </G3>
-                <F label="PIN Code" required>
-                  <Inp value={headPin} onChange={e => setHeadPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit PIN" maxLength={6} />
-                </F>
               </SBox>
             </>
           )}
@@ -647,7 +737,14 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               <SBox title="👤 SPOC — Single Point of Contact">
                 <G2>
                   <F label="Full Name" required>
-                    <Inp value={spocName} onChange={e => setSpocName(e.target.value)} placeholder="Authorised contact person name" />
+                    <div style={{ width:'100%' }}>
+                      <Inp value={spocName}
+                        onChange={e => { setSpocName(e.target.value); setSpocNameError(''); }}
+                        onBlur={e => { const v = e.target.value.trim(); if (!v) setSpocNameError('SPOC Name is required'); else setSpocNameError(fieldValidate('name', v)); }}
+                        placeholder="Authorised contact person name"
+                        style={spocNameError ? { border:'1px solid #C0392B' } : {}} />
+                      {spocNameError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {spocNameError}</div>}
+                    </div>
                   </F>
                   <F label="Designation" required>
                     <Inp value={spocDesig} onChange={e => setSpocDesig(e.target.value)} placeholder="e.g. CEO / Director / Training Manager" />
@@ -665,7 +762,14 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               <SBox title="👥 Alternate Contact (Optional)">
                 <G2>
                   <F label="Full Name">
-                    <Inp value={altName} onChange={e => setAltName(e.target.value)} placeholder="Alternate contact name" />
+                    <div style={{ width:'100%' }}>
+                      <Inp value={altName}
+                        onChange={e => { setAltName(e.target.value); setAltNameError(''); }}
+                        onBlur={e => { const v = e.target.value.trim(); if (v) setAltNameError(fieldValidate('name', v)); }}
+                        placeholder="Alternate contact name"
+                        style={altNameError ? { border:'1px solid #C0392B' } : {}} />
+                      {altNameError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {altNameError}</div>}
+                    </div>
                   </F>
                   <F label="Mobile">
                     <Inp value={altMobile} onChange={e => setAltMobile(e.target.value.replace(/\D/g,'').slice(0,10))} placeholder="10-digit mobile" maxLength={10} />

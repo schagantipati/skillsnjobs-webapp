@@ -30,6 +30,7 @@ export const api = {
   login: (payload) => request('/auth/login', { method: 'POST', body: payload, auth: false }),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: { email }, auth: false }),
   resetPassword: (token, password) => request('/auth/reset-password', { method: 'POST', body: { token, password }, auth: false }),
+  checkDuplicate: (field, value) => request('/auth/check-duplicate', { method: 'POST', body: { field, value }, auth: false }),
   sendOtp: (type, value) => request('/auth/send-otp', { method: 'POST', body: { type, value }, auth: false }),
   verifyOtp: (type, value, otp) => request('/auth/verify-otp', { method: 'POST', body: { type, value, otp }, auth: false }),
   me: () => request('/users/me'),
@@ -38,14 +39,10 @@ export const api = {
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
-  userStats: () => request('/users/stats'),
   auditLogs: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/audit-logs' + (qs ? `?${qs}` : '')); },
   allUsers: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/all' + (qs ? `?${qs}` : '')); },
   setUserStatus: (id, is_active) => request(`/users/${id}/status`, { method: 'PUT', body: { is_active } }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
-  importUsers: (role, records) => request('/import/users', { method: 'POST', body: { role, records } }),
-  importJobs: (records) => request('/import/jobs', { method: 'POST', body: { records } }),
-  importCourses: (records) => request('/import/courses', { method: 'POST', body: { records } }),
 
   jobs: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
@@ -74,7 +71,7 @@ export const api = {
   recommendations: () => request('/courses/recommendations/for-me'),
 
   stats: () => request('/stats/summary'),
-  dashboardStats: () => request('/stats/summary'),
+  dashboardStats: () => request('/stats/summary'), // alias kept for portal components
 
   targetBeneficiaries: () => request('/target-beneficiaries'),
   addTargetBeneficiary: (name) => request('/target-beneficiaries', { method: 'POST', body: { name } }),
@@ -274,6 +271,20 @@ export const api = {
   // Notifications
   sgNotifications: () => request('/state-govt/notifications'),
   sgMarkNotifRead: () => request('/state-govt/notifications/mark-read', { method: 'PUT' }),
+  // Collaboration
+  collabConsortium: () => request('/collaboration/consortium'),
+  collabInvitations: () => request('/collaboration/invitations'),
+  collabSendInvitation: (payload) => request('/collaboration/invitations', { method: 'POST', body: payload }),
+  collabUpdateInvitation: (id, status) => request(`/collaboration/invitations/${id}`, { method: 'PATCH', body: { status } }),
+  collabPartnershipRequests: () => request('/collaboration/partnership-requests'),
+  collabPostPartnershipRequest: (payload) => request('/collaboration/partnership-requests', { method: 'POST', body: payload }),
+  collabClosePartnershipRequest: (id) => request(`/collaboration/partnership-requests/${id}/close`, { method: 'PATCH' }),
+  collabRespondToRequest: (id, message) => request(`/collaboration/partnership-requests/${id}/respond`, { method: 'POST', body: { message } }),
+  collabRequestResponses: (id) => request(`/collaboration/partnership-requests/${id}/responses`),
+  collabResources: (listing_type) => request(`/collaboration/resources${listing_type ? `?listing_type=${listing_type}` : ''}`),
+  collabListResource: (payload) => request('/collaboration/resources', { method: 'POST', body: payload }),
+  collabDeleteResource: (id) => request(`/collaboration/resources/${id}`, { method: 'DELETE' }),
+  collabRequestResource: (id, payload) => request(`/collaboration/resources/${id}/request`, { method: 'POST', body: payload }),
 };
 
 export function setToken(token) {

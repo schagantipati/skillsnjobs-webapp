@@ -247,18 +247,18 @@ const ROLE_LABEL = {
 function PanelDashboard({ stats }) {
   const s = stats || {};
   const fmt = n => (n ?? 0).toLocaleString('en-IN');
-  const certRate = s.totalLearners ? Math.round((s.certifications || 0) / s.totalLearners * 100) : 0;
-  const placeRate = s.certifications ? Math.round((s.placed || 0) / s.certifications * 100) : 0;
+  const certRate = s.candidates ? Math.round((s.totalCertificates || 0) / s.candidates * 100) : 0;
+  const placeRate = s.totalCertificates ? Math.round((s.placedCandidates || 0) / s.totalCertificates * 100) : 0;
 
   return (
     <>
       <div className="ph"><h1>Platform Overview</h1><p>SkillsNJobs · Real-time data · Skills India aligned</p></div>
       <div className="kpi-grid">
-        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{fmt(s.totalLearners)}</div><div className="lbl">Total Learners</div><div className="sub">{s.activeBatches} active batches</div></div>
-        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{fmt(s.trainingPartners)}</div><div className="lbl">Training Partners</div><div className="sub">{s.verifiedPartners} verified</div></div>
+        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{fmt(s.candidates)}</div><div className="lbl">Total Learners</div><div className="sub">{s.activeBatches} active batches</div></div>
+        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{fmt(s.trainingVendors)}</div><div className="lbl">Training Partners</div><div className="sub">{fmt(s.vendorCentres)} centres</div></div>
         <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">{fmt(s.trainers)}</div><div className="lbl">Trainers & Assessors</div><div className="sub">{s.totalBatches} total batches</div></div>
-        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{fmt(s.certifications)}</div><div className="lbl">Certifications Issued</div><div className="sub">across all portals</div></div>
-        <div className="kpi" style={{'--c':'#DC2626'}}><div className="val">{fmt(s.placed)}</div><div className="lbl">Placed Candidates</div><div className="sub">{fmt(s.totalPlacements)} total placements</div></div>
+        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{fmt(s.totalCertificates)}</div><div className="lbl">Certifications Issued</div><div className="sub">across all portals</div></div>
+        <div className="kpi" style={{'--c':'#DC2626'}}><div className="val">{fmt(s.placedCandidates)}</div><div className="lbl">Placed Candidates</div><div className="sub">{fmt(s.totalPlacements)} total placements</div></div>
         <div className="kpi" style={{'--c':'#0891B2'}}><div className="val">{fmt(s.employers)}</div><div className="lbl">Employer Partners</div><div className="sub">{s.openJobs} open jobs</div></div>
       </div>
       <div className="grid2">
@@ -307,8 +307,24 @@ function PanelDashboard({ stats }) {
 }
 
 function PanelUsers({ role, title }) {
-  const [users, loading] = useLoad(() => role ? api.usersByRole(role) : api.allUsers());
+  const [users, loading, reload] = useLoad(() => role ? api.usersByRole(role) : api.allUsers());
   const list = Array.isArray(users) ? users : [];
+  const { user: me } = useAuth();
+  const [busyId, setBusyId] = useState(null);
+
+  async function toggleStatus(u) {
+    setBusyId(u.id);
+    try { await api.setUserStatus(u.id, u.is_active === 0 ? 1 : 0); reload(); }
+    catch (e) { alert(e.message || 'Failed to update status'); }
+    setBusyId(null);
+  }
+  async function removeUser(u) {
+    if (!confirm(`Delete ${u.name || u.email}? This cannot be undone.`)) return;
+    setBusyId(u.id);
+    try { await api.deleteUser(u.id); reload(); }
+    catch (e) { alert(e.message || 'Failed to delete user'); }
+    setBusyId(null);
+  }
 
   return (
     <>
@@ -321,7 +337,7 @@ function PanelUsers({ role, title }) {
       <div className="card">
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="👥" msg="No users found." /> : (
           <table className="sa-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Organisation</th><th>Location</th><th>Status</th><th>Joined</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Organisation</th><th>Location</th><th>Status</th><th>Joined</th><th>Action</th></tr></thead>
             <tbody>
               {list.map(u => (
                 <tr key={u.id}>
@@ -332,6 +348,18 @@ function PanelUsers({ role, title }) {
                   <td>{u.location || u.city || '—'}</td>
                   <td><Pill v={u.is_active !== 0 ? 'Active' : 'Inactive'} map={{Active:'green',Inactive:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(u.created_at||'').slice(0,10)}</td>
+                  <td style={{whiteSpace:'nowrap'}}>
+                    {u.id === me?.id ? <span style={{fontSize:10.5,color:'#94A3B8'}}>You</span> : <>
+                      <button disabled={busyId===u.id} onClick={() => toggleStatus(u)}
+                        style={{fontSize:11,padding:'3px 8px',borderRadius:5,border:'1px solid #dde2eb',background:'#fff',cursor:busyId===u.id?'default':'pointer',marginRight:6,opacity:busyId===u.id?0.6:1}}>
+                        {u.is_active === 0 ? 'Activate' : 'Deactivate'}
+                      </button>
+                      <button disabled={busyId===u.id} onClick={() => removeUser(u)}
+                        style={{fontSize:11,padding:'3px 8px',borderRadius:5,border:'1px solid #DC2626',color:'#DC2626',background:'#fff',cursor:busyId===u.id?'default':'pointer',opacity:busyId===u.id?0.6:1}}>
+                        Delete
+                      </button>
+                    </>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -343,9 +371,25 @@ function PanelUsers({ role, title }) {
 }
 
 function PanelAllUsers() {
-  const [users, loading] = useLoad(() => api.allUsers());
+  const [users, loading, reload] = useLoad(() => api.allUsers());
   const list = Array.isArray(users) ? users : [];
   const byRole = list.reduce((acc, u) => { acc[u.role] = (acc[u.role]||0)+1; return acc; }, {});
+  const { user: me } = useAuth();
+  const [busyId, setBusyId] = useState(null);
+
+  async function toggleStatus(u) {
+    setBusyId(u.id);
+    try { await api.setUserStatus(u.id, u.is_active === 0 ? 1 : 0); reload(); }
+    catch (e) { alert(e.message || 'Failed to update status'); }
+    setBusyId(null);
+  }
+  async function removeUser(u) {
+    if (!confirm(`Delete ${u.name || u.email}? This cannot be undone.`)) return;
+    setBusyId(u.id);
+    try { await api.deleteUser(u.id); reload(); }
+    catch (e) { alert(e.message || 'Failed to delete user'); }
+    setBusyId(null);
+  }
 
   return (
     <>
@@ -358,7 +402,7 @@ function PanelAllUsers() {
       <div className="card">
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="👥" /> : (
           <table className="sa-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Organisation</th><th>Status</th><th>Joined</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Organisation</th><th>Status</th><th>Joined</th><th>Action</th></tr></thead>
             <tbody>
               {list.map(u => (
                 <tr key={u.id}>
@@ -368,6 +412,18 @@ function PanelAllUsers() {
                   <td style={{fontSize:'11px'}}>{u.org_name||'—'}</td>
                   <td><Pill v={u.is_active!==0?'Active':'Inactive'} map={{Active:'green',Inactive:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(u.created_at||'').slice(0,10)}</td>
+                  <td style={{whiteSpace:'nowrap'}}>
+                    {u.id === me?.id ? <span style={{fontSize:10.5,color:'#94A3B8'}}>You</span> : <>
+                      <button disabled={busyId===u.id} onClick={() => toggleStatus(u)}
+                        style={{fontSize:11,padding:'3px 8px',borderRadius:5,border:'1px solid #dde2eb',background:'#fff',cursor:busyId===u.id?'default':'pointer',marginRight:6,opacity:busyId===u.id?0.6:1}}>
+                        {u.is_active === 0 ? 'Activate' : 'Deactivate'}
+                      </button>
+                      <button disabled={busyId===u.id} onClick={() => removeUser(u)}
+                        style={{fontSize:11,padding:'3px 8px',borderRadius:5,border:'1px solid #DC2626',color:'#DC2626',background:'#fff',cursor:busyId===u.id?'default':'pointer',opacity:busyId===u.id?0.6:1}}>
+                        Delete
+                      </button>
+                    </>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -656,7 +712,7 @@ function PanelPlacements() {
       <div className="kpi-grid">
         <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{list.length}</div><div className="lbl">Total Placements</div></div>
         <div className="kpi" style={{'--c':'#003366'}}><div className="val">{[...new Set(list.map(p=>p.employer_name||p.company).filter(Boolean))].length}</div><div className="lbl">Unique Employers</div></div>
-        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{list.length ? `₹${Math.round(list.reduce((s,p)=>s+(p.salary||p.ctc||0),0)/list.length).toLocaleString()}` : '—'}</div><div className="lbl">Avg Salary</div></div>
+        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{list.length ? `₹${Math.round(list.reduce((s,p)=>s+(p.salary||p.ctc||0),0)/list.length).toLocaleString()}/yr` : '—'}</div><div className="lbl">Avg Salary</div></div>
       </div>
       <div className="card">
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="🎯" msg="No placement records yet." /> : (
@@ -668,7 +724,7 @@ function PanelPlacements() {
                   <td style={{fontWeight:600}}>{p.candidate_name||p.name||'—'}</td>
                   <td style={{fontSize:'11px'}}>{p.job_title||p.role||'—'}</td>
                   <td style={{fontSize:'11px'}}>{p.employer_name||p.company||'—'}</td>
-                  <td style={{fontWeight:700,color:'#007B5E'}}>{p.salary||p.ctc ? `₹${Number(p.salary||p.ctc).toLocaleString()}/mo` : '—'}</td>
+                  <td style={{fontWeight:700,color:'#007B5E'}}>{p.salary||p.ctc ? `₹${Number(p.salary||p.ctc).toLocaleString()}/yr` : '—'}</td>
                   <td style={{fontSize:'10.5px',color:'#6B7FA3'}}>{(p.placed_date||p.created_at||'').slice(0,10)}</td>
                   <td><Pill v={p.status||'placed'} map={{placed:'green',confirmed:'green',pending:'amber'}} /></td>
                 </tr>
@@ -683,11 +739,11 @@ function PanelPlacements() {
 
 function PanelAuditLogs() {
   const [logs, loading] = useLoad(() => api.auditLogs({ limit: 100 }));
-  const list = Array.isArray(logs) ? logs : (logs?.logs||[]);
+  const list = Array.isArray(logs) ? logs : (logs?.rows||[]);
 
   const exportCSV = () => {
     const hdr = 'Timestamp,User,Action,Entity,IP\n';
-    const body = list.map(l => `"${l.created_at}","${l.user_name||l.user||''}","${l.action}","${l.entity_type||''}","${l.ip_address||''}"`).join('\n');
+    const body = list.map(l => `"${l.created_at}","${l.user_name||l.user||''}","${l.action}","${l.entity||''}","${l.ip||''}"`).join('\n');
     const url = URL.createObjectURL(new Blob([hdr+body],{type:'text/csv'}));
     Object.assign(document.createElement('a'),{href:url,download:'audit-logs.csv'}).click();
     URL.revokeObjectURL(url);
@@ -710,8 +766,8 @@ function PanelAuditLogs() {
                   <td style={{fontSize:'10.5px',color:'#6B7FA3',whiteSpace:'nowrap'}}>{(l.created_at||'').replace('T',' ').slice(0,16)}</td>
                   <td style={{fontWeight:600,fontSize:'11px'}}>{l.user_name||l.user||'—'}</td>
                   <td style={{fontSize:'11.5px'}}>{l.action}</td>
-                  <td style={{fontSize:'11px',color:'#3D5170'}}>{l.entity_type}{l.entity_id?` #${l.entity_id}`:''}{l.detail?` — ${l.detail}`:''}</td>
-                  <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{l.ip_address||'—'}</td>
+                  <td style={{fontSize:'11px',color:'#3D5170'}}>{l.entity}{l.entity_id?` #${l.entity_id}`:''}{l.detail?` — ${l.detail}`:''}</td>
+                  <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{l.ip||'—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -856,13 +912,13 @@ function PanelNotifications({ stats }) {
 
 function PanelAnalytics({ stats }) {
   const s = stats || {};
-  const certRate = s.totalLearners ? Math.round((s.certifications||0)/s.totalLearners*100) : 0;
-  const placeRate = s.certifications ? Math.round((s.placed||0)/s.certifications*100) : 0;
+  const certRate = s.candidates ? Math.round((s.totalCertificates||0)/s.candidates*100) : 0;
+  const placeRate = s.totalCertificates ? Math.round((s.placedCandidates||0)/s.totalCertificates*100) : 0;
   return (
     <>
       <div className="ph"><h1>Live Analytics</h1><p>Real-time platform performance metrics</p></div>
       <div className="kpi-grid">
-        {[['Total Learners',s.totalLearners,'#003366'],['Training Partners',s.trainingPartners,'#007B5E'],['Certifications',s.certifications,'#FF6B00'],['Placements',s.placed,'#DC2626'],['Open Jobs',s.openJobs,'#0891B2'],['Employers',s.employers,'#7C3AED']].map(([lbl,val,c]) => (
+        {[['Total Learners',s.candidates,'#003366'],['Training Partners',s.trainingVendors,'#007B5E'],['Certifications',s.totalCertificates,'#FF6B00'],['Placements',s.placedCandidates,'#DC2626'],['Open Jobs',s.openJobs,'#0891B2'],['Employers',s.employers,'#7C3AED']].map(([lbl,val,c]) => (
           <div key={lbl} className="kpi" style={{'--c':c}}><div className="val">{(val||0).toLocaleString()}</div><div className="lbl">{lbl}</div></div>
         ))}
       </div>
@@ -961,7 +1017,7 @@ export default function SuperadminDashboard() {
   }
 
   function handleItem(id, hasChildren, parentId) {
-    if (hasChildren) { setOpenGroups(p => ({ ...p, [id]: !p[id] })); return; }
+    if (hasChildren) { setOpenGroups(p => ({ ...p, [id]: !p[id] })); }
     setActiveId(id);
     if (parentId && !openGroups[parentId]) setOpenGroups(p => ({ ...p, [parentId]: true }));
   }
@@ -972,6 +1028,7 @@ export default function SuperadminDashboard() {
       case 'notifications': return <PanelNotifications stats={stats} />;
       case 'analytics': return <PanelAnalytics stats={stats} />;
 
+      case 'users-all': return <PanelAllUsers />;
       case 'users-candidates': return <PanelUsers role="candidate" title="Candidates / Learners" />;
       case 'users-tp': return <PanelUsers role="training_vendor" title="Training Partners" />;
       case 'users-trainers': return <PanelUsers role="trainer" title="Trainers & Assessors" />;

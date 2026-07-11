@@ -1,4 +1,5 @@
 import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { formatDate } from '../utils/date.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AccountPreferences from '../components/AccountPreferences.jsx';
@@ -528,8 +529,27 @@ export default function TrainerPortal() {
   const u = { name: user?.name || 'Aryan Kapoor', email: user?.email || 'trainer@skillbridge.in', phone: user?.phone || '9876543210' };
 
   function PanelDashboard() {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const batchLookup = Object.fromEntries(reportBatch.map(b => [b.id, b]));
+    const attLookup = Object.fromEntries(reportAtt.map(b => [b.id, b]));
+    const perfColors = [C.green, C.blue, C.teal, C.gold, C.purple];
+
+    const todaySessions = sessionList.filter(s => s.session_date && s.session_date.slice(0, 10) === todayStr);
+
+    const activity = [
+      ...sessionList.map(s => ({ date: s.created_at, dot: C.blue, title: `Session "${s.topic}" scheduled for ${batchLookup[s.batch_id]?.batch_code || 'a batch'} on ${formatDate(s.session_date)}` })),
+      ...assessList.map(a => ({ date: a.created_at, dot: C.gold, title: `${a.type} assessment scheduled for ${batchLookup[a.batch_id]?.batch_code || 'a batch'} on ${formatDate(a.date)}` })),
+      ...mockList.map(m => ({ date: m.created_at, dot: C.teal, title: `Mock test "${m.subject}" scheduled for ${formatDate(m.date)}` })),
+      ...contentList.map(c => ({ date: c.created_at, dot: C.purple, title: `Content "${c.title}" uploaded` })),
+    ].filter(a => a.date).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+
+    const upcoming = [
+      ...sessionList.filter(s => s.session_date >= todayStr).map(s => ({ date: s.session_date, dot: C.blue, title: `${s.topic} — ${batchLookup[s.batch_id]?.batch_code || 'Batch'}`, meta: [formatDate(s.session_date), s.start_time, s.venue].filter(Boolean).join(' · ') })),
+      ...assessList.filter(a => a.date >= todayStr).map(a => ({ date: a.date, dot: C.gold, title: `${a.type} Assessment — ${batchLookup[a.batch_id]?.batch_code || 'Batch'}`, meta: formatDate(a.date) })),
+    ].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
+
     return <>
-      <Alert type="info">📋 You have <strong>2 sessions today</strong>. Mark attendance before 5 PM to avoid compliance flag.</Alert>
+      <Alert type="info">📋 You have <strong>{todaySessions.length} session{todaySessions.length === 1 ? '' : 's'} today</strong>. Mark attendance before 5 PM to avoid compliance flag.</Alert>
       <SectionHead title={`Welcome, ${u.name}! 🎓`} />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
         <KpiCard icon="📋" value={dbStats.myActiveBatches ?? '—'} label="Active Batches" sub={`${dbStats.myBatches ?? 0} total`} accent={C.blue} />
@@ -540,33 +560,34 @@ export default function TrainerPortal() {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
         <Card>
           <CardTitle>📅 Today's Sessions</CardTitle>
-          <Table headers={['Batch','Course','Time','Venue','Status']} rows={[
-            <tr key="1"><Td>IT-2024-B3</Td><Td>React Fundamentals</Td><Td>10:00–12:00</Td><Td>Lab 3</Td><Td><Badge color="green">Ongoing</Badge></Td></tr>,
-            <tr key="2"><Td>IT-2024-B4</Td><Td>Node.js Backend</Td><Td>2:00–4:00 PM</Td><Td>Lab 2</Td><Td><Badge color="blue">Upcoming</Badge></Td></tr>,
-          ]} />
+          {todaySessions.length === 0
+            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No sessions scheduled today.</div>
+            : <Table headers={['Batch','Topic','Time','Venue','Status']} rows={todaySessions.map(s => (
+                <tr key={s.id}><Td>{batchLookup[s.batch_id]?.batch_code || '—'}</Td><Td>{s.topic}</Td><Td>{s.start_time || '—'}</Td><Td>{s.venue || '—'}</Td><Td><Badge color={s.status==='completed'?'green':s.status==='rescheduled'?'gold':'blue'}>{s.status}</Badge></Td></tr>
+              ))} />}
         </Card>
         <Card>
           <CardTitle>🔔 Recent Activity</CardTitle>
-          <TlItem dot={C.green} title="Batch IT-2024-B3 attendance marked — 28/30 present" meta="Today · 12:05 PM" />
-          <TlItem dot={C.blue}  title="Mock test results uploaded for B2" meta="Yesterday · 5:30 PM" />
-          <TlItem dot={C.gold}  title="Assessment scheduled for B1 on Jul 8" meta="Jul 3, 2026" />
-          <TlItem dot={C.teal}  title="5 new learners enrolled in B4" meta="Jul 2, 2026" />
+          {activity.length === 0
+            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No recent activity yet.</div>
+            : activity.map((a, i) => <TlItem key={i} dot={a.dot} title={a.title} meta={formatDate(a.date)} />)}
         </Card>
       </div>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
         <Card>
           <CardTitle>📊 Batch Performance</CardTitle>
-          <StatRow n="IT-2024-B1" label="React · 30 learners · 94% attendance" pct={94} color={C.green} />
-          <StatRow n="IT-2024-B2" label="Node.js · 28 learners · 89% attendance" pct={89} color={C.blue} />
-          <StatRow n="IT-2024-B3" label="React · 30 learners · 91% attendance" pct={91} color={C.teal} />
-          <StatRow n="IT-2024-B4" label="Node.js · 26 learners · 88% attendance" pct={88} color={C.gold} />
+          {reportBatch.length === 0
+            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No batches yet.</div>
+            : reportBatch.map((b, i) => {
+                const att = parseFloat(attLookup[b.id]?.avg_att || 0);
+                return <StatRow key={b.id} n={b.batch_code} label={`${b.name} · ${b.enrolled} learners · ${att}% attendance`} pct={att} color={perfColors[i % perfColors.length]} />;
+              })}
         </Card>
         <Card>
           <CardTitle>📅 Upcoming This Week</CardTitle>
-          <TlItem dot={C.blue}  title="Assessment — Batch B1 (React)" meta="Jul 8, 2026 · Lab 1" />
-          <TlItem dot={C.teal}  title="Parent-Trainer Meet — B3" meta="Jul 9, 2026 · 3:00 PM" />
-          <TlItem dot={C.gold}  title="PMKVY Progress Review" meta="Jul 10, 2026 · 11:00 AM" />
-          <TlItem dot={C.purple} title="Certification ceremony — B2 completions" meta="Jul 12, 2026" />
+          {upcoming.length === 0
+            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>Nothing scheduled.</div>
+            : upcoming.map((item, i) => <TlItem key={i} dot={item.dot} title={item.title} meta={item.meta} />)}
         </Card>
       </div>
     </>;

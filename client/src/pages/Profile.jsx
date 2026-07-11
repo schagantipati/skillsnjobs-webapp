@@ -279,7 +279,7 @@ export default function Profile() {
                 fontWeight: 700, fontSize: 12, textDecoration: 'none', boxShadow: '0 2px 6px rgba(15,110,86,.2)' }}>
                 → Go to Portal
               </a>
-              <a href="/onboarding" style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+              <a href="/vendor-portal" style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '7px 16px', borderRadius: 8, background: '#003366', color: '#fff',
                 fontWeight: 700, fontSize: 12, textDecoration: 'none', boxShadow: '0 2px 6px rgba(10,45,110,.2)' }}>
                 → Update Profile

@@ -6,7 +6,7 @@ const { matchScore } = require('../match');
 const router = express.Router();
 
 // Admin: get all applications
-router.get('/all', authRequired, requireRole('admin', 'administrator'), async (req, res) => {
+router.get('/all', authRequired, requireRole('admin', 'administrator', 'superadmin'), async (req, res) => {
   try {
     const rows = await query(`SELECT a.*, j.title, j.location, j.job_type,
       u_emp.org_name, u_emp.name as employer_name,

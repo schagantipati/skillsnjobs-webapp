@@ -20,6 +20,7 @@ const batchRoutes = require('./routes/batches');
 const placementRoutes = require('./routes/placements');
 const csrRoutes = require('./routes/csr');
 const trainerRoutes = require('./routes/trainer');
+const collaborationRoutes = require('./routes/collaboration');
 
 const app = express();
 app.use(cors());
@@ -44,6 +45,7 @@ app.use('/api/state-govt', stateGovtRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/placements', placementRoutes);
 app.use('/api/trainer', trainerRoutes);
+app.use('/api/collaboration', collaborationRoutes);
 
 app.get('/api/stats/summary', authRequired, async (req, res) => {
   try {
@@ -81,7 +83,7 @@ app.get('/api/stats/summary', authRequired, async (req, res) => {
     }
     if (u.role === 'placement_agency') {
       out.totalPlacements = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1`, [u.id]);
-      out.placedThisYear  = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1 AND EXTRACT(YEAR FROM placement_date)=EXTRACT(YEAR FROM CURRENT_DATE)`, [u.id]);
+      out.placedThisYear  = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1 AND LEFT(placement_date,4)=TO_CHAR(CURRENT_DATE,'YYYY')`, [u.id]);
       out.joinedCount     = await n(`SELECT COUNT(*) c FROM placements WHERE agency_id=$1 AND status='joined'`, [u.id]);
       const ctcRow = (await query(`SELECT AVG(ctc) avg FROM placements WHERE agency_id=$1 AND status IN ('placed','joined')`, [u.id]))[0];
       out.avgCTC = ctcRow?.avg ? Math.round(ctcRow.avg / 100000 * 10) / 10 : 0;
