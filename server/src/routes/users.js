@@ -298,6 +298,40 @@ router.get('/stats', authRequired, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Superadmin: get role permissions
+router.get('/admin/role-permissions', authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+    const rows = await query('SELECT role, menu_key, enabled FROM role_permissions ORDER BY role, menu_key', []);
+    // Return as { role: { menu_key: bool } }
+    const result = {};
+    for (const r of rows) {
+      if (!result[r.role]) result[r.role] = {};
+      result[r.role][r.menu_key] = r.enabled;
+    }
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// Superadmin: save role permissions (full replace for a role)
+router.put('/admin/role-permissions/:role', authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
+    const { role } = req.params;
+    const perms = req.body; // { menu_key: bool, ... }
+    if (!perms || typeof perms !== 'object') return res.status(400).json({ error: 'Invalid permissions object' });
+    for (const [menu_key, enabled] of Object.entries(perms)) {
+      await execute(
+        `INSERT INTO role_permissions (role, menu_key, enabled, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (role, menu_key) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()`,
+        [role, menu_key, !!enabled]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // Superadmin: all training sessions with trainer & batch info
 router.get('/admin/sessions', authRequired, async (req, res) => {
   try {

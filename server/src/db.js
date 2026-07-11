@@ -417,6 +417,14 @@ async function initDb() {
       status TEXT DEFAULT 'pending',
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      id SERIAL PRIMARY KEY,
+      role TEXT NOT NULL,
+      menu_key TEXT NOT NULL,
+      enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(role, menu_key)
+    );
   `);
 
   // Seed org_classifications

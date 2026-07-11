@@ -1361,25 +1361,44 @@ function PanelRoles({ stats }) {
   const roleCounts = s.roleCounts || {};
 
   const ROLES = Object.keys(ROLE_MENUS);
+  const defaults = buildDefaultPerms();
+
   const [selectedRole, setSelectedRole] = useState(ROLES[0]);
-  const [perms, setPerms] = useState(() => {
-    const saved = loadPerms();
-    const defaults = buildDefaultPerms();
-    // Merge: saved overrides defaults
-    for (const role of ROLES) {
-      if (saved[role]) defaults[role] = { ...defaults[role], ...saved[role] };
-    }
-    return defaults;
-  });
-  const [saved, setSaved] = useState(false);
+  const [perms, setPerms] = useState(defaults);
+  const [dbLoaded, setDbLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(''); // '' | 'saved' | 'error'
   const [openSecs, setOpenSecs] = useState({});
+
+  // Load from DB on mount; fall back to localStorage for offline support
+  useEffect(() => {
+    api.getRolePermissions()
+      .then(dbPerms => {
+        const merged = buildDefaultPerms();
+        for (const role of ROLES) {
+          if (dbPerms[role]) merged[role] = { ...merged[role], ...dbPerms[role] };
+        }
+        setPerms(merged);
+        setDbLoaded(true);
+      })
+      .catch(() => {
+        // Fallback: load from localStorage
+        const saved = loadPerms();
+        const merged = buildDefaultPerms();
+        for (const role of ROLES) {
+          if (saved[role]) merged[role] = { ...merged[role], ...saved[role] };
+        }
+        setPerms(merged);
+        setDbLoaded(true);
+      });
+  }, []);
 
   const cfg = ROLE_MENUS[selectedRole];
   const rolePerms = perms[selectedRole] || {};
 
   function toggleItem(key) {
     setPerms(p => ({ ...p, [selectedRole]: { ...p[selectedRole], [key]: !p[selectedRole][key] } }));
-    setSaved(false);
+    setSaveStatus('');
   }
 
   function toggleSection(sec, allOn) {
@@ -1388,19 +1407,28 @@ function PanelRoles({ stats }) {
       if (!item.locked) update[item.key] = !allOn;
     }
     setPerms(p => ({ ...p, [selectedRole]: { ...p[selectedRole], ...update } }));
-    setSaved(false);
+    setSaveStatus('');
   }
 
-  function savePerms() {
-    localStorage.setItem(PERMS_KEY, JSON.stringify(perms));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  async function savePerms() {
+    setSaving(true);
+    setSaveStatus('');
+    try {
+      await api.saveRolePermissions(selectedRole, perms[selectedRole]);
+      // Also mirror to localStorage as offline cache
+      localStorage.setItem(PERMS_KEY, JSON.stringify(perms));
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(''), 4000);
+    }
+    setSaving(false);
   }
 
   function resetRole() {
-    const def = buildDefaultPerms();
-    setPerms(p => ({ ...p, [selectedRole]: def[selectedRole] }));
-    setSaved(false);
+    setPerms(p => ({ ...p, [selectedRole]: defaults[selectedRole] }));
+    setSaveStatus('');
   }
 
   const enabledCount = Object.values(rolePerms).filter(Boolean).length;
@@ -1437,9 +1465,13 @@ function PanelRoles({ stats }) {
             </div>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
-            {saved && <span style={{fontSize:11,color:'#007B5E',fontWeight:700}}>✓ Saved</span>}
-            <button className="sa-btn btn-outline" onClick={resetRole}>↺ Reset</button>
-            <button className="sa-btn btn-primary" onClick={savePerms}>💾 Save Changes</button>
+            {saveStatus === 'saved' && <span style={{fontSize:11,color:'#007B5E',fontWeight:700}}>✓ Saved to database</span>}
+            {saveStatus === 'error' && <span style={{fontSize:11,color:'#DC2626',fontWeight:700}}>✗ Save failed</span>}
+            {!dbLoaded && <span style={{fontSize:11,color:'#94A3B8'}}>Loading…</span>}
+            <button className="sa-btn btn-outline" onClick={resetRole} disabled={saving}>↺ Reset</button>
+            <button className="sa-btn btn-primary" onClick={savePerms} disabled={saving || !dbLoaded}>
+              {saving ? '⏳ Saving…' : '💾 Save Changes'}
+            </button>
           </div>
         </div>
 
