@@ -13,7 +13,10 @@ const CSS = `
   .sa-nav{flex:1;overflow-y:auto;padding:6px 0}
   .sa-nav::-webkit-scrollbar{width:4px}
   .sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
-  .sa-section{padding:10px 14px 3px;color:rgba(255,255,255,.4);font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .sa-section{padding:10px 14px 3px;color:rgba(255,255,255,.4);font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;border-radius:4px;margin:0 4px;transition:background .12s}
+  .sa-section:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
+  .sa-section .sa-sec-chev{font-size:9px;transition:transform .2s;opacity:.6}
+  .sa-sec-items{overflow:hidden;transition:max-height .25s ease}
   .sa-item{display:flex;align-items:center;gap:9px;padding:7px 10px;margin:1px 6px;cursor:pointer;border-radius:6px;color:rgba(255,255,255,.82);font-size:12.5px;font-weight:500;transition:background .12s;user-select:none}
   .sa-item:hover{background:rgba(255,255,255,.1)}
   .sa-item.active{background:rgba(255,255,255,.22);color:#fff;font-weight:700}
@@ -1052,6 +1055,7 @@ export default function SuperadminDashboard() {
   const navigate = useNavigate();
   const [activeId, setActiveId] = useState('dashboard');
   const [openGroups, setOpenGroups] = useState({});
+  const [collapsedSections, setCollapsedSections] = useState({});
   const [stats, setStats] = useState({});
 
   useEffect(() => {
@@ -1202,42 +1206,54 @@ export default function SuperadminDashboard() {
           </div>
 
           <nav className="sa-nav">
-            {NAV.map(group => (
-              <div key={group.section}>
-                <div className="sa-section">{group.section}</div>
-                {group.items.map(item => {
-                  const isOpen = openGroups[item.id];
-                  const isParentActive = item.children?.some(c => c.id === activeId);
-                  return (
-                    <div key={item.id}>
-                      <div
-                        className={`sa-item${!item.children && activeId===item.id?' active':''}${item.children&&isParentActive?' parent-active':''}`}
-                        onClick={() => handleItem(item.id, !!item.children)}
-                      >
-                        <span className="sa-icon">{item.icon||'•'}</span>
-                        <span className="sa-lbl">
-                          {item.label}
-                          {item.tag && <span className={`sa-tag ${item.tagType}`}>{item.tag}</span>}
-                        </span>
-                        {item.badge && <span className="sa-badge">{item.badge}</span>}
-                        {item.children && <span className="sa-chev" style={{transform:isOpen?'rotate(180deg)':'none'}}>▾</span>}
-                      </div>
-                      {item.children && (
-                        <div className={`sa-children${isOpen?' open':''}`}>
-                          {item.children.map(child => (
-                            <div
-                              key={child.id}
-                              className={`sa-child${activeId===child.id?' active':''}`}
-                              onClick={() => handleItem(child.id, false, item.id)}
-                            >· {child.label}</div>
-                          ))}
+            {NAV.map(group => {
+              const secCollapsed = collapsedSections[group.section];
+              const totalItems = group.items.reduce((n, i) => n + 1 + (i.children?.length || 0), 0);
+              return (
+                <div key={group.section}>
+                  <div
+                    className="sa-section"
+                    onClick={() => setCollapsedSections(p => ({ ...p, [group.section]: !p[group.section] }))}
+                  >
+                    <span>{group.section}</span>
+                    <span className="sa-sec-chev" style={{transform: secCollapsed ? 'rotate(-90deg)' : 'none'}}>▾</span>
+                  </div>
+                  <div className="sa-sec-items" style={{maxHeight: secCollapsed ? '0px' : `${totalItems * 38 + 20}px`}}>
+                    {group.items.map(item => {
+                      const isOpen = openGroups[item.id];
+                      const isParentActive = item.children?.some(c => c.id === activeId);
+                      return (
+                        <div key={item.id}>
+                          <div
+                            className={`sa-item${!item.children && activeId===item.id?' active':''}${item.children&&isParentActive?' parent-active':''}`}
+                            onClick={() => handleItem(item.id, !!item.children)}
+                          >
+                            <span className="sa-icon">{item.icon||'•'}</span>
+                            <span className="sa-lbl">
+                              {item.label}
+                              {item.tag && <span className={`sa-tag ${item.tagType}`}>{item.tag}</span>}
+                            </span>
+                            {item.badge && <span className="sa-badge">{item.badge}</span>}
+                            {item.children && <span className="sa-chev" style={{transform:isOpen?'rotate(180deg)':'none'}}>▾</span>}
+                          </div>
+                          {item.children && (
+                            <div className={`sa-children${isOpen?' open':''}`}>
+                              {item.children.map(child => (
+                                <div
+                                  key={child.id}
+                                  className={`sa-child${activeId===child.id?' active':''}`}
+                                  onClick={() => handleItem(child.id, false, item.id)}
+                                >· {child.label}</div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </nav>
 
         </aside>
