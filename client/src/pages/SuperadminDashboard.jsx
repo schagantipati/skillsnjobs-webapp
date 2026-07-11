@@ -997,20 +997,515 @@ function PanelAnalytics({ stats }) {
   );
 }
 
+// ── Role-menu registry (mirrors actual portal NAV arrays) ──────
+const ROLE_MENUS = {
+  training_vendor: {
+    label: 'Training Partner', icon: '🏫', color: '#007B5E',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'org-profile', label: 'Organisation Profile', locked: true },
+      ]},
+      { name: 'Training', items: [
+        { key: 'centres', label: 'Training Centres' },
+        { key: 'trainers', label: 'Trainers & Faculty' },
+        { key: 'courses', label: 'Courses & Curriculum' },
+        { key: 'batches', label: 'Batch Management' },
+      ]},
+      { name: 'Candidates', items: [
+        { key: 'candidates', label: 'Candidate Management' },
+      ]},
+      { name: 'Assessment', items: [
+        { key: 'assess', label: 'Assessments' },
+      ]},
+      { name: 'Collaboration', items: [
+        { key: 'collab-consortium', label: 'Consortium Builder' },
+        { key: 'collab-partnership', label: 'Partnership Requests' },
+        { key: 'collab-resources', label: 'Resource Sharing' },
+        { key: 'collab-invitations', label: 'Invitations' },
+      ]},
+      { name: 'Compliance', items: [
+        { key: 'reports', label: 'Reports & MIS' },
+        { key: 'docs', label: 'Documents' },
+        { key: 'grievance', label: 'Grievance & Support' },
+      ]},
+      { name: 'Account', items: [
+        { key: 'onboarding', label: 'Complete Profile' },
+        { key: 'settings', label: 'Account Preferences' },
+      ]},
+    ],
+  },
+  trainer: {
+    label: 'Trainer', icon: '👨‍🏫', color: '#7C3AED',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+      ]},
+      { name: 'My Profile', items: [
+        { key: 'profile', label: 'My Profile' },
+      ]},
+      { name: 'Training Management', items: [
+        { key: 'batch', label: 'Batch Management' },
+        { key: 'sessions', label: 'Session Management' },
+        { key: 'attendance', label: 'Attendance' },
+      ]},
+      { name: 'Learners', items: [
+        { key: 'learners', label: 'My Learners' },
+      ]},
+      { name: 'Assessments', items: [
+        { key: 'assessments', label: 'Assessments' },
+      ]},
+      { name: 'Content & Resources', items: [
+        { key: 'content', label: 'Course Content' },
+      ]},
+      { name: 'Certificates', items: [
+        { key: 'certificates', label: 'Certificates' },
+      ]},
+      { name: 'Reports & Analytics', items: [
+        { key: 'reports', label: 'Reports' },
+      ]},
+      { name: 'Schemes', items: [
+        { key: 'schemes', label: 'Govt Schemes' },
+      ]},
+      { name: 'Support', items: [
+        { key: 'helpdesk', label: 'Help & Support' },
+        { key: 'grievance', label: 'Grievance' },
+        { key: 'faq', label: 'FAQ' },
+      ]},
+    ],
+  },
+  candidate: {
+    label: 'Candidate', icon: '👤', color: '#0891B2',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+      ]},
+      { name: 'My Profile', items: [
+        { key: 'profile', label: 'My Profile' },
+        { key: 'skill-passport', label: 'Skill Passport' },
+      ]},
+      { name: 'Courses & Learning', items: [
+        { key: 'courses', label: 'Courses' },
+        { key: 'assessments', label: 'Assessments' },
+        { key: 'certificates', label: 'Certificates' },
+      ]},
+      { name: 'Jobs & Employment', items: [
+        { key: 'jobs', label: 'Jobs' },
+        { key: 'apprenticeship', label: 'Apprenticeship' },
+        { key: 'career', label: 'Career Services' },
+      ]},
+      { name: 'Schemes & Benefits', items: [
+        { key: 'schemes', label: 'Govt Schemes' },
+        { key: 'financial-aid', label: 'Financial Assistance' },
+      ]},
+      { name: 'Support', items: [
+        { key: 'helpdesk', label: 'Help & Support' },
+        { key: 'grievance', label: 'Grievance' },
+        { key: 'faq', label: 'FAQ' },
+      ]},
+    ],
+  },
+  employer: {
+    label: 'Employer', icon: '🏢', color: '#FF6B00',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+      ]},
+      { name: 'Company Profile', items: [
+        { key: 'profile-info', label: 'Company Information', locked: true },
+        { key: 'profile-contact', label: 'Contact & Address' },
+        { key: 'profile-docs', label: 'Company Documents' },
+        { key: 'profile-bank', label: 'Bank & Billing' },
+        { key: 'profile-hr', label: 'HR Contacts' },
+      ]},
+      { name: 'Job Management', items: [
+        { key: 'job-post', label: 'Post New Job' },
+        { key: 'job-active', label: 'Active Jobs' },
+        { key: 'job-draft', label: 'Draft Jobs' },
+        { key: 'job-closed', label: 'Closed Jobs' },
+        { key: 'job-applications', label: 'All Applications' },
+      ]},
+      { name: 'Candidates', items: [
+        { key: 'cand-search', label: 'Search Candidates' },
+        { key: 'cand-shortlist', label: 'Shortlisted' },
+        { key: 'cand-interview', label: 'Interviews' },
+        { key: 'cand-offer', label: 'Offers & Onboarding' },
+        { key: 'cand-placed', label: 'Placement Records' },
+      ]},
+      { name: 'Apprenticeship', items: [
+        { key: 'appren-register', label: 'Register Vacancy' },
+        { key: 'appren-active', label: 'Active Apprentices' },
+        { key: 'appren-stipend', label: 'Stipend Management' },
+        { key: 'appren-reports', label: 'Apprenticeship Reports' },
+      ]},
+      { name: 'Skill Development', items: [
+        { key: 'skill-gap', label: 'Skill Gap Analysis' },
+        { key: 'skill-partners', label: 'Training Partner Connect' },
+        { key: 'skill-requirements', label: 'Training Requirements' },
+        { key: 'skill-pmkvy', label: 'PMKVY Partnership' },
+      ]},
+      { name: 'Schemes', items: [
+        { key: 'scheme-pmkvy', label: 'PMKVY' },
+        { key: 'scheme-naps', label: 'NAPS / NATS' },
+        { key: 'scheme-ddugky', label: 'DDU-GKY' },
+        { key: 'scheme-star', label: 'STAR Scheme' },
+        { key: 'scheme-incentives', label: 'Employer Incentives' },
+      ]},
+      { name: 'Reports', items: [
+        { key: 'rep-hiring', label: 'Hiring Reports' },
+        { key: 'rep-placement', label: 'Placement Analytics' },
+        { key: 'rep-workforce', label: 'Workforce Reports' },
+      ]},
+      { name: 'Compliance', items: [
+        { key: 'comp-labour', label: 'Labour Law' },
+        { key: 'comp-pfesi', label: 'PF / ESI' },
+        { key: 'comp-contract', label: 'Contract Labour' },
+        { key: 'comp-audit', label: 'Audit Trail' },
+      ]},
+      { name: 'Support', items: [
+        { key: 'helpdesk', label: 'Helpdesk' },
+        { key: 'grievance', label: 'Grievance' },
+        { key: 'faq', label: 'FAQ' },
+      ]},
+    ],
+  },
+  csr_org: {
+    label: 'CSR Organisation', icon: '🤝', color: '#059669',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+      ]},
+      { name: 'CSR Profile', items: [
+        { key: 'profile-info', label: 'Organisation Information', locked: true },
+        { key: 'profile-contact', label: 'Contact & Address' },
+        { key: 'profile-docs', label: 'CSR Policy & Documents' },
+        { key: 'profile-bank', label: 'Bank & Payment Details' },
+      ]},
+      { name: 'CSR Projects', items: [
+        { key: 'proj-new', label: 'Propose New Project' },
+        { key: 'proj-active', label: 'Active Projects' },
+        { key: 'proj-draft', label: 'Draft Projects' },
+        { key: 'proj-completed', label: 'Completed Projects' },
+        { key: 'proj-approval', label: 'Approval Status' },
+      ]},
+      { name: 'Beneficiaries', items: [
+        { key: 'bene-register', label: 'Register Beneficiary' },
+        { key: 'bene-list', label: 'Beneficiary List' },
+        { key: 'bene-track', label: 'Track Progress' },
+        { key: 'bene-placement', label: 'Placement Outcomes' },
+      ]},
+      { name: 'Training Partners', items: [
+        { key: 'tp-list', label: 'Empanelled Partners' },
+        { key: 'tp-add', label: 'Add Training Partner' },
+        { key: 'tp-performance', label: 'Partner Performance' },
+        { key: 'tp-mou', label: 'MoU / Agreements' },
+      ]},
+      { name: 'Fund Management', items: [
+        { key: 'fund-allocation', label: 'Fund Allocation' },
+        { key: 'fund-disbursements', label: 'Disbursements' },
+        { key: 'fund-utilization', label: 'Utilization Reports' },
+        { key: 'fund-unspent', label: 'Unspent CSR Funds' },
+      ]},
+      { name: 'Govt Schemes', items: [
+        { key: 'scheme-pmkvy', label: 'PMKVY' },
+        { key: 'scheme-ddugky', label: 'DDU-GKY' },
+        { key: 'scheme-star', label: 'STAR Scheme' },
+        { key: 'scheme-naps', label: 'NAPS / NATS' },
+      ]},
+      { name: 'Reports', items: [
+        { key: 'rep-impact', label: 'Impact Reports' },
+        { key: 'rep-financial', label: 'Financial Reports' },
+        { key: 'rep-annual', label: 'Annual CSR Report' },
+        { key: 'rep-sector', label: 'Sector-wise Report' },
+        { key: 'rep-geo', label: 'Geographic Report' },
+      ]},
+      { name: 'Compliance', items: [
+        { key: 'comp-schedule7', label: 'Schedule VII' },
+        { key: 'comp-csr1', label: 'Form CSR-1' },
+        { key: 'comp-csr2', label: 'Form CSR-2' },
+        { key: 'comp-board', label: 'Board Resolutions' },
+        { key: 'comp-audit', label: 'Audit Trail' },
+      ]},
+      { name: 'Support', items: [
+        { key: 'helpdesk', label: 'Helpdesk' },
+        { key: 'grievance', label: 'Grievance' },
+        { key: 'faq', label: 'FAQ' },
+      ]},
+    ],
+  },
+  placement_agency: {
+    label: 'Placement Agency', icon: '🎯', color: '#DC2626',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+      ]},
+      { name: 'Agency Profile', items: [
+        { key: 'profile-info', label: 'Agency Information', locked: true },
+        { key: 'profile-contact', label: 'Contact & Address' },
+        { key: 'profile-docs', label: 'Documents & Licenses' },
+        { key: 'profile-bank', label: 'Bank Details' },
+      ]},
+      { name: 'Job Postings', items: [
+        { key: 'jobs-post', label: 'Post a Job' },
+        { key: 'jobs-active', label: 'Active Jobs' },
+        { key: 'jobs-draft', label: 'Drafts' },
+        { key: 'jobs-closed', label: 'Closed Jobs' },
+      ]},
+      { name: 'Candidates', items: [
+        { key: 'cand-search', label: 'Search Candidates' },
+        { key: 'cand-shortlisted', label: 'Shortlisted' },
+        { key: 'cand-applications', label: 'Applications Received' },
+        { key: 'cand-interview', label: 'Interview Pipeline' },
+        { key: 'cand-offer', label: 'Offer Letters' },
+      ]},
+      { name: 'Placement Tracker', items: [
+        { key: 'pl-active', label: 'Active Placements' },
+        { key: 'pl-completed', label: 'Completed Placements' },
+        { key: 'pl-dropout', label: 'Dropout / Withdrawn' },
+        { key: 'pl-incentive', label: 'Incentive Claims' },
+      ]},
+      { name: 'Employers', items: [
+        { key: 'emp-list', label: 'Registered Employers' },
+        { key: 'emp-add', label: 'Add Employer' },
+        { key: 'emp-mou', label: 'MoU / Agreements' },
+        { key: 'emp-demand', label: 'Demand Requests' },
+      ]},
+      { name: 'Govt Schemes', items: [
+        { key: 'scheme-pmkvy', label: 'PMKVY Placement' },
+        { key: 'scheme-naps', label: 'NAPS / NATS' },
+        { key: 'scheme-ddugky', label: 'DDU-GKY' },
+        { key: 'scheme-pli', label: 'PLI — Placement Linked' },
+      ]},
+      { name: 'Reports', items: [
+        { key: 'rep-placement', label: 'Placement Reports' },
+        { key: 'rep-candidate', label: 'Candidate Reports' },
+        { key: 'rep-employer', label: 'Employer Reports' },
+        { key: 'rep-monthly', label: 'Monthly Summary' },
+        { key: 'rep-incentive', label: 'Incentive Reports' },
+      ]},
+      { name: 'Support', items: [
+        { key: 'helpdesk', label: 'Helpdesk' },
+        { key: 'grievance', label: 'Grievance' },
+        { key: 'faq', label: 'FAQ' },
+      ]},
+    ],
+  },
+  state_government: {
+    label: 'State Government', icon: '🏛️', color: '#1D4ED8',
+    sections: [
+      { name: 'Main', items: [
+        { key: 'dashboard', label: 'Dashboard', locked: true },
+        { key: 'notifications', label: 'Notifications' },
+        { key: 'live-analytics', label: 'Live Analytics' },
+      ]},
+      { name: 'Schemes & Programs', items: [
+        { key: 'pmkvy', label: 'PMKVY 4.0' },
+        { key: 'ddu-gky', label: 'DDU-GKY' },
+        { key: 'naps', label: 'NAPS / NATS' },
+        { key: 'state-scheme', label: 'State Skill Mission' },
+        { key: 'csr-programs', label: 'CSR Programs' },
+      ]},
+      { name: 'Targets & Budget', items: [
+        { key: 'targets', label: 'Targets & Allocation' },
+        { key: 'financial', label: 'Financial Management' },
+      ]},
+      { name: 'Ecosystem', items: [
+        { key: 'training-partners', label: 'Training Partners' },
+        { key: 'training-centers', label: 'Training Centers' },
+        { key: 'trainers', label: 'Trainers & Assessors' },
+        { key: 'candidate-list', label: 'Candidates / Learners' },
+        { key: 'cert-verify', label: 'Certificate Verification' },
+        { key: 'grievances', label: 'Grievance Redressal' },
+      ]},
+      { name: 'Reports & Analytics', items: [
+        { key: 'sectors', label: 'Sector-wise Data' },
+        { key: 'employers', label: 'Employer Partners' },
+        { key: 'mis-district', label: 'District-wise MIS' },
+        { key: 'mis-monthly', label: 'Monthly MIS Report' },
+        { key: 'mis-scheme', label: 'Scheme-wise Report' },
+        { key: 'mis-placement', label: 'Placement Analytics' },
+      ]},
+      { name: 'Administration', items: [
+        { key: 'audit-logs', label: 'Audit Logs' },
+        { key: 'users', label: 'User Management' },
+        { key: 'settings', label: 'Settings' },
+      ]},
+    ],
+  },
+};
+
+const PERMS_KEY = 'snj_role_perms';
+
+function loadPerms() {
+  try { return JSON.parse(localStorage.getItem(PERMS_KEY) || '{}'); } catch { return {}; }
+}
+
+function buildDefaultPerms() {
+  const perms = {};
+  for (const [role, cfg] of Object.entries(ROLE_MENUS)) {
+    perms[role] = {};
+    for (const sec of cfg.sections)
+      for (const item of sec.items)
+        perms[role][item.key] = true;
+  }
+  return perms;
+}
+
 function PanelRoles({ stats }) {
   const s = stats || {};
   const roleCounts = s.roleCounts || {};
+
+  const ROLES = Object.keys(ROLE_MENUS);
+  const [selectedRole, setSelectedRole] = useState(ROLES[0]);
+  const [perms, setPerms] = useState(() => {
+    const saved = loadPerms();
+    const defaults = buildDefaultPerms();
+    // Merge: saved overrides defaults
+    for (const role of ROLES) {
+      if (saved[role]) defaults[role] = { ...defaults[role], ...saved[role] };
+    }
+    return defaults;
+  });
+  const [saved, setSaved] = useState(false);
+  const [openSecs, setOpenSecs] = useState({});
+
+  const cfg = ROLE_MENUS[selectedRole];
+  const rolePerms = perms[selectedRole] || {};
+
+  function toggleItem(key) {
+    setPerms(p => ({ ...p, [selectedRole]: { ...p[selectedRole], [key]: !p[selectedRole][key] } }));
+    setSaved(false);
+  }
+
+  function toggleSection(sec, allOn) {
+    const update = {};
+    for (const item of sec.items) {
+      if (!item.locked) update[item.key] = !allOn;
+    }
+    setPerms(p => ({ ...p, [selectedRole]: { ...p[selectedRole], ...update } }));
+    setSaved(false);
+  }
+
+  function savePerms() {
+    localStorage.setItem(PERMS_KEY, JSON.stringify(perms));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  function resetRole() {
+    const def = buildDefaultPerms();
+    setPerms(p => ({ ...p, [selectedRole]: def[selectedRole] }));
+    setSaved(false);
+  }
+
+  const enabledCount = Object.values(rolePerms).filter(Boolean).length;
+  const totalCount = Object.values(rolePerms).length;
+
   return (
     <>
-      <div className="ph"><h1>Roles & Permissions</h1><p>Platform role distribution and access levels</p></div>
-      <div className="card">
-        <div className="card-title">Role Distribution</div>
-        {Object.entries(ROLE_LABEL).map(([role, label]) => (
-          <div key={role} className="stat-row">
-            <span style={{fontSize:12,color:'#3D5170'}}>{label}</span>
-            <span style={{fontWeight:700,color:'#003366'}}>{roleCounts[role] || s[role+'Count'] || '—'}</span>
+      <div className="ph">
+        <h1>Roles & Permissions</h1>
+        <p>Control which menu items each user role can access across their portal</p>
+      </div>
+
+      {/* Role distribution KPIs */}
+      <div className="kpi-grid" style={{marginBottom:16}}>
+        {Object.entries(ROLE_LABEL).filter(([r]) => ROLE_MENUS[r]).map(([role, label]) => (
+          <div key={role} className="kpi" style={{'--c': ROLE_MENUS[role]?.color || '#003366', cursor:'pointer', outline: selectedRole===role ? `2px solid ${ROLE_MENUS[role]?.color}` : 'none', outlineOffset:2}}
+            onClick={() => setSelectedRole(role)}>
+            <div className="val" style={{fontSize:20}}>{ROLE_MENUS[role]?.icon}</div>
+            <div className="lbl">{label}</div>
+            <div className="sub">{roleCounts[role] || s[role+'Count'] || '0'} users</div>
           </div>
         ))}
+      </div>
+
+      {/* Permissions editor */}
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        {/* Header bar */}
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 18px',background:'#F8FAFC',borderBottom:'1px solid #E0E6EF'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:20}}>{cfg.icon}</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:'#003366'}}>{cfg.label} — Menu Permissions</div>
+              <div style={{fontSize:11,color:'#6B7FA3'}}>{enabledCount} of {totalCount} menus enabled</div>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            {saved && <span style={{fontSize:11,color:'#007B5E',fontWeight:700}}>✓ Saved</span>}
+            <button className="sa-btn btn-outline" onClick={resetRole}>↺ Reset</button>
+            <button className="sa-btn btn-primary" onClick={savePerms}>💾 Save Changes</button>
+          </div>
+        </div>
+
+        {/* Role tabs */}
+        <div style={{display:'flex',borderBottom:'1px solid #E0E6EF',overflowX:'auto',background:'#fff'}}>
+          {ROLES.map(role => {
+            const rc = ROLE_MENUS[role];
+            const rp = perms[role] || {};
+            const on = Object.values(rp).filter(Boolean).length;
+            const tot = Object.values(rp).length;
+            return (
+              <button key={role} onClick={() => setSelectedRole(role)} style={{
+                display:'flex',alignItems:'center',gap:6,padding:'10px 16px',border:'none',borderBottom: selectedRole===role ? `2px solid ${rc.color}` : '2px solid transparent',
+                background:'none',cursor:'pointer',whiteSpace:'nowrap',fontSize:12,fontWeight:selectedRole===role?700:500,
+                color: selectedRole===role ? rc.color : '#6B7FA3',
+              }}>
+                <span>{rc.icon}</span> {rc.label}
+                <span style={{fontSize:10,background: selectedRole===role ? rc.color : '#E0E6EF',color: selectedRole===role?'#fff':'#6B7FA3',padding:'1px 6px',borderRadius:10,fontWeight:700}}>
+                  {on}/{tot}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sections + items */}
+        <div style={{padding:16}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:12}}>
+            {cfg.sections.map(sec => {
+              const allItems = sec.items;
+              const enabledInSec = allItems.filter(i => rolePerms[i.key]).length;
+              const allOn = enabledInSec === allItems.length;
+              const someOn = enabledInSec > 0 && !allOn;
+              const isOpen = openSecs[sec.name] !== false; // default open
+              return (
+                <div key={sec.name} style={{border:'1px solid #E0E6EF',borderRadius:8,overflow:'hidden'}}>
+                  {/* Section header */}
+                  <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'#F8FAFC',cursor:'pointer',userSelect:'none'}}
+                    onClick={() => setOpenSecs(p => ({...p, [sec.name]: !isOpen}))}>
+                    <input type="checkbox" checked={allOn} ref={el => el && (el.indeterminate = someOn)}
+                      onChange={() => toggleSection(sec, allOn)}
+                      onClick={e => e.stopPropagation()}
+                      style={{width:14,height:14,cursor:'pointer'}} />
+                    <span style={{flex:1,fontWeight:700,fontSize:11,color:'#003366',textTransform:'uppercase',letterSpacing:'.04em'}}>{sec.name}</span>
+                    <span style={{fontSize:10,color:'#6B7FA3'}}>{enabledInSec}/{allItems.length}</span>
+                    <span style={{fontSize:10,color:'#94A3B8',transform: isOpen?'none':'rotate(-90deg)',display:'inline-block',transition:'transform .15s'}}>▾</span>
+                  </div>
+                  {/* Items */}
+                  {isOpen && (
+                    <div>
+                      {allItems.map(item => (
+                        <label key={item.key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',borderTop:'1px solid #F1F5F9',cursor:item.locked?'default':'pointer',background:item.locked?'#FAFBFC':'#fff'}}>
+                          <input type="checkbox" checked={!!rolePerms[item.key]} disabled={item.locked}
+                            onChange={() => !item.locked && toggleItem(item.key)}
+                            style={{width:14,height:14,cursor:item.locked?'default':'pointer',accentColor:cfg.color}} />
+                          <span style={{flex:1,fontSize:12,color: rolePerms[item.key] ? '#1A2B4A' : '#94A3B8'}}>{item.label}</span>
+                          {item.locked && <span style={{fontSize:9,color:'#94A3B8',background:'#F1F5F9',padding:'1px 6px',borderRadius:4,fontWeight:600}}>LOCKED</span>}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </>
   );
