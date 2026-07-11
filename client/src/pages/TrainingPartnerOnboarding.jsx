@@ -11,6 +11,12 @@ const ORG_TYPES = ['Private Limited Company','Public Limited Company','Limited L
 const NSDC_SECTORS = ['Agriculture','Apparel, Made-Ups & Home Furnishing','Automotive','Beauty & Wellness','BFSI','Capital Goods','Construction','Domestic Workers','Electronics & Hardware','Food Processing','Furniture & Fittings','Gems & Jewellery','Green Jobs','Handicrafts & Carpet','Healthcare','Infrastructure Equipment','IT / ITeS','Leather','Life Sciences','Logistics','Management & Entrepreneurship','Media & Entertainment','Mining','Paints & Coatings','Plumbing','Power','Retail','Rubber','Security','Sports, Physical Education & Fitness','Telecom','Textile','Tourism & Hospitality','Water Management'];
 const AFFIL_TYPES = ['NSDC Direct Partner','SSC Affiliated Partner','State Government Partner','CSR / NGO Partner','PPP (Public Private Partnership)','Other'];
 const DELIVERY = ['Classroom / Offline','Online / e-Learning','Blended (Online + Offline)','Mobile / On-site'];
+const INFRA_OPTIONS = [
+  'Smart Classroom','Computer Lab','Internet','Projector',
+  'Hostel','Library','Workshop','Practical Lab',
+  'CCTV','Biometric',
+  'Drinking Water','Washrooms','Separate Ladies Washroom','Accessibility (PwD)','Parking',
+];
 const NSQF = ['Level 1','Level 2','Level 3','Level 4','Level 5','Level 6','Level 7','Level 8'];
 
 const STEPS = [
@@ -179,9 +185,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
-  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
   const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
+  const [openInfraIdx, setOpenInfraIdx] = useState(null);
 
   /* Step 7 */
   const [ftTrainers, setFtTrainers]     = useState('');
@@ -537,7 +544,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   function addCentre() {
     setCentres(prev => {
-      const newCentre = { name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
+      const newCentre = { name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
       return [...prev, newCentre];
     });
     setCentreNameErrors(prev => [...prev, '']);
@@ -1079,7 +1086,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   setNumCentres(String(n));
                   setCentres(prev => {
                     const arr = [...prev];
-                    while(arr.length < n) arr.push({ name:'', code:'', type:'', status:'', yearStarted:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
+                    while(arr.length < n) arr.push({ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
                     return arr.slice(0, n);
                   });
                 }} placeholder="e.g. 5" min={1} />
@@ -1133,6 +1140,45 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                     <Inp type="number" value={c.yearStarted}
                       onChange={e => updateCentre(i,'yearStarted', e.target.value.replace(/\D/g,'').slice(0,4))}
                       placeholder="e.g. 2018" min={1900} max={2026} />
+                  </F>
+                  <F label="Infrastructure" hint="Select all available facilities">
+                    <div style={{ position:'relative', width:'100%' }}>
+                      <div
+                        onClick={() => setOpenInfraIdx(openInfraIdx === i ? null : i)}
+                        style={{ border:'1px solid #CBD5E1', borderRadius:8, padding:'8px 12px', cursor:'pointer', background:'#fff', minHeight:38, display:'flex', alignItems:'center', flexWrap:'wrap', gap:4 }}>
+                        {(c.infra||[]).length === 0
+                          ? <span style={{ color:'#94A3B8', fontSize:13 }}>Select facilities…</span>
+                          : (c.infra||[]).map(item => (
+                              <span key={item} style={{ background:'#E0EAFF', color:'#1E3A8A', borderRadius:4, padding:'2px 8px', fontSize:12, fontWeight:500 }}>{item}</span>
+                            ))
+                        }
+                        <span style={{ marginLeft:'auto', color:'#94A3B8', fontSize:12 }}>{openInfraIdx === i ? '▲' : '▼'}</span>
+                      </div>
+                      {openInfraIdx === i && (
+                        <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:50, background:'#fff', border:'1px solid #CBD5E1', borderRadius:8, boxShadow:'0 4px 16px rgba(0,0,0,0.10)', marginTop:4, padding:'8px 0', maxHeight:260, overflowY:'auto' }}>
+                          {INFRA_OPTIONS.map(opt => {
+                            const checked = (c.infra||[]).includes(opt);
+                            return (
+                              <label key={opt} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 14px', cursor:'pointer', fontSize:13, color:'#1E293B', background: checked ? '#F0F5FF' : 'transparent' }}>
+                                <input type="checkbox" checked={checked}
+                                  onChange={() => {
+                                    const next = checked ? (c.infra||[]).filter(x => x !== opt) : [...(c.infra||[]), opt];
+                                    updateCentre(i, 'infra', next);
+                                  }}
+                                  style={{ accentColor:'#1E3A8A', width:15, height:15 }} />
+                                {opt}
+                              </label>
+                            );
+                          })}
+                          <div style={{ borderTop:'1px solid #E2E8F0', margin:'6px 0 2px', padding:'6px 14px 2px' }}>
+                            <button type="button" onClick={() => setOpenInfraIdx(null)}
+                              style={{ fontSize:12, color:'#0A2D6E', fontWeight:600, background:'none', border:'none', cursor:'pointer' }}>
+                              Done ({(c.infra||[]).length} selected)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </F>
                   <F label="Centre Code" required hint="3-character unique code for search & tracking">
                     <div style={{ width:'100%' }}>
