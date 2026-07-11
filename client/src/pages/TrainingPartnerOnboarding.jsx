@@ -179,8 +179,9 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
-  const [centres, setCentres]       = useState([{ name:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centres, setCentres]       = useState([{ name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
+  const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
 
   /* Step 7 */
   const [ftTrainers, setFtTrainers]     = useState('');
@@ -254,7 +255,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
     /* Step 6 */
     if (vp.step6?.numCentres) setNumCentres(vp.step6.numCentres);
-    if (vp.step6?.centres?.length) { setCentres(vp.step6.centres); setCentreNameErrors(vp.step6.centres.map(() => '')); }
+    if (vp.step6?.centres?.length) { setCentres(vp.step6.centres); setCentreNameErrors(vp.step6.centres.map(() => '')); setCentreCodeErrors(vp.step6.centres.map(() => '')); }
 
     /* Step 7 */
     setFtTrainers(  vp.step7?.ftTrainers   || '');
@@ -365,8 +366,12 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       if (!numCentres || parseInt(numCentres) < 1) return 'At least 1 Training Centre is required';
       const nameErrs = centres.map((c, i) => validateCentreName(c.name, centres, i));
       setCentreNameErrors(nameErrs);
-      const first = nameErrs.find(e => e);
-      if (first) return first;
+      const firstName = nameErrs.find(e => e);
+      if (firstName) return firstName;
+      const codeErrs = centres.map((c, i) => validateCentreCode(c.code, centres, i));
+      setCentreCodeErrors(codeErrs);
+      const firstCode = codeErrs.find(e => e);
+      if (firstCode) return firstCode;
     }
     if (step === 8) {
       if (!courses[0]?.name.trim()) return 'At least one Course name is required';
@@ -437,6 +442,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* ── Centre helpers ──────────────────────────────────────── */
   const CENTRE_NAME_RE = /^[A-Za-z0-9\s&\-]+$/;
+  const CENTRE_CODE_RE = /^[A-Z0-9]{3}$/;
+
   function validateCentreName(name, allCentres, selfIdx) {
     const trimmed = name.trim();
     if (!trimmed) return 'Centre name is required';
@@ -448,32 +455,106 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     if (dup) return 'Duplicate centre name within the same organisation';
     return '';
   }
+
+  function validateCentreCode(code, allCentres, selfIdx) {
+    if (!code || !code.trim()) return 'Centre code is required';
+    if (!CENTRE_CODE_RE.test(code.trim().toUpperCase())) return 'Code must be exactly 3 characters (A–Z, 0–9)';
+    const up = code.trim().toUpperCase();
+    const dup = allCentres.some((c, idx) => idx !== selfIdx && c.code.trim().toUpperCase() === up);
+    if (dup) return 'Duplicate centre code within the same organisation';
+    return '';
+  }
+
+  function generateCentreCode(name, allCentres, selfIdx) {
+    const base = (name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const candidates = [];
+    // Try first 3 chars of name, then with index suffix, then sequential
+    for (let start = 0; start <= Math.max(base.length - 1, 0); start++) {
+      const chunk = (base.slice(start, start + 3) + '000').slice(0, 3);
+      candidates.push(chunk);
+    }
+    for (let n = 0; n <= 999; n++) {
+      const pfx = (base.slice(0, 2) + '000').slice(0, 2);
+      candidates.push((pfx + String(n).padStart(1, '0')).slice(0, 3));
+    }
+    const used = new Set(allCentres.filter((_, idx) => idx !== selfIdx).map(c => c.code.trim().toUpperCase()));
+    const unique = candidates.find(c => c.length === 3 && !used.has(c));
+    return unique || (String(selfIdx + 1).padStart(3, '0'));
+  }
+
   function updateCentre(i, key, val) {
     setCentres(prev => {
-      const next = prev.map((c, idx) => idx === i ? { ...c, [key]: key === 'name' ? val : val } : c);
+      const next = prev.map((c, idx) => {
+        if (idx !== i) return c;
+        const updated = { ...c, [key]: val };
+        // Auto-generate code when name changes and code is still empty or was auto-generated
+        if (key === 'name') {
+          const autoCode = generateCentreCode(val, prev, i);
+          if (!c.code || c.code === generateCentreCode(c.name, prev, i)) {
+            updated.code = autoCode;
+          }
+        }
+        if (key === 'code') updated.code = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+        return updated;
+      });
       if (key === 'name') {
         setCentreNameErrors(errs => {
           const e = [...errs];
           e[i] = validateCentreName(val, next, i);
-          // re-validate others in case duplicate status changed
           next.forEach((c, idx) => { if (idx !== i) e[idx] = e[idx] ? validateCentreName(c.name, next, idx) : ''; });
+          return e;
+        });
+        setCentreCodeErrors(errs => {
+          const e = [...errs];
+          // re-check duplicates since code may have changed
+          next.forEach((c, idx) => { if (e[idx]) e[idx] = validateCentreCode(c.code, next, idx); });
+          return e;
+        });
+      }
+      if (key === 'code') {
+        setCentreCodeErrors(errs => {
+          const e = [...errs];
+          e[i] = ''; // clear on typing; validate on blur
+          next.forEach((c, idx) => { if (idx !== i && e[idx]) e[idx] = validateCentreCode(c.code, next, idx); });
           return e;
         });
       }
       return next;
     });
   }
-  function addCentre() {
-    setCentres(prev => [...prev, { name:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
-    setCentreNameErrors(prev => [...prev, '']);
+
+  function regenerateCentreCode(i) {
+    setCentres(prev => {
+      const next = prev.map((c, idx) => idx === i ? { ...c, code: generateCentreCode(c.name, prev, i) } : c);
+      setCentreCodeErrors(errs => {
+        const e = [...errs];
+        e[i] = '';
+        return e;
+      });
+      return next;
+    });
   }
+
+  function addCentre() {
+    setCentres(prev => {
+      const newCentre = { name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
+      return [...prev, newCentre];
+    });
+    setCentreNameErrors(prev => [...prev, '']);
+    setCentreCodeErrors(prev => [...prev, '']);
+  }
+
   function removeCentre(i) {
     setCentres(prev => {
       const next = prev.filter((_, idx) => idx !== i);
       setCentreNameErrors(errs => {
         const e = errs.filter((_, idx) => idx !== i);
-        // re-validate all after removal
         next.forEach((c, idx) => { if (e[idx]) e[idx] = validateCentreName(c.name, next, idx); });
+        return e;
+      });
+      setCentreCodeErrors(errs => {
+        const e = errs.filter((_, idx) => idx !== i);
+        next.forEach((c, idx) => { if (e[idx]) e[idx] = validateCentreCode(c.code, next, idx); });
         return e;
       });
       return next;
@@ -998,7 +1079,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   setNumCentres(String(n));
                   setCentres(prev => {
                     const arr = [...prev];
-                    while(arr.length < n) arr.push({ name:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
+                    while(arr.length < n) arr.push({ name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
                     return arr.slice(0, n);
                   });
                 }} placeholder="e.g. 5" min={1} />
@@ -1023,6 +1104,26 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                       </Sel>
                     </F>
                   </G2>
+                  <F label="Centre Code" required hint="3-character unique code for search & tracking">
+                    <div style={{ width:'100%' }}>
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <Inp value={c.code}
+                          onChange={e => updateCentre(i, 'code', e.target.value)}
+                          onBlur={() => setCentreCodeErrors(errs => { const e=[...errs]; e[i]=validateCentreCode(c.code, centres, i); return e; })}
+                          placeholder="e.g. HYD"
+                          maxLength={3}
+                          style={{ width:90, textTransform:'uppercase', ...(centreCodeErrors[i] ? { border:'1px solid #C0392B' } : {}) }} />
+                        <button type="button"
+                          onClick={() => regenerateCentreCode(i)}
+                          style={{ padding:'4px 10px', fontSize:12, borderRadius:6, border:'1px solid #CBD5E1', background:'#F1F5F9', cursor:'pointer', whiteSpace:'nowrap' }}
+                          title="Auto-generate a unique code">
+                          ↻ Auto
+                        </button>
+                        {c.code && !centreCodeErrors[i] && <span style={{ fontSize:11, color:'#16A34A', fontWeight:600 }}>✓ unique</span>}
+                      </div>
+                      {centreCodeErrors[i] && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {centreCodeErrors[i]}</div>}
+                    </div>
+                  </F>
                   <F label="Full Address"><Inp value={c.addr} onChange={e => updateCentre(i,'addr',e.target.value)} placeholder="Building, street, area" /></F>
                   <G3>
                     <F label="State">
