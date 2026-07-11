@@ -331,7 +331,6 @@ export default function EmployerPortal() {
   const [emailError, setEmailError] = useState('');
   const [websiteError, setWebsiteError] = useState('');
   const PAN_RE = /^[A-Z]{5}\d{4}[A-Z]$/;
-  const CIN_RE = /^[A-Z]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/;
   const GST_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
 
   useEffect(() => {
@@ -656,8 +655,8 @@ export default function EmployerPortal() {
         if (!PAN_RE.test(pan)) { setPanError('Invalid PAN — format: ABCDE1234F (10 chars)'); return; }
       }
       if (profileInfo.cin) {
-        const cin = profileInfo.cin.toUpperCase().trim();
-        if (!CIN_RE.test(cin)) { setCinError('Invalid CIN — format: U72200KA2015PTC082341 (21 chars)'); return; }
+        const cinErr = fieldValidate('cin', profileInfo.cin);
+        if (cinErr) { setCinError(cinErr); return; }
       }
       if (profileInfo.gstin) {
         const gst = profileInfo.gstin.toUpperCase().trim();
@@ -698,8 +697,9 @@ export default function EmployerPortal() {
             <div style={{ width:'100%' }}>
               <input value={profileInfo.cin}
                 onChange={e => { setProfileInfo(f => ({ ...f, cin: e.target.value.toUpperCase() })); setCinError(''); }}
-                onBlur={() => { if (profileInfo.cin) setCinError(CIN_RE.test(profileInfo.cin.toUpperCase()) ? '' : 'Invalid CIN — format: U72200KA2015PTC082341 (21 chars)'); }}
+                onBlur={() => { setCinError(fieldValidate('cin', profileInfo.cin)); }}
                 placeholder="e.g. U72200KA2015PTC082341"
+                maxLength={21}
                 style={{ ...inp, borderColor: cinError ? '#C0392B' : '#dde2eb', background: cinError ? '#FEF2F2' : '#fafbfc' }} />
               {cinError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {cinError}</div>}
             </div>

@@ -406,7 +406,7 @@ export default function PlacementPartnerPortal() {
   async function saveAgInfo() {
     const errs = {};
     if (!agInfo.org_name.trim()) errs.org_name = 'Agency name is required';
-    if (agInfo.cin    && !/^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(agInfo.cin.toUpperCase()))   errs.cin     = 'Invalid CIN format';
+    if (agInfo.cin)    { const e = fieldValidate('cin', agInfo.cin);    if (e) errs.cin     = e; }
     if (agInfo.gstin  && !/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}$/.test(agInfo.gstin.toUpperCase())) errs.gstin   = 'Invalid GSTIN format';
     if (agInfo.pan    && !/^[A-Z]{5}\d{4}[A-Z]{1}$/.test(agInfo.pan.toUpperCase()))                      errs.pan     = 'Invalid PAN format';
     if (agInfo.tan    && !/^[A-Z]{4}\d{5}[A-Z]{1}$/.test(agInfo.tan.toUpperCase()))                      errs.tan     = 'Invalid TAN — format: PDES03028F (10 chars)';
@@ -786,7 +786,7 @@ export default function PlacementPartnerPortal() {
         <Grid>
           <Field label="CIN Number">
             {inp('cin', { upper:true, placeholder:'e.g. U74999MH2021PTC000001', max:21,
-              onBlur: () => { const v = agInfo.cin.toUpperCase(); if (v && !/^[A-Z]{1}\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(v)) setAgErr('cin','Invalid CIN format'); } })}
+              onBlur: () => { const e = fieldValidate('cin', agInfo.cin); if (e) setAgErr('cin', e); } })}
             <ErrMsg f="cin" />
           </Field>
           <Field label="GST Number">

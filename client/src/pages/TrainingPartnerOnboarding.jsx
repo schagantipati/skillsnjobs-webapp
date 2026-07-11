@@ -130,6 +130,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [dateIncorp, setDateIncorp] = useState('');
   const [dateIncorpError, setDateIncorpError] = useState('');
   const [cinReg, setCinReg]       = useState('');
+  const [cinRegError, setCinRegError] = useState('');
   const [website, setWebsite]     = useState('');
   const [websiteError, setWebsiteError] = useState('');
   const [headAddr, setHeadAddr]   = useState('');
@@ -159,7 +160,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [gstNo, setGstNo]   = useState(user?.gstin || '');
   const [gstError, setGstError] = useState('');
   const [msme, setMsme]     = useState('');
-  const [udyam, setUdyam]   = useState('');
+  const [udyam, setUdyam]       = useState('');
+  const [udyamError, setUdyamError] = useState('');
 
   /* Step 4 */
   const [nsdcCode, setNsdcCode]     = useState('');
@@ -323,6 +325,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       const incorpErr = validateDateIncorp(dateIncorp);
       if (incorpErr) { setDateIncorpError(incorpErr); return incorpErr; }
       if (!(user?.org_name || '').trim()) return 'Organisation Name is required — update your profile';
+      if (cinReg) {
+        const cinErr = fieldValidate('cin', cinReg);
+        if (cinErr) { setCinRegError(cinErr); return cinErr; }
+      }
       const addrErr = validateAddress(headAddr);
       if (addrErr) { setHeadAddrError(addrErr); return addrErr; }
       if (!headState) return 'Head Office State is required';
@@ -339,6 +345,10 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       if (!panNo.trim() || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(panNo)) {
         setPanError('Invalid PAN — format: ABCDE1234F (10 chars)');
         return 'Valid PAN is required (e.g. ABCDE1234F)';
+      }
+      if (udyam) {
+        const udyamErr = fieldValidate('udyam', udyam);
+        if (udyamErr) { setUdyamError(udyamErr); return udyamErr; }
       }
     }
     if (step === 5) {
@@ -661,7 +671,15 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
               </G2>
               <G2>
                 <F label="CIN / Registration Number" hint="Company ID No. or Society/Trust registration no.">
-                  <Inp value={cinReg} onChange={e => setCinReg(e.target.value.toUpperCase())} placeholder="e.g. U74999MH2020PTC123456" maxLength={21} />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={cinReg}
+                      onChange={e => { setCinReg(e.target.value.toUpperCase()); setCinRegError(''); }}
+                      onBlur={() => { if (cinReg) setCinRegError(fieldValidate('cin', cinReg)); }}
+                      placeholder="e.g. U74999MH2020PTC123456"
+                      maxLength={21}
+                      style={cinRegError ? { border:'1px solid #C0392B' } : {}} />
+                    {cinRegError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {cinRegError}</div>}
+                  </div>
                 </F>
                 <F label="Website URL">
                   <div style={{ width:'100%' }}>
@@ -830,7 +848,15 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   <Inp value={msme} onChange={e => setMsme(e.target.value.toUpperCase())} placeholder="MH-MU-00-0000000" />
                 </F>
                 <F label="Udyam Registration Number" hint="Udyam Aadhar certificate">
-                  <Inp value={udyam} onChange={e => setUdyam(e.target.value.toUpperCase())} placeholder="UDYAM-MH-00-0000000" />
+                  <div style={{ width:'100%' }}>
+                    <Inp value={udyam}
+                      onChange={e => { setUdyam(e.target.value.toUpperCase()); setUdyamError(''); }}
+                      onBlur={() => { if (udyam) setUdyamError(fieldValidate('udyam', udyam)); }}
+                      placeholder="UDYAM-MH-00-0000000"
+                      maxLength={19}
+                      style={udyamError ? { border:'1px solid #C0392B' } : {}} />
+                    {udyamError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {udyamError}</div>}
+                  </div>
                 </F>
               </G2>
               <div style={S.infoBox}>ℹ️ All statutory registrations will be verified against Government databases before approval. Ensure details match your certificates exactly.</div>
