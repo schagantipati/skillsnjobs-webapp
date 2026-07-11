@@ -179,7 +179,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
-  const [centres, setCentres]       = useState([{ name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
   const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
 
@@ -537,7 +537,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   function addCentre() {
     setCentres(prev => {
-      const newCentre = { name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
+      const newCentre = { name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
       return [...prev, newCentre];
     });
     setCentreNameErrors(prev => [...prev, '']);
@@ -1079,7 +1079,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   setNumCentres(String(n));
                   setCentres(prev => {
                     const arr = [...prev];
-                    while(arr.length < n) arr.push({ name:'', code:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
+                    while(arr.length < n) arr.push({ name:'', code:'', type:'', addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
                     return arr.slice(0, n);
                   });
                 }} placeholder="e.g. 5" min={1} />
@@ -1101,6 +1101,21 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                     <F label="Ownership">
                       <Sel value={c.own} onChange={e => updateCentre(i,'own',e.target.value)}>
                         <option>Owned</option><option>Rented / Leased</option><option>Government Allotted</option>
+                      </Sel>
+                    </F>
+                  </G2>
+                  <G2>
+                    <F label="Centre Type">
+                      <Sel value={c.type} onChange={e => updateCentre(i,'type',e.target.value)}>
+                        <option value="">Select type</option>
+                        <option>Permanent Centre</option>
+                        <option>Franchise Centre</option>
+                        <option>Rented Centre</option>
+                        <option>Government Centre</option>
+                        <option>Mobile Training Centre</option>
+                        <option>Residential Centre</option>
+                        <option>Corporate Training Centre</option>
+                        <option>Assessment Centre</option>
                       </Sel>
                     </F>
                   </G2>
