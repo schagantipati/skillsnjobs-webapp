@@ -20,6 +20,7 @@ const C = {
 };
 const SW = 220;
 const TH = 58;
+const SECTORS = ['Retail','IT / ITeS','BFSI','Healthcare','Construction','Logistics','Tourism & Hospitality','Agriculture','Automotive','Beauty & Wellness','Electronics','Textile & Apparel','Media & Entertainment','Telecom','Green Jobs'];
 
 /* ─── nav ──────────────────────────────────────────────────────── */
 const NAV = [
@@ -343,7 +344,7 @@ export default function TrainerPortal() {
   const [reschedTime, setReschedTime] = useState('');
 
   // Personal Info
-  const [personalForm, setPersonalForm] = useState({ name:'', dob:'', gender:'Male', category:'General', phone:'', email:'', aadhaar:'', pan:'' });
+  const [personalForm, setPersonalForm] = useState({ name:'', dob:'', gender:'Male', category:'General', phone:'', email:'', aadhaar:'', pan:'', sector:'' });
   const [personalSaving, setPersonalSaving] = useState(false);
   const [aadhaarError, setAadhaarError] = useState('');
   const [panError, setPanError] = useState('');
@@ -384,6 +385,7 @@ export default function TrainerPortal() {
       email: user.email || '',
       aadhaar: '',
       pan: user.pan || '',
+      sector: user.preferred_sector || '',
     }));
   }, [user]);
   useEffect(() => {
@@ -632,6 +634,7 @@ export default function TrainerPortal() {
         phone: personalForm.phone ? '+91' + personalForm.phone : null,
         email: personalForm.email || null,
         pan: personalForm.pan || null,
+        preferred_sector: personalForm.sector || null,
       })
         .then(() => showToast('Personal information saved!'))
         .catch(e => showToast(e.message || 'Failed to save', 'error'))
@@ -710,6 +713,15 @@ export default function TrainerPortal() {
                   fontFamily:'inherit', color:C.ink2, boxSizing:'border-box' }} />
               {panError && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {panError}</div>}
             </div>
+          </Field>
+        </G>
+        <G>
+          <Field label="Primary Sector">
+            <select value={pf.sector} onChange={e=>setPf('sector',e.target.value)}
+              style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              <option value="">— Select Sector —</option>
+              {SECTORS.map(s => <option key={s}>{s}</option>)}
+            </select>
           </Field>
         </G>
         <div style={{ textAlign:'right' }}>

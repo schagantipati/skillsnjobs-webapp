@@ -781,6 +781,33 @@ function TrainersList({ activeSection, onNav }) {
                 onBlur={() => { const v = fv('mobile'); if (v) setErr('mobile', /^[6-9]\d{9}$/.test(v) ? '' : 'Must be a 10-digit number starting with 6–9'); }} />
               {errors.mobile && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.mobile}</div>}
             </div>
+            <div style={S.fGroup}><label style={S.label}>Date of birth</label><input style={S.input} type="date" value={fv('dob')} onChange={f('dob')} /></div>
+            <div style={S.fGroup}><label style={S.label}>Gender</label>
+              <select style={S.select} value={fv('gender')} onChange={f('gender')}>
+                <option value="">Select</option>
+                {['Male','Female','Other'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Category</label>
+              <select style={S.select} value={fv('category')} onChange={f('category')}>
+                <option value="">Select</option>
+                {['General','OBC','SC','ST','EWS'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Aadhaar number</label>
+              <input style={{ ...S.input, ...(errors.aadhaar ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                value={fv('aadhaar')} maxLength={12} placeholder="12-digit Aadhaar"
+                onChange={e => { f('aadhaar')(e); clearErr('aadhaar'); }}
+                onBlur={() => { const v = fv('aadhaar'); if (v) setErr('aadhaar', /^\d{12}$/.test(v) ? '' : 'Must be a 12-digit number'); }} />
+              {errors.aadhaar && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.aadhaar}</div>}
+            </div>
+            <div style={S.fGroup}><label style={S.label}>PAN number</label>
+              <input style={{ ...S.input, textTransform:'uppercase', ...(errors.pan ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+                value={fv('pan')} maxLength={10} placeholder="e.g. ABCDE1234F"
+                onChange={e => { setForm(p => ({ ...p, pan: e.target.value.toUpperCase() })); clearErr('pan'); }}
+                onBlur={() => { const v = fv('pan'); if (v) setErr('pan', /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? '' : 'Invalid PAN format'); }} />
+              {errors.pan && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.pan}</div>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Qualification</label><input style={S.input} value={fv('qualification')} onChange={f('qualification')} placeholder="B.Tech, MBA…" /></div>
             <div style={S.fGroup}><label style={S.label}>Sector</label>
               <select style={S.select} value={fv('sector')} onChange={f('sector')}>
