@@ -188,7 +188,30 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
   const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
+  const [centrePinStatus, setCentrePinStatus]   = useState(['']);
   const [openInfraIdx, setOpenInfraIdx] = useState(null);
+
+  async function lookupCentrePin(idx, pin) {
+    if (!/^\d{6}$/.test(pin)) return;
+    setCentrePinStatus(prev => { const a = [...prev]; a[idx] = 'loading'; return a; });
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = await res.json();
+      if (data[0]?.Status === 'Success' && data[0].PostOffice?.length > 0) {
+        const po = data[0].PostOffice[0];
+        setCentres(prev => {
+          const a = [...prev];
+          a[idx] = { ...a[idx], state: po.State || a[idx].state, district: po.District || a[idx].district, city: po.Division || po.Block || a[idx].city };
+          return a;
+        });
+        setCentrePinStatus(prev => { const a = [...prev]; a[idx] = 'ok'; return a; });
+      } else {
+        setCentrePinStatus(prev => { const a = [...prev]; a[idx] = 'notfound'; return a; });
+      }
+    } catch {
+      setCentrePinStatus(prev => { const a = [...prev]; a[idx] = 'error'; return a; });
+    }
+  }
 
   /* Step 7 */
   const [ftTrainers, setFtTrainers]     = useState('');
@@ -262,7 +285,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
     /* Step 6 */
     if (vp.step6?.numCentres) setNumCentres(vp.step6.numCentres);
-    if (vp.step6?.centres?.length) { setCentres(vp.step6.centres); setCentreNameErrors(vp.step6.centres.map(() => '')); setCentreCodeErrors(vp.step6.centres.map(() => '')); }
+    if (vp.step6?.centres?.length) { setCentres(vp.step6.centres); setCentreNameErrors(vp.step6.centres.map(() => '')); setCentreCodeErrors(vp.step6.centres.map(() => '')); setCentrePinStatus(vp.step6.centres.map(() => '')); }
 
     /* Step 7 */
     setFtTrainers(  vp.step7?.ftTrainers   || '');
@@ -460,8 +483,8 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
   function validateCentreName(name, allCentres, selfIdx) {
     const trimmed = name.trim();
     if (!trimmed) return 'Centre name is required';
-    if (trimmed.length < 5) return 'Centre name must be at least 5 characters';
-    if (trimmed.length > 50) return 'Centre name must be at most 50 characters';
+    if (trimmed.length < 3) return 'Centre name must be at least 3 characters';
+    if (trimmed.length > 150) return 'Centre name must be at most 150 characters';
     if (!CENTRE_NAME_RE.test(trimmed)) return 'Only letters, numbers, spaces, & and - are allowed';
     const lower = trimmed.toLowerCase();
     const dup = allCentres.some((c, idx) => idx !== selfIdx && c.name.trim().toLowerCase() === lower);
@@ -555,6 +578,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
     });
     setCentreNameErrors(prev => [...prev, '']);
     setCentreCodeErrors(prev => [...prev, '']);
+    setCentrePinStatus(prev => [...prev, '']);
   }
 
   function removeCentre(i) {
@@ -570,6 +594,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
         next.forEach((c, idx) => { if (e[idx]) e[idx] = validateCentreCode(c.code, next, idx); });
         return e;
       });
+      setCentrePinStatus(prev => prev.filter((_, idx) => idx !== i));
       return next;
     });
   }
@@ -1212,16 +1237,41 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   </F>
                   <F label="Full Address"><Inp value={c.addr} onChange={e => updateCentre(i,'addr',e.target.value)} placeholder="Building, street, area" /></F>
                   <G3>
+                    <F label="PIN Code">
+                      <div style={{ position:'relative' }}>
+                        <Inp
+                          value={c.pin}
+                          maxLength={6}
+                          placeholder="6-digit PIN"
+                          style={{ paddingRight:28 }}
+                          onChange={e => {
+                            const v = e.target.value.replace(/\D/g,'').slice(0,6);
+                            updateCentre(i,'pin',v);
+                            setCentrePinStatus(prev => { const a=[...prev]; a[i]=''; return a; });
+                            if (v.length === 6) lookupCentrePin(i, v);
+                          }}
+                        />
+                        <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', fontSize:12 }}>
+                          {centrePinStatus[i]==='loading' && '⏳'}
+                          {centrePinStatus[i]==='ok'      && '✅'}
+                          {centrePinStatus[i]==='notfound'&& '❌'}
+                          {centrePinStatus[i]==='error'   && '⚠️'}
+                        </span>
+                      </div>
+                      {centrePinStatus[i]==='ok'       && <div style={{ color:'#15803D', fontSize:11, marginTop:2 }}>State, district &amp; city auto-filled.</div>}
+                      {centrePinStatus[i]==='notfound' && <div style={{ color:'#B45309', fontSize:11, marginTop:2 }}>Not found — fill manually.</div>}
+                      {centrePinStatus[i]==='error'    && <div style={{ color:'#B45309', fontSize:11, marginTop:2 }}>Lookup failed — fill manually.</div>}
+                    </F>
                     <F label="State">
                       <Sel value={c.state} onChange={e => updateCentre(i,'state',e.target.value)}>
                         <option value="">Select state</option>
                         {STATES.map(s => <option key={s}>{s}</option>)}
                       </Sel>
                     </F>
-                    <F label="City"><Inp value={c.city} onChange={e => updateCentre(i,'city',e.target.value)} placeholder="City" /></F>
-                    <F label="PIN Code"><Inp value={c.pin} onChange={e => updateCentre(i,'pin',e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="PIN" maxLength={6} /></F>
+                    <F label="District"><Inp value={c.district} onChange={e => updateCentre(i,'district',e.target.value)} placeholder="District" /></F>
                   </G3>
                   <G3>
+                    <F label="City"><Inp value={c.city} onChange={e => updateCentre(i,'city',e.target.value)} placeholder="City" /></F>
                     <F label="Area (sq ft)"><Inp type="number" value={c.area} onChange={e => updateCentre(i,'area',e.target.value)} placeholder="e.g. 3000" /></F>
                     <F label="Seating Capacity"><Inp type="number" value={c.cap} onChange={e => updateCentre(i,'cap',e.target.value)} placeholder="e.g. 40" /></F>
                     <F label="Lab / Workshop">

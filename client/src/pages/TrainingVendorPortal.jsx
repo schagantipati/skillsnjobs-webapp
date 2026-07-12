@@ -11,6 +11,13 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
 const SECTORS = ['Retail','IT / ITeS','BFSI','Healthcare','Construction','Logistics','Tourism & Hospitality','Agriculture','Automotive','Beauty & Wellness','Electronics','Textile & Apparel','Media & Entertainment','Telecom','Green Jobs'];
 const SCHEMES = ['PMKVY 4.0','DDU-GKY','Fee-based','CSR','State Skill Mission','Apprenticeship','NAPS','Other'];
 const NSQF = ['L1','L2','L3','L4','L5','L6','L7','L8'];
+const EQUIPMENT_OPTIONS = [
+  { group: 'Technology', items: ['Smart Classroom','Computer Lab','Internet','Projector'] },
+  { group: 'Amenities', items: ['Hostel','Library','Workshop','Practical Lab'] },
+  { group: 'Security', items: ['CCTV','Biometric'] },
+  { group: 'Basic Facilities', items: ['Drinking Water','Washrooms','Separate Ladies Washroom','Accessibility (PwD)','Parking'] },
+];
+const INDIAN_STATES = ['Andaman and Nicobar Islands','Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chandigarh','Chhattisgarh','Dadra and Nagar Haveli and Daman and Diu','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jammu and Kashmir','Jharkhand','Karnataka','Kerala','Ladakh','Lakshadweep','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Puducherry','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal'];
 const DOC_TYPES = [
   { key: 'certificate_of_incorporation', label: 'Certificate of Incorporation' },
   { key: 'pan_card', label: 'PAN Card' },
@@ -496,13 +503,40 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, saveEr
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
   const [errors, setErrors] = useState({});
+  const [pinLookup, setPinLookup] = useState('');
   const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
   const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
+
+  const lookupPin = async (pin) => {
+    if (!/^\d{6}$/.test(pin)) return;
+    setPinLookup('loading');
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+      const data = await res.json();
+      if (data[0]?.Status === 'Success' && data[0].PostOffice?.length > 0) {
+        const po = data[0].PostOffice[0];
+        setForm(p => ({
+          ...p,
+          state_name: po.State || p.state_name,
+          district:   po.District || p.district,
+          city:       po.Division || po.Block || p.city,
+        }));
+        setPinLookup('ok');
+      } else {
+        setPinLookup('notfound');
+      }
+    } catch {
+      setPinLookup('error');
+    }
+  };
   const save = async () => {
     if (!form.name) { setErr('name', 'Centre name is required'); return; }
     const nameErr = validateText(form.name, 'Centre name', { min: 3, max: 150 });
     if (nameErr) { setErr('name', nameErr); return; }
-    if (form.seating_capacity) { const capErr = validatePosInt(form.seating_capacity, 'Seating capacity', 5000); if (capErr) { alert(capErr); return; } }
+    if (form.seating_capacity) {
+      const capErr = validatePosInt(form.seating_capacity, 'Seating capacity', 5000);
+      if (capErr) { setErr('seating_capacity', capErr); return; }
+    }
     setSaving(true);
     try { await onSave(); } catch (e) { alert(e.message); }
     setSaving(false);
@@ -519,19 +553,76 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, saveEr
           <input style={{ ...S.input, ...(nameErr ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }} value={fv('name')} onChange={e => { f('name')(e); clearErr('name'); }} placeholder="e.g. TechSkills Delhi North" />
           {nameErr && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {nameErr}</div>}
         </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Centre code</label>
+          <input style={{ ...S.input, textTransform:'uppercase' }} value={fv('centre_code')} onChange={f('centre_code')} placeholder="e.g. DLH" maxLength={3} />
+          <span style={{ fontSize:11, color:'#64748B', marginTop:2 }}>3-char unique code (A–Z, 0–9)</span>
+        </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Centre type</label>
+          <select style={S.select} value={fv('centre_type')} onChange={f('centre_type')}>
+            <option value="">Select</option>
+            {['Permanent Centre','Franchise Centre','Rented Centre','Government Centre','Mobile Training Centre','Residential Centre','Corporate Training Centre','Assessment Centre'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Ownership</label>
+          <select style={S.select} value={fv('ownership')} onChange={f('ownership')}>
+            <option value="">Select</option>
+            {['Owned','Rented / Leased','Government Allotted'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Year started</label>
+          <input style={S.input} type="number" value={fv('year_started')} onChange={f('year_started')} placeholder="e.g. 2018" min={1900} max={new Date().getFullYear()} />
+        </div>
         <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Full address</label><input style={S.input} value={fv('address')} onChange={f('address')} placeholder="Building, street, locality" /></div>
-        <div style={S.fGroup}><label style={S.label}>State</label><input style={S.input} value={fv('state_name')} onChange={f('state_name')} placeholder="State" /></div>
+        <div style={S.fGroup}><label style={S.label}>State</label>
+          <select style={S.select} value={fv('state_name')} onChange={f('state_name')}>
+            <option value="">Select state</option>
+            {INDIAN_STATES.map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
         <div style={S.fGroup}><label style={S.label}>District</label><input style={S.input} value={fv('district')} onChange={f('district')} /></div>
         <div style={S.fGroup}><label style={S.label}>City</label><input style={S.input} value={fv('city')} onChange={f('city')} /></div>
-        <div style={S.fGroup}><label style={S.label}>PIN code</label>
-          <input style={{ ...S.input, ...(errors.pincode ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
-            value={fv('pincode')}
-            onChange={e => { f('pincode')(e); clearErr('pincode'); }}
-            onBlur={() => { const v = fv('pincode'); if (v) setErr('pincode', /^\d{6}$/.test(v) ? '' : 'Must be a 6-digit PIN code'); }} />
-          {errors.pincode && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.pincode}</div>}
+        <div style={S.fGroup}>
+          <label style={S.label}>PIN code</label>
+          <div style={{ position:'relative' }}>
+            <input
+              style={{ ...S.input, ...(errors.pincode ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}), paddingRight:28 }}
+              value={fv('pincode')}
+              maxLength={6}
+              placeholder="6-digit PIN"
+              onChange={e => {
+                const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setForm(p => ({ ...p, pincode: v }));
+                clearErr('pincode');
+                setPinLookup('');
+                if (v.length === 6) lookupPin(v);
+              }}
+            />
+            <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', fontSize:13 }}>
+              {pinLookup === 'loading' && '⏳'}
+              {pinLookup === 'ok'      && '✅'}
+              {pinLookup === 'notfound'&& '❌'}
+              {pinLookup === 'error'   && '⚠️'}
+            </span>
+          </div>
+          {errors.pincode   && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.pincode}</div>}
+          {pinLookup === 'notfound' && <div style={{ color:'#B45309', fontSize:11, marginTop:3 }}>PIN code not found — please fill fields manually.</div>}
+          {pinLookup === 'error'    && <div style={{ color:'#B45309', fontSize:11, marginTop:3 }}>Lookup failed — please fill fields manually.</div>}
+          {pinLookup === 'ok'       && <div style={{ color:'#15803D', fontSize:11, marginTop:3 }}>State, district &amp; city auto-filled.</div>}
         </div>
         <div style={S.fGroup}><label style={S.label}>Geo-location (lat, long or Maps link)</label><input style={S.input} value={fv('geo')} onChange={f('geo')} placeholder="19.1136, 72.8697" /></div>
-        <div style={S.fGroup}><label style={S.label}>Seating capacity</label><input style={S.input} type="number" value={fv('seating_capacity')} onChange={f('seating_capacity')} /></div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Area (sq ft)</label>
+          <input style={S.input} type="number" value={fv('area_sqft')} onChange={f('area_sqft')} placeholder="e.g. 3000" />
+        </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Seating capacity</label>
+          <input style={{ ...S.input, ...(errors.seating_capacity ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }} type="number" value={fv('seating_capacity')} onChange={e => { f('seating_capacity')(e); clearErr('seating_capacity'); }} />
+          {errors.seating_capacity && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.seating_capacity}</div>}
+        </div>
         <div style={S.fGroup}><label style={S.label}>Classrooms</label><input style={S.input} type="number" value={fv('classrooms')} onChange={f('classrooms')} /></div>
         <div style={S.fGroup}><label style={S.label}>Labs</label><input style={S.input} type="number" value={fv('labs')} onChange={f('labs')} /></div>
         <div style={S.fGroup}><label style={S.label}>Internet connectivity</label>
@@ -552,7 +643,34 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, saveEr
             {['Yes — ramp & elevator','Partial','No'].map(o => <option key={o}>{o}</option>)}
           </select>
         </div>
-        <div style={S.fGroup}><label style={S.label}>Equipment</label><input style={S.input} value={fv('equipment')} onChange={f('equipment')} placeholder="Computers, projectors, tools…" /></div>
+        <div style={{ ...S.fGroup, gridColumn:'1/-1' }}>
+          <label style={S.label}>Equipment &amp; Facilities</label>
+          <div style={{ border:'1px solid #CBD5E1', borderRadius:6, padding:'10px 12px', background:'#fff' }}>
+            {EQUIPMENT_OPTIONS.map(grp => {
+              const selected = (fv('equipment') || '').split(',').map(s => s.trim()).filter(Boolean);
+              const toggle = (item) => {
+                const next = selected.includes(item) ? selected.filter(x => x !== item) : [...selected, item];
+                setForm(p => ({ ...p, equipment: next.join(', ') }));
+              };
+              return (
+                <div key={grp.group} style={{ marginBottom:8 }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'#64748B', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>{grp.group}</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'6px 12px' }}>
+                    {grp.items.map(item => {
+                      const checked = (fv('equipment') || '').split(',').map(s => s.trim()).includes(item);
+                      return (
+                        <label key={item} style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, cursor:'pointer', userSelect:'none' }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggle(item)} style={{ accentColor:'#0A2D6E', width:14, height:14 }} />
+                          {item}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
       <div style={S.btnRow}>
         <button style={S.btn} onClick={onCancel}>Cancel</button>
