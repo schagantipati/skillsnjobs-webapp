@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { validate as fieldValidate } from '../utils/validators.js';
+import { validate as fieldValidate, validateText } from '../utils/validators.js';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
@@ -224,7 +224,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
     /* Step 1 */
     setOrgType(     vp.step1?.orgType      || '');
-    setDateIncorp(  vp.step1?.dateIncorp   || toISODate(user.year_established) || '');
+    setDateIncorp(  vp.step1?.dateIncorp   || toISODate(user.year_established) || user.dob || '');
     setCinReg(      vp.step1?.cinReg       || user.registration_number || '');
     setWebsite(     vp.step1?.website      || '');
     setHeadAddr(    vp.step1?.headAddr     || user.address_line1   || '');
@@ -387,7 +387,12 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       if (!bankName.trim()) return 'Bank Name is required';
       if (!bankIfsc.trim()) return 'IFSC Code is required';
       if (!bankAccNum.trim()) return 'Account Number is required';
+      if (!/^\d{9,18}$/.test(bankAccNum.trim())) return 'Account number must be 9–18 digits';
       if (bankAccNum !== bankAccNum2) return 'Account numbers do not match';
+      const accNameErr = validateText(bankAccName, 'Account holder name', { min: 2, max: 100 });
+      if (accNameErr) return accNameErr;
+      const ifscErr = fieldValidate('ifsc', bankIfsc.trim().toUpperCase());
+      if (ifscErr) return ifscErr;
     }
     if (step === 11) {
       if (!declared) return 'Please accept the declaration to proceed';
@@ -444,6 +449,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
       step8:  { courses },
       step9:  { bankName, bankBranch, bankIfsc, bankAccType, bankAccName, bankAccNum },
       step10: { docStatus },
+      step11: { declared },
     };
   }
 
@@ -737,9 +743,13 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
         {/* Step pills */}
         <div style={{ display:'flex', overflowX:'auto', gap:0, marginBottom:18, paddingBottom:2, scrollbarWidth:'none' }}>
           {STEPS.map((st, i) => {
-            const done_ = step > st.id, active = step === st.id;
+            const savedVp = user?.vendor_profile || {};
+            const stepKey = `step${st.id}`;
+            const alreadySaved = savedVp[stepKey] && Object.keys(savedVp[stepKey]).some(k => savedVp[stepKey][k]);
+            const done_ = step > st.id || (alreadySaved && step !== st.id);
+            const active = step === st.id;
             return (
-              <div key={st.id} onClick={() => step > st.id && setStep(st.id)}
+              <div key={st.id} onClick={() => (step > st.id || alreadySaved) && setStep(st.id)}
                 style={{ display:'flex', flexDirection:'column', alignItems:'center', flex:1, minWidth:56,
                   position:'relative', cursor: step > st.id ? 'pointer' : 'default' }}>
                 {i > 0 && <div style={{ position:'absolute', top:14, left:'-50%', right:'50%', height:2,

@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validatePassingYear, validateScore, validateMonthYear, validatePosInt, validatePositiveNum, validatePassingMarks, validateText } from '../utils/validators.js';
 import { formatDate } from '../utils/date.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -726,6 +726,10 @@ export default function TrainerPortal() {
       if (!qualForm.degree || !qualForm.institution || !qualForm.year) {
         showToast('Please fill in Degree, Institution and Year.', 'warn'); return;
       }
+      const yearErr = validatePassingYear(qualForm.year, 'Year of Passing');
+      if (yearErr) { showToast(yearErr, 'warn'); return; }
+      const scoreErr = validateScore(qualForm.score);
+      if (scoreErr) { showToast(scoreErr, 'warn'); return; }
       api.addTrainerQualification({ degree: qualForm.degree, institution: qualForm.institution, year: qualForm.year, score: qualForm.score })
         .then(row => {
           setQualList(prev => [...prev, { id: row.id, degree: row.degree, institution: row.institution, year: row.year || '', score: row.score || '' }]);
@@ -744,8 +748,8 @@ export default function TrainerPortal() {
         {showAddQual && (
           <div style={{ marginTop:16, padding:16, background:C.bluePale, borderRadius:10, border:`1px solid ${C.border}` }}>
             <G>
-              <Field label="Degree / Course"><Inp value={qualForm.degree} onChange={e => setQualForm(f=>({...f,degree:e.target.value}))} placeholder="e.g. B.Tech Computer Science" /></Field>
-              <Field label="Institution"><Inp value={qualForm.institution} onChange={e => setQualForm(f=>({...f,institution:e.target.value}))} placeholder="e.g. NIT Warangal" /></Field>
+              <Field label="Degree / Course"><Inp value={qualForm.degree} onChange={e => setQualForm(f=>({...f,degree:e.target.value}))} placeholder="e.g. B.Tech Computer Science" maxLength={150} /></Field>
+              <Field label="Institution"><Inp value={qualForm.institution} onChange={e => setQualForm(f=>({...f,institution:e.target.value}))} placeholder="e.g. NIT Warangal" maxLength={150} /></Field>
             </G>
             <G>
               <Field label="Year of Passing"><Inp value={qualForm.year} onChange={e => setQualForm(f=>({...f,year:e.target.value}))} placeholder="e.g. 2010" /></Field>
@@ -771,6 +775,10 @@ export default function TrainerPortal() {
       if (!expForm.org || !expForm.role || !expForm.from) {
         showToast('Please fill in Organisation, Role and From date.', 'warn'); return;
       }
+      const fromErr = validateMonthYear(expForm.from, 'From date');
+      if (fromErr) { showToast(fromErr, 'warn'); return; }
+      const toErr = validateMonthYear(expForm.to, 'To date');
+      if (toErr) { showToast(toErr, 'warn'); return; }
       api.addTrainerExperience({ org: expForm.org, role: expForm.role, from_date: expForm.from, to_date: expForm.to || 'Present', sector: expForm.sector })
         .then(row => {
           setExpList(prev => [...prev, { id: row.id, org: row.org, role: row.role, from: row.from_date || '', to: row.to_date || '', sector: row.sector || '' }]);
@@ -789,13 +797,13 @@ export default function TrainerPortal() {
         {showAddExp && (
           <div style={{ marginTop:16, padding:16, background:C.bluePale, borderRadius:10, border:`1px solid ${C.border}` }}>
             <G>
-              <Field label="Organisation *"><Inp value={expForm.org} onChange={e => setExpForm(f=>({...f,org:e.target.value}))} placeholder="e.g. Infosys" /></Field>
-              <Field label="Role / Designation *"><Inp value={expForm.role} onChange={e => setExpForm(f=>({...f,role:e.target.value}))} placeholder="e.g. Senior Trainer" /></Field>
+              <Field label="Organisation *"><Inp value={expForm.org} onChange={e => setExpForm(f=>({...f,org:e.target.value}))} placeholder="e.g. Infosys" maxLength={150} /></Field>
+              <Field label="Role / Designation *"><Inp value={expForm.role} onChange={e => setExpForm(f=>({...f,role:e.target.value}))} placeholder="e.g. Senior Trainer" maxLength={100} /></Field>
             </G>
             <G cols={3}>
               <Field label="From *"><Inp value={expForm.from} onChange={e => setExpForm(f=>({...f,from:e.target.value}))} placeholder="e.g. Jan 2020" /></Field>
               <Field label="To"><Inp value={expForm.to} onChange={e => setExpForm(f=>({...f,to:e.target.value}))} placeholder="Present" /></Field>
-              <Field label="Sector"><Inp value={expForm.sector} onChange={e => setExpForm(f=>({...f,sector:e.target.value}))} placeholder="e.g. IT-ITeS" /></Field>
+              <Field label="Sector"><Inp value={expForm.sector} onChange={e => setExpForm(f=>({...f,sector:e.target.value}))} placeholder="e.g. IT-ITeS" maxLength={100} /></Field>
             </G>
             <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
               <Btn onClick={() => setShowAddExp(false)}>Cancel</Btn>
@@ -817,6 +825,8 @@ export default function TrainerPortal() {
       if (!skillForm.domain || !skillForm.courses) {
         showToast('Please fill in Domain and Courses.', 'warn'); return;
       }
+      const yrsErr = validatePositiveNum(skillForm.yearsExp, 'Years of experience', 0, 60);
+      if (yrsErr) { showToast(yrsErr, 'warn'); return; }
       api.addTrainerSkill({ domain: skillForm.domain, courses: skillForm.courses, ssc: skillForm.ssc, nsqf_level: skillForm.nsqfLevel, years_exp: skillForm.yearsExp })
         .then(row => {
           setSkillList(prev => [...prev, { id: row.id, domain: row.domain, courses: row.courses || '', ssc: row.ssc || '', nsqfLevel: row.nsqf_level || '', yearsExp: row.years_exp || '' }]);
@@ -849,12 +859,12 @@ export default function TrainerPortal() {
                 </select>
               </Field>
               <Field label="Courses You Can Train">
-                <Inp value={skillForm.courses} onChange={e => setSkillForm(f=>({...f,courses:e.target.value}))} placeholder="e.g. React.js, Node.js, Python" />
+                <Inp value={skillForm.courses} onChange={e => setSkillForm(f=>({...f,courses:e.target.value}))} placeholder="e.g. React.js, Node.js, Python" maxLength={300} />
               </Field>
             </G>
             <G>
               <Field label="Sector Skill Council">
-                <Inp value={skillForm.ssc} onChange={e => setSkillForm(f=>({...f,ssc:e.target.value}))} placeholder="e.g. IT-ITeS SSC (NASSCOM)" />
+                <Inp value={skillForm.ssc} onChange={e => setSkillForm(f=>({...f,ssc:e.target.value}))} placeholder="e.g. IT-ITeS SSC (NASSCOM)" maxLength={100} />
               </Field>
               <Field label="NSQF Level">
                 <select value={skillForm.nsqfLevel} onChange={e => setSkillForm(f=>({...f,nsqfLevel:e.target.value}))}
@@ -885,6 +895,8 @@ export default function TrainerPortal() {
   function PanelProfileCertifications() {
     function submitCert() {
       if (!certForm.cert_name || !certForm.issuing_body) { showToast('Certification name and issuing body are required.', 'warn'); return; }
+      const yearErr = validatePassingYear(certForm.year, 'Year of certification');
+      if (yearErr) { showToast(yearErr, 'warn'); return; }
       api.addTrainerCertification(certForm)
         .then(r => { setCertList(p => [...p, r]); setCertForm({ cert_name:'', issuing_body:'', year:'', valid_until:'' }); setShowAddCert(false); showToast('Certification saved!'); })
         .catch(e => showToast(e.message || 'Failed to save', 'error'));
@@ -898,8 +910,8 @@ export default function TrainerPortal() {
         )} />
         {showAddCert && (
           <div style={{ marginTop:16, padding:16, background:C.bluePale, borderRadius:10, border:`1px solid ${C.border}` }}>
-            <G><Field label="Certification Name *"><Inp value={certForm.cert_name} onChange={e=>setCertForm(f=>({...f,cert_name:e.target.value}))} placeholder="e.g. Certified Trainer (PMKVY)" /></Field>
-            <Field label="Issuing Body *"><Inp value={certForm.issuing_body} onChange={e=>setCertForm(f=>({...f,issuing_body:e.target.value}))} placeholder="e.g. NSDC" /></Field></G>
+            <G><Field label="Certification Name *"><Inp value={certForm.cert_name} onChange={e=>setCertForm(f=>({...f,cert_name:e.target.value}))} placeholder="e.g. Certified Trainer (PMKVY)" maxLength={200} /></Field>
+            <Field label="Issuing Body *"><Inp value={certForm.issuing_body} onChange={e=>setCertForm(f=>({...f,issuing_body:e.target.value}))} placeholder="e.g. NSDC" maxLength={200} /></Field></G>
             <G><Field label="Year"><Inp value={certForm.year} onChange={e=>setCertForm(f=>({...f,year:e.target.value}))} placeholder="e.g. 2021" /></Field>
             <Field label="Valid Until"><Inp value={certForm.valid_until} onChange={e=>setCertForm(f=>({...f,valid_until:e.target.value}))} placeholder="e.g. 2026 or Lifetime" /></Field></G>
             <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
@@ -1071,6 +1083,11 @@ export default function TrainerPortal() {
     const set = k => e => setBatchForm(f => ({ ...f, [k]: e.target.value }));
     async function handleCreate() {
       if (!bf.name.trim()) { setBatchMsg('Batch name is required.'); return; }
+      if (bf.batch_code && !/^[A-Za-z0-9][A-Za-z0-9\-_]{1,19}$/.test(bf.batch_code.trim())) {
+        setBatchMsg('Batch code must be 2–20 characters (letters, digits, dash or underscore).'); return;
+      }
+      const capErr = validatePosInt(bf.capacity, 'Capacity', 1000);
+      if (capErr) { setBatchMsg(capErr); return; }
       setBatchSaving(true); setBatchMsg('');
       try {
         await api.createBatch({ name: bf.name, batch_code: bf.batch_code, start_date: bf.start_date, end_date: bf.end_date, capacity: Number(bf.capacity)||30, status: bf.status, scheme_type: bf.scheme_type || 'None' });
@@ -1106,6 +1123,8 @@ export default function TrainerPortal() {
     if (!batchesLoaded) loadBatches();
     function submitSession() {
       if (!sessionForm.topic || !sessionForm.session_date) { showToast('Topic and date are required.', 'warn'); return; }
+      const durErr = validatePositiveNum(sessionForm.duration_hrs, 'Duration', 0.5, 24);
+      if (durErr) { showToast(durErr, 'warn'); return; }
       const batch = myBatches.find(b => String(b.id) === String(sessionForm.batch_id));
       api.addTrainerSession({ ...sessionForm, batch_id: sessionForm.batch_id || null })
         .then(r => {
@@ -1406,6 +1425,12 @@ export default function TrainerPortal() {
     if (!batchesLoaded) loadBatches();
     function submitAssess() {
       if (!assessForm.date) { showToast('Assessment date is required.', 'warn'); return; }
+      const durErr = validatePositiveNum(assessForm.duration_hrs, 'Duration', 0.5, 24);
+      if (durErr) { showToast(durErr, 'warn'); return; }
+      const marksErr = validatePosInt(assessForm.total_marks, 'Total marks', 1000);
+      if (marksErr) { showToast(marksErr, 'warn'); return; }
+      const passErr = validatePassingMarks(assessForm.passing_marks, assessForm.total_marks);
+      if (passErr) { showToast(passErr, 'warn'); return; }
       const batch = myBatches.find(b => String(b.id) === String(assessForm.batch_id));
       api.addTrainerAssessment({ ...assessForm, batch_id: assessForm.batch_id||null })
         .then(r => {
@@ -1516,6 +1541,10 @@ export default function TrainerPortal() {
     if (!batchesLoaded) loadBatches();
     function submitMock() {
       if (!mockForm.subject || !mockForm.date) { showToast('Subject and date are required.', 'warn'); return; }
+      const durErr = validatePosInt(mockForm.duration_min, 'Duration', 300);
+      if (durErr) { showToast(durErr, 'warn'); return; }
+      const qErr = validatePosInt(mockForm.questions, 'Number of questions', 500);
+      if (qErr) { showToast(qErr, 'warn'); return; }
       const batch = myBatches.find(b => String(b.id) === String(mockForm.batch_id));
       api.addTrainerMockTest({ ...mockForm, batch_id: mockForm.batch_id||null })
         .then(r => {
@@ -1569,6 +1598,10 @@ export default function TrainerPortal() {
   function ContentUploadForm({ filterType }) {
     function submitContent() {
       if (!contentForm.title || !contentForm.type) { showToast('Title and type are required.', 'warn'); return; }
+      const titleErr = validateText(contentForm.title, 'Title', { min: 3, max: 200 });
+      if (titleErr) { showToast(titleErr, 'warn'); return; }
+      const descErr = validateText(contentForm.description, 'Description', { min: 0, max: 500 });
+      if (descErr) { showToast(descErr, 'warn'); return; }
       api.addTrainerContent(contentForm)
         .then(r => { setContentList(p=>[...p,r]); setContentForm({ type:'Study Material (PDF)', title:'', description:'', batch_targets:'All', file_name:'' }); setShowAddContent(false); showToast('Content uploaded!'); })
         .catch(e=>showToast(e.message||'Failed','error'));
@@ -1591,7 +1624,7 @@ export default function TrainerPortal() {
           </Field>
         </G>
         <Field label="Title *"><Inp value={contentForm.title} onChange={e=>setContentForm(f=>({...f,title:e.target.value}))} placeholder="e.g. React Hooks — Week 4 Notes" /></Field>
-        <Field label="Description"><textarea value={contentForm.description} onChange={e=>setContentForm(f=>({...f,description:e.target.value}))} rows={2} placeholder="Brief description…" style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
+        <Field label="Description"><textarea value={contentForm.description} onChange={e=>setContentForm(f=>({...f,description:e.target.value}))} rows={2} placeholder="Brief description…" maxLength={500} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
         <Field label="File Name"><Inp value={contentForm.file_name} onChange={e=>setContentForm(f=>({...f,file_name:e.target.value}))} placeholder="e.g. react-hooks-notes.pdf" /></Field>
         <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
           <Btn onClick={()=>setShowAddContent(false)}>Cancel</Btn>
@@ -1705,6 +1738,8 @@ export default function TrainerPortal() {
   function PanelCertVerify() {
     function doVerify() {
       if (!certVerifyQ.trim()) { showToast('Enter a certificate number.', 'warn'); return; }
+      const certErr = fieldValidate('certNo', certVerifyQ.trim());
+      if (certErr) { showToast(certErr, 'warn'); return; }
       setCertVerifying(true);
       setCertVerifyResult(null);
       api.trainerVerifyCert(certVerifyQ.trim())
@@ -1895,6 +1930,10 @@ export default function TrainerPortal() {
   function PanelHelpdesk() {
     function submitTicket() {
       if (!ticketForm.subject || !ticketForm.details) { showToast('Subject and details are required.', 'warn'); return; }
+      const subjectErr = validateText(ticketForm.subject, 'Subject', { min: 5, max: 200 });
+      if (subjectErr) { showToast(subjectErr, 'warn'); return; }
+      const detailsErr = validateText(ticketForm.details, 'Details', { min: 10, max: 2000 });
+      if (detailsErr) { showToast(detailsErr, 'warn'); return; }
       api.addTrainerTicket(ticketForm)
         .then(r => { setTicketList(p=>[...p,r]); setTicketForm({ category:'Batch Issue', priority:'Medium', subject:'', details:'' }); setShowAddTicket(false); showToast('Support ticket submitted! You will be notified within 24 hours.'); })
         .catch(e=>showToast(e.message||'Failed','error'));
@@ -1919,7 +1958,7 @@ export default function TrainerPortal() {
             </Field>
           </G>
           <Field label="Subject *"><Inp value={ticketForm.subject} onChange={e=>setTicketForm(f=>({...f,subject:e.target.value}))} placeholder="Brief description of the issue" /></Field>
-          <Field label="Details *"><textarea value={ticketForm.details} onChange={e=>setTicketForm(f=>({...f,details:e.target.value}))} rows={4} placeholder="Describe your issue in detail…" style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
+          <Field label="Details *"><textarea value={ticketForm.details} onChange={e=>setTicketForm(f=>({...f,details:e.target.value}))} rows={4} placeholder="Describe your issue in detail…" maxLength={2000} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
           <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
             <Btn onClick={()=>setShowAddTicket(false)}>Cancel</Btn>
             <Btn primary onClick={submitTicket}>📩 Submit Ticket</Btn>
@@ -1944,6 +1983,8 @@ export default function TrainerPortal() {
   function PanelGrievance() {
     function submitGrievance() {
       if (!grievanceForm.details) { showToast('Please provide grievance details.', 'warn'); return; }
+      const detailsErr = validateText(grievanceForm.details, 'Details', { min: 20, max: 2000 });
+      if (detailsErr) { showToast(detailsErr, 'warn'); return; }
       api.addTrainerGrievance(grievanceForm)
         .then(r => { setGrievanceList(p=>[...p,r]); setGrievanceForm({ grievance_type:'Other', against_whom:'', details:'' }); setShowAddGrievance(false); showToast(`Grievance submitted. Reference: ${r.ref_id}`); })
         .catch(e=>showToast(e.message||'Failed','error'));
@@ -1959,7 +2000,7 @@ export default function TrainerPortal() {
             </select>
           </Field>
           <Field label="Against (if applicable)"><Inp value={grievanceForm.against_whom} onChange={e=>setGrievanceForm(f=>({...f,against_whom:e.target.value}))} placeholder="e.g. Training Partner Management" /></Field>
-          <Field label="Details *"><textarea value={grievanceForm.details} onChange={e=>setGrievanceForm(f=>({...f,details:e.target.value}))} rows={5} placeholder="Describe your grievance with dates and amounts…" style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
+          <Field label="Details *"><textarea value={grievanceForm.details} onChange={e=>setGrievanceForm(f=>({...f,details:e.target.value}))} rows={5} placeholder="Describe your grievance with dates and amounts…" maxLength={2000} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
           <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
             <Btn onClick={()=>setShowAddGrievance(false)}>Cancel</Btn>
             <Btn onClick={submitGrievance} style={{ background:C.red, color:'#fff' }}>📤 Submit Grievance</Btn>

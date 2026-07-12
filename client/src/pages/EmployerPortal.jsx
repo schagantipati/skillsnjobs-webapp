@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validateSalaryRange, validateText } from '../utils/validators.js';
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -270,6 +270,10 @@ export default function EmployerPortal() {
 
   function saveHrContact() {
     if (!hrForm.name.trim()) { setHrMsg('Name is required.'); return; }
+    const nameErr = fieldValidate('name', hrForm.name);
+    if (nameErr) { setHrMsg(nameErr); return; }
+    if (hrForm.email) { const eErr = fieldValidate('email', hrForm.email); if (eErr) { setHrMsg(eErr); return; } }
+    if (hrForm.phone) { const pErr = fieldValidate('mobile', hrForm.phone.replace(/\D/g,'')); if (pErr) { setHrMsg('HR Phone: ' + pErr); return; } }
     setHrSaving(true);
     const entry = { ...hrForm, id: Date.now() };
     const updated = [...hrContacts, entry];
@@ -957,6 +961,10 @@ export default function EmployerPortal() {
     const f = jobForm;
     async function handlePost(status) {
       if (!f.title.trim()) { setJobMsg('Job title is required.'); return; }
+      const titleErr = validateText(f.title, 'Job title', { min: 3, max: 200 });
+      if (titleErr) { setJobMsg(titleErr); return; }
+      const salaryErr = validateSalaryRange(f.salary_min, f.salary_max);
+      if (salaryErr) { setJobMsg(salaryErr); return; }
       setJobSaving(true); setJobMsg('');
       try {
         const skills = f.required_skills.split(',').map(s => s.trim()).filter(Boolean);

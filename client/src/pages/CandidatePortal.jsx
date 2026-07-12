@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validatePassingYear, validateText } from '../utils/validators.js';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AccountPreferences from '../components/AccountPreferences.jsx';
@@ -268,43 +268,79 @@ export default function CandidatePortal() {
   }]);
 
   useEffect(() => {
-    if (user) setProfileDraft(d => ({
-      ...d,
-      first_name:  user.first_name  || user.name?.split(' ')[0] || '',
-      last_name:   user.last_name   || user.name?.split(' ').slice(1).join(' ') || '',
-      dob:         user.dob         || '',
-      gender:      user.gender      || '',
-      phone:       (user.phone || '').replace(/^\+91/, ''),
-      bio:         user.bio         || '',
-      address_line1: user.address_line1 || '',
-      address_line2: user.address_line2 || '',
-      city:          user.city          || '',
-      state_name:    user.state_name    || '',
-      pincode:       user.pincode       || '',
-      category:      user.category      || '',
-      bank_account_number: user.bank_account_number || '',
-      bank_ifsc:           user.bank_ifsc           || '',
-    }));
-  }, [user]);
+    if (user) {
+      const prefs = (() => { try { return JSON.parse(user.interests || '{}'); } catch { return {}; } })();
+      setProfileDraft(d => ({
+        ...d,
+        first_name:  user.first_name  || user.name?.split(' ')[0] || '',
+        last_name:   user.last_name   || user.name?.split(' ').slice(1).join(' ') || '',
+        dob:         user.dob         || '',
+        gender:      user.gender      || '',
+        phone:       (user.phone || '').replace(/^\+91/, ''),
+        bio:         user.bio         || '',
+        address_line1: user.address_line1 || '',
+        address_line2: user.address_line2 || '',
+        city:          user.city          || '',
+        state_name:    user.state_name    || '',
+        pincode:       user.pincode       || '',
+        category:      user.category      || '',
+        bank_account_number: user.bank_account_number || '',
+        bank_ifsc:           user.bank_ifsc           || '',
+        // Education
+        edu_level:     user.qualification  || '',
+        edu_board:     user.board          || '',
+        edu_year:      user.year_passed    || '',
+        edu_institute: user.university     || '',
+        // Employment & preferences
+        emp_status:    user.employment_status || '',
+        pref_sector:   user.preferred_sector  || '',
+        pref_role:     prefs.pref_role     || '',
+        pref_emp_type: prefs.pref_emp_type || '',
+        pref_salary:   prefs.pref_salary   || '',
+        pref_state:    prefs.pref_state    || '',
+        // Skills
+        skill_category:   prefs.skill_category   || '',
+        skill_name:       prefs.skill_name       || '',
+        skill_proficiency: prefs.skill_proficiency || '',
+      }));
+    }
+  }, [user?.id]);
 
   async function saveProfileDraft() {
     setProfileSaving(true); setProfileMsg('');
     try {
+      const d = profileDraft;
+      const prefs = {
+        pref_role: d.pref_role || '', pref_emp_type: d.pref_emp_type || '',
+        pref_salary: d.pref_salary || '', pref_state: d.pref_state || '',
+        skill_category: d.skill_category || '', skill_name: d.skill_name || '',
+        skill_proficiency: d.skill_proficiency || '',
+      };
       await api.updateMe({
-        first_name:    profileDraft.first_name   || null,
-        last_name:     profileDraft.last_name    || null,
-        dob:           profileDraft.dob          || null,
-        gender:        profileDraft.gender       || null,
-        phone:         profileDraft.phone ? '+91' + profileDraft.phone : null,
-        bio:           profileDraft.bio          || null,
-        address_line1: profileDraft.address_line1 || null,
-        address_line2: profileDraft.address_line2 || null,
-        city:          profileDraft.city          || null,
-        state_name:    profileDraft.state_name    || null,
-        pincode:       profileDraft.pincode       || null,
-        category:      profileDraft.category      || null,
-        bank_account_number: profileDraft.bank_account_number || null,
-        bank_ifsc:     profileDraft.bank_ifsc     || null,
+        first_name:    d.first_name   || null,
+        last_name:     d.last_name    || null,
+        dob:           d.dob          || null,
+        gender:        d.gender       || null,
+        phone:         d.phone ? '+91' + d.phone : null,
+        bio:           d.bio          || null,
+        address_line1: d.address_line1 || null,
+        address_line2: d.address_line2 || null,
+        city:          d.city          || null,
+        state_name:    d.state_name    || null,
+        pincode:       d.pincode       || null,
+        category:      d.category      || null,
+        bank_account_number: d.bank_account_number || null,
+        bank_ifsc:     d.bank_ifsc     || null,
+        // Education → direct DB columns
+        qualification: d.edu_level     || null,
+        board:         d.edu_board     || null,
+        year_passed:   d.edu_year      || null,
+        university:    d.edu_institute || null,
+        // Employment & preferences
+        employment_status: d.emp_status  || null,
+        preferred_sector:  d.pref_sector || null,
+        // Remaining preferences stored as JSON in interests
+        interests: JSON.stringify(prefs),
       });
       setProfileMsg('Draft saved successfully.');
     } catch { setProfileMsg('Save failed. Please try again.'); }
@@ -325,11 +361,14 @@ export default function CandidatePortal() {
       if (!d.city?.trim())         errs.city        = 'City / Town is required';
       if (!d.state_name)           errs.state_name  = 'State is required';
       if (!d.pincode?.trim())      errs.pincode     = 'PIN Code is required';
+      else if (!/^\d{6}$/.test(d.pincode.trim())) errs.pincode = 'PIN Code must be 6 digits';
+      if (d.phone?.trim() && !/^[6-9]\d{9}$/.test(d.phone.trim())) errs.phone = 'Must be a 10-digit number starting with 6–9';
     }
     if (stepId === 'profile-edu') {
       if (!d.edu_level)            errs.edu_level    = 'Highest Education Level is required';
       if (!d.edu_board?.trim())    errs.edu_board    = 'Board / University / Institute is required';
       if (!d.edu_year)             errs.edu_year     = 'Year of Passing is required';
+      else { const yErr = validatePassingYear(d.edu_year, 'Year of Passing'); if (yErr) errs.edu_year = yErr; }
       if (!d.edu_institute?.trim()) errs.edu_institute = 'Institute Name is required';
     }
     if (stepId === 'profile-exp') {
@@ -349,6 +388,7 @@ export default function CandidatePortal() {
       if (!d.pref_role?.trim())    errs.pref_role     = 'Preferred Job Role is required';
       if (!d.pref_emp_type)        errs.pref_emp_type = 'Preferred Employment Type is required';
       if (!d.pref_salary?.trim())  errs.pref_salary   = 'Expected Monthly Salary is required';
+      else if (!/^\d+(\.\d+)?$/.test(d.pref_salary.replace(/,/g,'').trim()) && isNaN(Number(d.pref_salary.replace(/,/g,'')))) errs.pref_salary = 'Expected salary must be a number (e.g. 15000)';
       if (!d.pref_sector)          errs.pref_sector   = 'Preferred Sector is required';
       if (!d.pref_state)           errs.pref_state    = 'Preferred State is required';
     }
@@ -1307,6 +1347,10 @@ export default function CandidatePortal() {
       if (!grievForm.subject || !grievForm.description) {
         setGrievMsg('❌ Subject and description are required.'); return;
       }
+      const subErr = validateText(grievForm.subject, 'Subject', { min: 5, max: 200 });
+      if (subErr) { setGrievMsg('❌ ' + subErr); return; }
+      const descErr = validateText(grievForm.description, 'Description', { min: 10, max: 2000 });
+      if (descErr) { setGrievMsg('❌ ' + descErr); return; }
       setGrievSaving(true); setGrievMsg('');
       try {
         const newG = await api.submitGrievance(grievForm);

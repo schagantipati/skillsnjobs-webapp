@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validatePositiveNum, validateText } from '../utils/validators.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -713,6 +713,11 @@ export default function CsrOrganizationPortal() {
 
     async function saveProject(status) {
       if (!pf.title.trim()) { setProjMsg('Project title is required.'); return; }
+      const titleErr = validateText(pf.title, 'Project title', { min: 5, max: 200 });
+      if (titleErr) { setProjMsg(titleErr); return; }
+      const objErr = validateText(pf.objectives, 'Objectives', { min: 0, max: 2000 });
+      if (objErr) { setProjMsg(objErr); return; }
+      if (pf.budget) { const budErr = validatePositiveNum(pf.budget.replace(/,/g, ''), 'Budget', 0, 1e10); if (budErr) { setProjMsg(budErr); return; } }
       setProjSaving(true); setProjMsg('');
       try {
         await api.csrCreateProject({ ...pf, status });
@@ -949,6 +954,11 @@ export default function CsrOrganizationPortal() {
 
     async function addPartner() {
       if (!tf.org_name.trim() || !tf.contact_person.trim()) { setTpMsg('Organisation name and contact person are required.'); return; }
+      const orgErr = validateText(tf.org_name, 'Organisation name', { min: 3, max: 200 });
+      if (orgErr) { setTpMsg(orgErr); return; }
+      const contErr = fieldValidate('name', tf.contact_person);
+      if (contErr) { setTpMsg('Contact person: ' + contErr); return; }
+      if (tf.email) { const eErr = fieldValidate('email', tf.email); if (eErr) { setTpMsg(eErr); return; } }
       setTpSaving(true); setTpMsg('');
       try {
         await api.csrCreateTP({ name: tf.org_name, type: tf.type, nsdc_reg: tf.nsdc_reg, state_name: tf.state_name, contact_person: tf.contact_person, email: tf.email, num_trainers: tf.num_trainers, max_batch_size: tf.max_batch_size });

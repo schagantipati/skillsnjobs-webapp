@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validatePosInt, validatePositiveNum, validateText } from '../utils/validators.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -282,7 +282,7 @@ function OrgProfile({ user, onUserUpdate }) {
     setSaving(true);
     try {
       const updatedVp = { ...vp, step3: { ...s3, gstin: fv('gstin').toUpperCase(), pan: fv('pan').toUpperCase(), tan: fv('tan').toUpperCase() } };
-      await api.updateMe({ email: fv('email'), phone: fv('mobile'), gstin: fv('gstin').toUpperCase(), pan: fv('pan').toUpperCase(), vendor_profile: updatedVp });
+      await api.updateMe({ email: fv('email'), phone: fv('mobile'), gstin: fv('gstin').toUpperCase(), pan: fv('pan').toUpperCase(), tan: fv('tan').toUpperCase(), vendor_profile: updatedVp });
       if (onUserUpdate) await onUserUpdate();
       setSaved(true);
       setTimeout(() => { setEditing(false); setSaved(false); }, 800);
@@ -496,6 +496,9 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, inline
   const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
   const save = async () => {
     if (!form.name) { alert('Centre name is required'); return; }
+    const nameErr = validateText(form.name, 'Centre name', { min: 3, max: 150 });
+    if (nameErr) { alert(nameErr); return; }
+    if (form.seating_capacity) { const capErr = validatePosInt(form.seating_capacity, 'Seating capacity', 5000); if (capErr) { alert(capErr); return; } }
     setSaving(true);
     try { await onSave(); } catch (e) { alert(e.message); }
     setSaving(false);
@@ -563,6 +566,9 @@ function TrainersList({ activeSection, onNav }) {
 
   const save = async () => {
     if (!form.name) { alert('Trainer name required'); return; }
+    const nameErr = fieldValidate('name', form.name);
+    if (nameErr) { alert(nameErr); return; }
+    if (form.experience_years) { const expErr = validatePositiveNum(form.experience_years, 'Experience years', 0, 60); if (expErr) { alert(expErr); return; } }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorTrainer(form);
@@ -673,6 +679,8 @@ function CoursesList() {
 
   const save = async () => {
     if (!form.title) { alert('Course title required'); return; }
+    const titleErr = validateText(form.title, 'Course title', { min: 3, max: 200 });
+    if (titleErr) { alert(titleErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorCourse(form);
@@ -783,6 +791,12 @@ function Batches() {
   const fv = (k) => form[k] || '';
 
   const save = async () => {
+    if (!form.course_id) { alert('Please select a course.'); return; }
+    if (form.batch_code && !/^[A-Za-z0-9][A-Za-z0-9\-_]{1,19}$/.test(form.batch_code.trim())) {
+      alert('Batch code must be 2–20 characters (letters, digits, dash or underscore).'); return;
+    }
+    const capErr = validatePosInt(form.capacity, 'Capacity', 1000);
+    if (capErr) { alert(capErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorBatch(form);
@@ -898,6 +912,8 @@ function Candidates() {
 
   const save = async () => {
     if (!form.name) { alert('Candidate name required'); return; }
+    const nameErr = fieldValidate('name', form.name);
+    if (nameErr) { alert(nameErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorCandidate(form);
@@ -1030,6 +1046,10 @@ function Assessments() {
   const fv = (k) => form[k] || '';
 
   const save = async () => {
+    if (!form.batch_id) { alert('Please select a batch.'); return; }
+    if (!form.scheduled_date) { alert('Assessment date is required.'); return; }
+    const cntErr = validatePosInt(form.candidate_count, 'Number of candidates', 500);
+    if (cntErr) { alert(cntErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorAssessment(form);
@@ -1284,6 +1304,10 @@ function Grievances() {
 
   const submit = async () => {
     if (!form.subject) { alert('Subject is required'); return; }
+    const subjectErr = validateText(form.subject, 'Subject', { min: 5, max: 200 });
+    if (subjectErr) { alert(subjectErr); return; }
+    const detailsErr = validateText(form.details, 'Details', { min: 10, max: 2000 });
+    if (detailsErr) { alert(detailsErr); return; }
     setSaving(true);
     try {
       const r = await api.createVendorGrievance(form);
@@ -1469,6 +1493,8 @@ function CollabConsortium() {
 
   const sendInvitation = async () => {
     if (!invForm.invitation_type || !invForm.project_name) return alert('Invitation type and project name are required.');
+    const projErr = validateText(invForm.project_name, 'Project name', { min: 3, max: 200 });
+    if (projErr) return alert(projErr);
     if (!invForm.inviteAll && invForm.selectedIds.length === 0) return alert('Select at least one organisation.');
     setSaving(true);
     try {

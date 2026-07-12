@@ -1,4 +1,4 @@
-import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES } from '../utils/validators.js';
+import { validate as fieldValidate, UPPERCASE_FIELDS as UPPERCASE_TYPES, validateSalaryRange, validateText, validatePosInt, validatePositiveNum } from '../utils/validators.js';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -261,6 +261,8 @@ export default function PlacementPartnerPortal() {
     if (!ppInterview.candidate_name.trim() || !ppInterview.date || !ppInterview.time) {
       setPpInterviewMsg('Candidate name, date and time are required.'); return;
     }
+    const nameErr = fieldValidate('name', ppInterview.candidate_name);
+    if (nameErr) { setPpInterviewMsg(nameErr); return; }
     const entry = { ...ppInterview, id: Date.now(), scheduled_at: new Date().toISOString() };
     const updated = [entry, ...scheduledInterviews];
     setScheduledInterviews(updated);
@@ -279,6 +281,12 @@ export default function PlacementPartnerPortal() {
     if (!ppOffer.candidate_name.trim() || !ppOffer.job_role.trim()) {
       setPpOfferMsg('Candidate and job role are required.'); return;
     }
+    const nameErr = fieldValidate('name', ppOffer.candidate_name);
+    if (nameErr) { setPpOfferMsg(nameErr); return; }
+    if (ppOffer.ctc) {
+      const ctcErr = validateText(String(ppOffer.ctc), 'CTC', { min: 1, max: 20 });
+      if (ctcErr) { setPpOfferMsg('CTC: ' + ctcErr); return; }
+    }
     const entry = { ...ppOffer, id: Date.now(), status: 'Generated', created_at: new Date().toISOString() };
     const updated = [entry, ...generatedOffers];
     setGeneratedOffers(updated);
@@ -295,6 +303,12 @@ export default function PlacementPartnerPortal() {
 
   function addEmployer() {
     if (!empForm.company_name.trim()) { setEmpMsg('Company name is required.'); return; }
+    const compErr = validateText(empForm.company_name, 'Company name', { min: 2, max: 200 });
+    if (compErr) { setEmpMsg(compErr); return; }
+    if (empForm.contact_person) { const cpErr = fieldValidate('name', empForm.contact_person); if (cpErr) { setEmpMsg('Contact person: ' + cpErr); return; } }
+    if (empForm.email) { const eErr = fieldValidate('email', empForm.email); if (eErr) { setEmpMsg(eErr); return; } }
+    if (empForm.mobile) { const mErr = fieldValidate('mobile', empForm.mobile.replace(/\D/g,'')); if (mErr) { setEmpMsg(mErr); return; } }
+    if (empForm.vacancies) { const vErr = validatePosInt(empForm.vacancies, 'Vacancies', 10000); if (vErr) { setEmpMsg(vErr); return; } }
     setEmpSaving(true);
     const entry = { ...empForm, id: Date.now(), added_at: new Date().toISOString() };
     const updated = [entry, ...addedEmployers];
@@ -313,6 +327,8 @@ export default function PlacementPartnerPortal() {
   function uploadMou() {
     if (!mouForm.employer || mouForm.employer === 'Select Employer') { setMouMsg('Please select an employer.'); return; }
     if (!mouForm.mou_date) { setMouMsg('MoU date is required.'); return; }
+    if (new Date(mouForm.mou_date) > new Date()) { setMouMsg('MoU date cannot be a future date.'); return; }
+    if (mouForm.positions) { const posErr = validatePosInt(mouForm.positions, 'Positions', 10000); if (posErr) { setMouMsg(posErr); return; } }
     const entry = { ...mouForm, id: Date.now(), uploaded_at: new Date().toISOString(), status: 'Active' };
     const updated = [entry, ...uploadedMous];
     setUploadedMous(updated);
@@ -945,6 +961,10 @@ export default function PlacementPartnerPortal() {
     const f = jobForm;
     async function handlePost(status) {
       if (!f.title.trim()) { setJobMsg('❌ Job title is required.'); return; }
+      const titleErr = validateText(f.title, 'Job title', { min: 3, max: 200 });
+      if (titleErr) { setJobMsg(titleErr); return; }
+      const salaryErr = validateSalaryRange(f.salary_min, f.salary_max);
+      if (salaryErr) { setJobMsg(salaryErr); return; }
       setJobSaving(true); setJobMsg('');
       try {
         const skills = f.required_skills.split(',').map(s => s.trim()).filter(Boolean);
@@ -1211,6 +1231,9 @@ export default function PlacementPartnerPortal() {
     const active = myPlacements.filter(p => ['placed','joined'].includes(p.status));
     async function submitPlacement() {
       if (!plForm.candidate_id || !plForm.job_title.trim()) { setPlMsg('❌ Candidate and job title are required.'); return; }
+      const titleErr = validateText(plForm.job_title, 'Job title', { min: 2, max: 200 });
+      if (titleErr) { setPlMsg(titleErr); return; }
+      if (plForm.ctc) { const ctcErr = validatePositiveNum(plForm.ctc, 'CTC', 0, 1e8); if (ctcErr) { setPlMsg(ctcErr); return; } }
       setPlSaving(true); setPlMsg('');
       try {
         await api.createPlacement({ ...plForm, candidate_id: Number(plForm.candidate_id), ctc: plForm.ctc ? Number(plForm.ctc) : null });

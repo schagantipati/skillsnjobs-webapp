@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { validate as fieldValidate, validatePositiveNum } from '../utils/validators.js';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../api.js';
@@ -1523,6 +1524,7 @@ export default function StateGovtPortal() {
           <button className="sg-btn sg-btn-outline" onClick={() => setModal(null)}>Cancel</button>
           <button className="sg-btn sg-btn-primary" onClick={async () => {
             if (!form.name) return showToast('TP name is required', 'red');
+            const nameErr = fieldValidate('name', form.name); if (nameErr) return showToast(nameErr, 'red');
             await api.sgCreateTP(form); showToast('Training partner added'); setModal(null); loadTPs(); loadStats();
           }}>Save TP</button>
         </div>
@@ -1561,6 +1563,7 @@ export default function StateGovtPortal() {
           <button className="sg-btn sg-btn-outline" onClick={() => setModal(null)}>Cancel</button>
           <button className="sg-btn sg-btn-primary" onClick={async () => {
             if (!form.name) return showToast('Name is required', 'red');
+            const cNameErr = fieldValidate('name', form.name); if (cNameErr) return showToast(cNameErr, 'red');
             await api.sgCreateCandidate(form); showToast('Candidate enrolled'); setModal(null); loadCandidates(); loadStats();
           }}>Enrol</button>
         </div>
@@ -1633,6 +1636,7 @@ export default function StateGovtPortal() {
           <button className="sg-btn sg-btn-outline" onClick={() => setModal(null)}>Cancel</button>
           <button className="sg-btn sg-btn-primary" onClick={async () => {
             if (!form.scheme_id || !form.fy) return showToast('Scheme and FY are required', 'red');
+            if (!/^\d{4}-\d{2}$|^\d{4}-\d{4}$/.test((form.fy||'').trim())) return showToast('Financial year format should be like 2024-25 or 2024-2025', 'red');
             await api.sgCreateTarget(form); showToast('Target set'); setModal(null); loadTargets();
           }}>Save Target</button>
         </div>
@@ -1656,6 +1660,7 @@ export default function StateGovtPortal() {
           <button className="sg-btn sg-btn-outline" onClick={() => setModal(null)}>Cancel</button>
           <button className="sg-btn sg-btn-orange" onClick={async () => {
             if (!form.amount) return showToast('Amount is required', 'red');
+            const amtErr = validatePositiveNum(form.amount, 'Amount', 1, 1e12); if (amtErr) return showToast(amtErr, 'red');
             await api.sgCreateDisbursement(form); showToast('Disbursement initiated'); setModal(null); loadDisbursements(); loadStats();
           }}>Initiate</button>
         </div>
