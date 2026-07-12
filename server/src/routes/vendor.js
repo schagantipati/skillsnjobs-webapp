@@ -39,6 +39,10 @@ router.post('/centres', auth, async (req, res) => {
     const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
             seating_capacity, internet, power_backup, accessibility, equipment } = req.body;
     if (!name) return res.status(400).json({ error: 'Centre name required' });
+    const dup = await queryOne(
+      "SELECT id FROM vendor_centres WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted'",
+      [req.user.id, name]);
+    if (dup) return res.status(409).json({ error: `A training centre named "${name.trim()}" already exists.`, field: 'name' });
     const result = await execute(`INSERT INTO vendor_centres
       (vendor_id,name,address,state_name,district,city,pincode,geo,classrooms,labs,
        seating_capacity,internet,power_backup,accessibility,equipment)
@@ -54,6 +58,12 @@ router.put('/centres/:id', auth, async (req, res) => {
   try {
     const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
             seating_capacity, internet, power_backup, accessibility, equipment, status } = req.body;
+    if (name) {
+      const dup = await queryOne(
+        "SELECT id FROM vendor_centres WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted' AND id!=$3",
+        [req.user.id, name, req.params.id]);
+      if (dup) return res.status(409).json({ error: `A training centre named "${name.trim()}" already exists.`, field: 'name' });
+    }
     await execute(`UPDATE vendor_centres SET
       name=$1,address=$2,state_name=$3,district=$4,city=$5,pincode=$6,geo=$7,classrooms=$8,labs=$9,
       seating_capacity=$10,internet=$11,power_backup=$12,accessibility=$13,equipment=$14,status=COALESCE($15,status)
@@ -86,6 +96,10 @@ router.post('/trainers', auth, async (req, res) => {
   try {
     const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id } = req.body;
     if (!name) return res.status(400).json({ error: 'Trainer name required' });
+    const dup = await queryOne(
+      "SELECT id FROM vendor_trainers WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted'",
+      [req.user.id, name]);
+    if (dup) return res.status(409).json({ error: `A trainer named "${name.trim()}" already exists.`, field: 'name' });
     const result = await execute(`INSERT INTO vendor_trainers
       (vendor_id,centre_id,name,email,mobile,qualification,sector,experience_years,nsqf_level)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
@@ -97,6 +111,12 @@ router.post('/trainers', auth, async (req, res) => {
 router.put('/trainers/:id', auth, async (req, res) => {
   try {
     const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id, status } = req.body;
+    if (name) {
+      const dup = await queryOne(
+        "SELECT id FROM vendor_trainers WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted' AND id!=$3",
+        [req.user.id, name, req.params.id]);
+      if (dup) return res.status(409).json({ error: `A trainer named "${name.trim()}" already exists.`, field: 'name' });
+    }
     await execute(`UPDATE vendor_trainers SET
       name=COALESCE($1,name),email=COALESCE($2,email),mobile=COALESCE($3,mobile),
       qualification=COALESCE($4,qualification),sector=COALESCE($5,sector),
@@ -128,6 +148,10 @@ router.post('/courses', auth, async (req, res) => {
   try {
     const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme } = req.body;
     if (!title) return res.status(400).json({ error: 'Course title required' });
+    const dup = await queryOne(
+      "SELECT id FROM vendor_courses WHERE vendor_id=$1 AND LOWER(TRIM(title))=LOWER(TRIM($2)) AND status!='deleted'",
+      [req.user.id, title]);
+    if (dup) return res.status(409).json({ error: `A course titled "${title.trim()}" already exists.`, field: 'title' });
     const result = await execute(`INSERT INTO vendor_courses
       (vendor_id,title,sector,qp_code,nos_code,nsqf_level,duration_hours,fee_type,fee_amount,scheme)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
@@ -139,6 +163,12 @@ router.post('/courses', auth, async (req, res) => {
 router.put('/courses/:id', auth, async (req, res) => {
   try {
     const { title, sector, qp_code, nos_code, nsqf_level, duration_hours, fee_type, fee_amount, scheme, status } = req.body;
+    if (title) {
+      const dup = await queryOne(
+        "SELECT id FROM vendor_courses WHERE vendor_id=$1 AND LOWER(TRIM(title))=LOWER(TRIM($2)) AND status!='deleted' AND id!=$3",
+        [req.user.id, title, req.params.id]);
+      if (dup) return res.status(409).json({ error: `A course titled "${title.trim()}" already exists.`, field: 'title' });
+    }
     await execute(`UPDATE vendor_courses SET
       title=$1,sector=$2,qp_code=$3,nos_code=$4,nsqf_level=$5,duration_hours=$6,fee_type=$7,fee_amount=$8,
       scheme=$9,status=COALESCE($10,status) WHERE id=$11 AND vendor_id=$12`,
@@ -173,6 +203,10 @@ router.post('/batches', auth, async (req, res) => {
   try {
     const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id } = req.body;
     const code = batch_code || `BT-${Date.now().toString().slice(-6)}`;
+    const dup = await queryOne(
+      'SELECT id FROM vendor_batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2))',
+      [req.user.id, code]);
+    if (dup) return res.status(409).json({ error: `A batch with code "${code.trim()}" already exists.`, field: 'batch_code' });
     const result = await execute(`INSERT INTO vendor_batches
       (vendor_id,centre_id,course_id,batch_code,start_date,end_date,capacity,trainer_id,status)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
@@ -184,6 +218,12 @@ router.post('/batches', auth, async (req, res) => {
 router.put('/batches/:id', auth, async (req, res) => {
   try {
     const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id, status } = req.body;
+    if (batch_code) {
+      const dup = await queryOne(
+        'SELECT id FROM vendor_batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2)) AND id!=$3',
+        [req.user.id, batch_code, req.params.id]);
+      if (dup) return res.status(409).json({ error: `A batch with code "${batch_code.trim()}" already exists.`, field: 'batch_code' });
+    }
     await execute(`UPDATE vendor_batches SET
       centre_id=$1,course_id=$2,batch_code=$3,start_date=$4,end_date=$5,capacity=$6,
       trainer_id=$7,status=COALESCE($8,status) WHERE id=$9 AND vendor_id=$10`,

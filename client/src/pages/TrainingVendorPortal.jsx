@@ -409,18 +409,22 @@ function Centres({ activeSection, onNav }) {
   const [modal, setModal] = useState(null); // null | 'add' | centre obj
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState({});
 
-  const openAdd = () => { setForm({}); setModal('add'); };
-  const openEdit = (c) => { setForm({ ...c }); setModal(c); };
-  const closeModal = () => setModal(null);
+  const openAdd = () => { setForm({}); setModal('add'); setSaveErr({}); };
+  const openEdit = (c) => { setForm({ ...c }); setModal(c); setSaveErr({}); };
+  const closeModal = () => { setModal(null); setSaveErr({}); };
 
   const save = async () => {
-    setSaving(true);
+    setSaving(true); setSaveErr({});
     try {
       if (modal === 'add') await api.createVendorCentre(form);
       else await api.updateVendorCentre(modal.id, form);
       reload(); closeModal();
-    } catch (e) { alert(e.message); }
+    } catch (e) {
+      if (e.field) setSaveErr({ [e.field]: e.message });
+      else setSaveErr({ _global: e.message });
+    }
     setSaving(false);
   };
 
@@ -481,33 +485,40 @@ function Centres({ activeSection, onNav }) {
 
       {modal && (
         <Modal title={modal === 'add' ? 'Add Centre' : 'Edit Centre'} onClose={closeModal} wide>
-          <CentreForm form={form} setForm={setForm} onSave={save} onCancel={closeModal} saving={saving} setSaving={setSaving} inline />
+          <CentreForm form={form} setForm={setForm} onSave={save} onCancel={closeModal} saving={saving} setSaving={setSaving} saveErr={saveErr} inline />
         </Modal>
       )}
     </div>
   );
 }
 
-function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, inline }) {
+function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, saveErr, inline }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
   const [errors, setErrors] = useState({});
   const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
   const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
   const save = async () => {
-    if (!form.name) { alert('Centre name is required'); return; }
+    if (!form.name) { setErr('name', 'Centre name is required'); return; }
     const nameErr = validateText(form.name, 'Centre name', { min: 3, max: 150 });
-    if (nameErr) { alert(nameErr); return; }
+    if (nameErr) { setErr('name', nameErr); return; }
     if (form.seating_capacity) { const capErr = validatePosInt(form.seating_capacity, 'Seating capacity', 5000); if (capErr) { alert(capErr); return; } }
     setSaving(true);
     try { await onSave(); } catch (e) { alert(e.message); }
     setSaving(false);
   };
+  const nameErr = (saveErr && saveErr.name) || errors.name || '';
+  const globalErr = saveErr && saveErr._global;
   return (
     <div>
+      {globalErr && <div style={{ background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12, marginBottom:12 }}>⚠ {globalErr}</div>}
       <div style={S.sectionTitle}>Centre details</div>
       <div style={{ ...S.fGrid(2), marginBottom:12 }}>
-        <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Centre name *</label><input style={S.input} value={fv('name')} onChange={f('name')} placeholder="e.g. TechSkills Delhi North" /></div>
+        <div style={{ ...S.fGroup, gridColumn:'1/-1' }}>
+          <label style={S.label}>Centre name *</label>
+          <input style={{ ...S.input, ...(nameErr ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }} value={fv('name')} onChange={e => { f('name')(e); clearErr('name'); }} placeholder="e.g. TechSkills Delhi North" />
+          {nameErr && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {nameErr}</div>}
+        </div>
         <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Full address</label><input style={S.input} value={fv('address')} onChange={f('address')} placeholder="Building, street, locality" /></div>
         <div style={S.fGroup}><label style={S.label}>State</label><input style={S.input} value={fv('state_name')} onChange={f('state_name')} placeholder="State" /></div>
         <div style={S.fGroup}><label style={S.label}>District</label><input style={S.input} value={fv('district')} onChange={f('district')} /></div>
@@ -565,16 +576,19 @@ function TrainersList({ activeSection, onNav }) {
   const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
 
   const save = async () => {
-    if (!form.name) { alert('Trainer name required'); return; }
+    if (!form.name) { setErr('name', 'Trainer name required'); return; }
     const nameErr = fieldValidate('name', form.name);
-    if (nameErr) { alert(nameErr); return; }
+    if (nameErr) { setErr('name', nameErr); return; }
     if (form.experience_years) { const expErr = validatePositiveNum(form.experience_years, 'Experience years', 0, 60); if (expErr) { alert(expErr); return; } }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorTrainer(form);
       else await api.updateVendorTrainer(modal.id, form);
-      reload(); setModal(null);
-    } catch (e) { alert(e.message); }
+      reload(); setModal(null); setErrors({});
+    } catch (e) {
+      if (e.field) setErr(e.field, e.message);
+      else setErr('_global', e.message);
+    }
     setSaving(false);
   };
 
@@ -588,7 +602,7 @@ function TrainersList({ activeSection, onNav }) {
         <div style={S.tblHdr}>
           <span style={{ fontWeight:700, fontSize:13, color:'#0B1E3D' }}>{trainers.length} trainers</span>
           <div style={{ marginLeft:'auto' }}>
-            <button style={S.btnPrimary} onClick={() => { setForm({}); setModal('add'); }}>+ Add Trainer</button>
+            <button style={S.btnPrimary} onClick={() => { setForm({}); setModal('add'); setErrors({}); }}>+ Add Trainer</button>
           </div>
         </div>
         {busy ? <Empty icon="⏳" msg="Loading…" /> : trainers.length === 0 ? <Empty icon="👨‍🏫" msg="No trainers added yet" /> : (
@@ -608,7 +622,7 @@ function TrainersList({ activeSection, onNav }) {
                   <td style={S.td}>{statusPill(t.status)}</td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:6 }}>
-                      <button style={S.btnSm} onClick={() => { setForm({ ...t }); setModal(t); }}>Edit</button>
+                      <button style={S.btnSm} onClick={() => { setForm({ ...t }); setModal(t); setErrors({}); }}>Edit</button>
                       <button style={S.btnSmDanger} onClick={() => del(t.id)}>Del</button>
                     </div>
                   </td>
@@ -620,9 +634,14 @@ function TrainersList({ activeSection, onNav }) {
       </div>
 
       {modal && (
-        <Modal title={modal === 'add' ? 'Add Trainer' : 'Edit Trainer'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'add' ? 'Add Trainer' : 'Edit Trainer'} onClose={() => { setModal(null); setErrors({}); }}>
           <div style={S.fGrid(2)}>
-            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Full name *</label><input style={S.input} value={fv('name')} onChange={f('name')} /></div>
+            {errors._global && <div style={{ gridColumn:'1/-1', background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12 }}>⚠ {errors._global}</div>}
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}>
+              <label style={S.label}>Full name *</label>
+              <input style={{ ...S.input, ...(errors.name ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }} value={fv('name')} onChange={e => { f('name')(e); clearErr('name'); }} />
+              {errors.name && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.name}</div>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Email</label>
               <input style={{ ...S.input, ...(errors.email ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
                 type="email" value={fv('email')}
@@ -674,19 +693,25 @@ function CoursesList() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
+  const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
+  const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
 
   const save = async () => {
-    if (!form.title) { alert('Course title required'); return; }
+    if (!form.title) { setErr('title', 'Course title required'); return; }
     const titleErr = validateText(form.title, 'Course title', { min: 3, max: 200 });
-    if (titleErr) { alert(titleErr); return; }
+    if (titleErr) { setErr('title', titleErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorCourse(form);
       else await api.updateVendorCourse(modal.id, form);
-      reload(); setModal(null);
-    } catch (e) { alert(e.message); }
+      reload(); setModal(null); setErrors({});
+    } catch (e) {
+      if (e.field) setErr(e.field, e.message);
+      else setErr('_global', e.message);
+    }
     setSaving(false);
   };
 
@@ -733,9 +758,14 @@ function CoursesList() {
       </div>
 
       {modal && (
-        <Modal title={modal === 'add' ? 'Add Course' : 'Edit Course'} onClose={() => setModal(null)} wide>
+        <Modal title={modal === 'add' ? 'Add Course' : 'Edit Course'} onClose={() => { setModal(null); setErrors({}); }} wide>
           <div style={S.fGrid(2)}>
-            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}><label style={S.label}>Course title *</label><input style={S.input} value={fv('title')} onChange={f('title')} /></div>
+            {errors._global && <div style={{ gridColumn:'1/-1', background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12 }}>⚠ {errors._global}</div>}
+            <div style={{ ...S.fGroup, gridColumn:'1/-1' }}>
+              <label style={S.label}>Course title *</label>
+              <input style={{ ...S.input, ...(errors.title ? { borderColor:'#EF4444' } : {}) }} value={fv('title')} onChange={e => { f('title')(e); clearErr('title'); }} />
+              {errors.title && <span style={{ color:'#EF4444', fontSize:11, marginTop:3 }}>{errors.title}</span>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Sector</label>
               <select style={S.select} value={fv('sector')} onChange={f('sector')}>
                 <option value="">Select</option>
@@ -787,22 +817,28 @@ function Batches() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [errors, setErrors] = useState({});
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
+  const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
+  const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
 
   const save = async () => {
-    if (!form.course_id) { alert('Please select a course.'); return; }
+    if (!form.course_id) { setErr('course_id', 'Please select a course.'); return; }
     if (form.batch_code && !/^[A-Za-z0-9][A-Za-z0-9\-_]{1,19}$/.test(form.batch_code.trim())) {
-      alert('Batch code must be 2–20 characters (letters, digits, dash or underscore).'); return;
+      setErr('batch_code', 'Batch code must be 2–20 characters (letters, digits, dash or underscore).'); return;
     }
     const capErr = validatePosInt(form.capacity, 'Capacity', 1000);
-    if (capErr) { alert(capErr); return; }
+    if (capErr) { setErr('capacity', capErr); return; }
     setSaving(true);
     try {
       if (modal === 'add') await api.createVendorBatch(form);
       else await api.updateVendorBatch(modal.id, form);
-      reload(); setModal(null);
-    } catch (e) { alert(e.message); }
+      reload(); setModal(null); setErrors({});
+    } catch (e) {
+      if (e.field) setErr(e.field, e.message);
+      else setErr('_global', e.message);
+    }
     setSaving(false);
   };
 
@@ -852,19 +888,26 @@ function Batches() {
       </div>
 
       {modal && (
-        <Modal title={modal === 'add' ? 'Create Batch' : 'Edit Batch'} onClose={() => setModal(null)} wide>
+        <Modal title={modal === 'add' ? 'Create Batch' : 'Edit Batch'} onClose={() => { setModal(null); setErrors({}); }} wide>
           <div style={S.fGrid(2)}>
-            <div style={S.fGroup}><label style={S.label}>Batch code</label><input style={S.input} value={fv('batch_code')} onChange={f('batch_code')} placeholder="Auto-generated if blank" /></div>
+            {errors._global && <div style={{ gridColumn:'1/-1', background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12 }}>⚠ {errors._global}</div>}
+            <div style={S.fGroup}>
+              <label style={S.label}>Batch code</label>
+              <input style={{ ...S.input, ...(errors.batch_code ? { borderColor:'#EF4444' } : {}) }} value={fv('batch_code')} onChange={e => { f('batch_code')(e); clearErr('batch_code'); }} placeholder="Auto-generated if blank" />
+              {errors.batch_code && <span style={{ color:'#EF4444', fontSize:11, marginTop:3 }}>{errors.batch_code}</span>}
+            </div>
             <div style={S.fGroup}><label style={S.label}>Status</label>
               <select style={S.select} value={fv('status')} onChange={f('status')}>
                 {BATCH_STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
-            <div style={S.fGroup}><label style={S.label}>Course</label>
-              <select style={S.select} value={fv('course_id')} onChange={f('course_id')}>
+            <div style={S.fGroup}>
+              <label style={S.label}>Course *</label>
+              <select style={{ ...S.select, ...(errors.course_id ? { borderColor:'#EF4444' } : {}) }} value={fv('course_id')} onChange={e => { f('course_id')(e); clearErr('course_id'); }}>
                 <option value="">Select course</option>
                 {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
+              {errors.course_id && <span style={{ color:'#EF4444', fontSize:11, marginTop:3 }}>{errors.course_id}</span>}
             </div>
             <div style={S.fGroup}><label style={S.label}>Training centre</label>
               <select style={S.select} value={fv('centre_id')} onChange={f('centre_id')}>
