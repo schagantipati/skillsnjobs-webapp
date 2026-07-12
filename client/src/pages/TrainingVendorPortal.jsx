@@ -417,6 +417,37 @@ function Centres({ activeSection, onNav }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState({});
+  const [onboardingCentres, setOnboardingCentres] = useState([]);
+
+  useEffect(() => {
+    api.vendorOnboardingCentres().then(setOnboardingCentres).catch(() => {});
+  }, []);
+
+  const importFromOnboarding = (oc) => {
+    setForm({
+      name:           oc.name        || '',
+      centre_code:    oc.code        || '',
+      centre_type:    oc.type        || '',
+      centre_status:  oc.status      || '',
+      ownership:      oc.own         || '',
+      year_started:   oc.yearStarted || '',
+      address:        oc.addr        || '',
+      state_name:     oc.state       || '',
+      district:       oc.district    || '',
+      city:           oc.city        || '',
+      pincode:        oc.pin         || '',
+      area_sqft:      oc.area        || '',
+      seating_capacity: oc.cap       || '',
+      classrooms:     oc.classrooms  || '',
+      labs:           oc.labs        || '',
+      internet:       oc.internet    || '',
+      power_backup:   oc.power_backup|| '',
+      geo:            oc.geo         || '',
+      equipment:      Array.isArray(oc.infra) ? oc.infra.join(', ') : '',
+      step6_idx:      oc._idx,
+    });
+    setModal('add'); setSaveErr({});
+  };
 
   const openAdd = () => { setForm({}); setModal('add'); setSaveErr({}); };
   const openEdit = (c) => { setForm({ ...c }); setModal(c); setSaveErr({}); };
@@ -463,6 +494,20 @@ function Centres({ activeSection, onNav }) {
             <button style={S.btnPrimary} onClick={openAdd}>+ Add Centre</button>
           </div>
         </div>
+        {onboardingCentres.filter(oc => !oc._imported).length > 0 && (
+          <div style={{ margin:'12px 0', padding:14, background:'#EFF6FF', borderRadius:8, border:'1px solid #BFDBFE' }}>
+            <div style={{ fontWeight:600, fontSize:13, color:'#1E40AF', marginBottom:8 }}>Import from onboarding profile ({onboardingCentres.filter(oc=>!oc._imported).length} available)</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {onboardingCentres.filter(oc => !oc._imported).map((oc, i) => (
+                <div key={i} style={{ background:'#fff', border:'1px solid #93C5FD', borderRadius:6, padding:'6px 12px', display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:13 }}>{oc.name || `Centre ${oc._idx + 1}`}</span>
+                  {oc.city && <span style={{ fontSize:11, color:'#64748B' }}>{oc.city}</span>}
+                  <button style={{ ...S.btnSm, fontSize:11 }} onClick={() => importFromOnboarding(oc)}>Pre-fill</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {busy ? <Empty icon="⏳" msg="Loading…" /> : centres.length === 0 ? <Empty icon="🏢" msg="No centres added yet" /> : (
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead><tr>
@@ -471,7 +516,7 @@ function Centres({ activeSection, onNav }) {
             <tbody>
               {centres.map(c => (
                 <tr key={c.id}>
-                  <td style={S.td}><div style={{ fontWeight:600 }}>{c.name}</div></td>
+                  <td style={S.td}><div style={{ fontWeight:600 }}>{c.name}{c.step6_idx != null && <span style={{ marginLeft:6, fontSize:10, background:'#DCFCE7', color:'#15803D', borderRadius:4, padding:'1px 5px', fontWeight:600 }}>🔗 Imported</span>}</div></td>
                   <td style={S.td}>{[c.city, c.state_name].filter(Boolean).join(', ') || '—'}</td>
                   <td style={S.td}>{c.seating_capacity || '—'}</td>
                   <td style={S.td}>{c.labs || '—'}</td>

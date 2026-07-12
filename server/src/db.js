@@ -435,6 +435,13 @@ async function initDb() {
     "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS category TEXT",
     "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS aadhaar TEXT",
     "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS pan TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS step6_idx INTEGER",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS centre_code TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS centre_type TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS centre_status TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS ownership TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS year_started TEXT",
+    "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS area_sqft INTEGER",
   ];
   for (const sql of colMigrations) { await pool.query(sql); }
 

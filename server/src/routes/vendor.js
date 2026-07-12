@@ -27,9 +27,26 @@ router.get('/stats', auth, async (req, res) => {
 });
 
 // ── Centres ──────────────────────────────────────────────────────────────────
+// Return centres from the vendor's onboarding Step 6 profile (for import)
+router.get('/centres/onboarding', auth, async (req, res) => {
+  try {
+    const user = await queryOne('SELECT vendor_profile FROM users WHERE id=$1', [req.user.id]);
+    let step6Centres = [];
+    try {
+      const vp = typeof user.vendor_profile === 'string' ? JSON.parse(user.vendor_profile) : (user.vendor_profile || {});
+      step6Centres = vp.step6?.centres || [];
+    } catch {}
+    // Mark which indices are already imported
+    const imported = await query('SELECT step6_idx FROM vendor_centres WHERE vendor_id=$1 AND step6_idx IS NOT NULL AND status!=$2', [req.user.id, 'deleted']);
+    const importedIdxs = new Set(imported.map(r => r.step6_idx));
+    const result = step6Centres.map((c, i) => ({ ...c, _idx: i, _imported: importedIdxs.has(i) }));
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.get('/centres', auth, async (req, res) => {
   try {
-    const rows = await query('SELECT * FROM vendor_centres WHERE vendor_id=$1 ORDER BY created_at DESC', [req.user.id]);
+    const rows = await query('SELECT * FROM vendor_centres WHERE vendor_id=$1 AND status!=$2 ORDER BY created_at DESC', [req.user.id, 'deleted']);
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -37,7 +54,8 @@ router.get('/centres', auth, async (req, res) => {
 router.post('/centres', auth, async (req, res) => {
   try {
     const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
-            seating_capacity, internet, power_backup, accessibility, equipment } = req.body;
+            seating_capacity, internet, power_backup, accessibility, equipment,
+            centre_code, centre_type, centre_status, ownership, year_started, area_sqft, step6_idx } = req.body;
     if (!name) return res.status(400).json({ error: 'Centre name required' });
     const dup = await queryOne(
       "SELECT id FROM vendor_centres WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted'",
@@ -45,10 +63,13 @@ router.post('/centres', auth, async (req, res) => {
     if (dup) return res.status(409).json({ error: `A training centre named "${name.trim()}" already exists.`, field: 'name' });
     const result = await execute(`INSERT INTO vendor_centres
       (vendor_id,name,address,state_name,district,city,pincode,geo,classrooms,labs,
-       seating_capacity,internet,power_backup,accessibility,equipment)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
-      [req.user.id, name, address, state_name, district, city, pincode, geo,
-       classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment]);
+       seating_capacity,internet,power_backup,accessibility,equipment,
+       centre_code,centre_type,centre_status,ownership,year_started,area_sqft,step6_idx)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id`,
+      [req.user.id, name, address||null, state_name||null, district||null, city||null, pincode||null, geo||null,
+       classrooms||0, labs||0, seating_capacity||0, internet||null, power_backup||null, accessibility||null, equipment||null,
+       centre_code||null, centre_type||null, centre_status||null, ownership||null, year_started||null,
+       area_sqft||null, step6_idx!=null ? step6_idx : null]);
     await logAudit({ user: req.user, action: 'centre_created', entity: 'vendor_centre', entityId: result.rows[0].id });
     res.json({ id: result.rows[0].id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
@@ -57,7 +78,8 @@ router.post('/centres', auth, async (req, res) => {
 router.put('/centres/:id', auth, async (req, res) => {
   try {
     const { name, address, state_name, district, city, pincode, geo, classrooms, labs,
-            seating_capacity, internet, power_backup, accessibility, equipment, status } = req.body;
+            seating_capacity, internet, power_backup, accessibility, equipment, status,
+            centre_code, centre_type, centre_status, ownership, year_started, area_sqft } = req.body;
     if (name) {
       const dup = await queryOne(
         "SELECT id FROM vendor_centres WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted' AND id!=$3",
@@ -65,12 +87,23 @@ router.put('/centres/:id', auth, async (req, res) => {
       if (dup) return res.status(409).json({ error: `A training centre named "${name.trim()}" already exists.`, field: 'name' });
     }
     await execute(`UPDATE vendor_centres SET
-      name=$1,address=$2,state_name=$3,district=$4,city=$5,pincode=$6,geo=$7,classrooms=$8,labs=$9,
-      seating_capacity=$10,internet=$11,power_backup=$12,accessibility=$13,equipment=$14,status=COALESCE($15,status)
-      WHERE id=$16 AND vendor_id=$17`,
-      [name, address, state_name, district, city, pincode, geo,
-       classrooms||0, labs||0, seating_capacity||0, internet, power_backup, accessibility, equipment,
-       status||null, req.params.id, req.user.id]);
+      name=COALESCE($1,name), address=COALESCE($2,address), state_name=COALESCE($3,state_name),
+      district=COALESCE($4,district), city=COALESCE($5,city), pincode=COALESCE($6,pincode),
+      geo=COALESCE($7,geo), classrooms=COALESCE($8,classrooms), labs=COALESCE($9,labs),
+      seating_capacity=COALESCE($10,seating_capacity), internet=COALESCE($11,internet),
+      power_backup=COALESCE($12,power_backup), accessibility=COALESCE($13,accessibility),
+      equipment=COALESCE($14,equipment), status=COALESCE($15,status),
+      centre_code=COALESCE($16,centre_code), centre_type=COALESCE($17,centre_type),
+      centre_status=COALESCE($18,centre_status), ownership=COALESCE($19,ownership),
+      year_started=COALESCE($20,year_started), area_sqft=COALESCE($21,area_sqft)
+      WHERE id=$22 AND vendor_id=$23`,
+      [name||null, address||null, state_name||null, district||null, city||null, pincode||null,
+       geo||null, classrooms!=null?classrooms:null, labs!=null?labs:null,
+       seating_capacity!=null?seating_capacity:null, internet||null, power_backup||null,
+       accessibility||null, equipment||null, status||null,
+       centre_code||null, centre_type||null, centre_status||null, ownership||null,
+       year_started||null, area_sqft!=null?area_sqft:null,
+       req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });

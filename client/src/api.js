@@ -109,6 +109,7 @@ export const api = {
   deleteVendorCentre: (id) => request(`/vendor/centres/${id}`, { method: 'DELETE' }),
   // Trainers
   vendorTrainers: () => request('/vendor/trainers'),
+  vendorOnboardingCentres: () => request('/vendor/centres/onboarding'),
   lookupTrainerByEmail: (email) => request(`/vendor/trainers/lookup?email=${encodeURIComponent(email)}`),
   createVendorTrainer: (b) => request('/vendor/trainers', { method: 'POST', body: b }),
   updateVendorTrainer: (id, b) => request(`/vendor/trainers/${id}`, { method: 'PUT', body: b }),
