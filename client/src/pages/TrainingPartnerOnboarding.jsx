@@ -185,7 +185,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   /* Step 6 */
   const [numCentres, setNumCentres] = useState('1');
-  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' }]);
+  const [centres, setCentres]       = useState([{ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', classrooms:'', labs:'', lab:'Yes', internet:'', power_backup:'', geo:'', own:'Owned' }]);
   const [centreNameErrors, setCentreNameErrors] = useState(['']);
   const [centreCodeErrors, setCentreCodeErrors] = useState(['']);
   const [centrePinStatus, setCentrePinStatus]   = useState(['']);
@@ -573,7 +573,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
 
   function addCentre() {
     setCentres(prev => {
-      const newCentre = { name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' };
+      const newCentre = { name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', classrooms:'', labs:'', lab:'Yes', internet:'', power_backup:'', geo:'', own:'Owned' };
       return [...prev, newCentre];
     });
     setCentreNameErrors(prev => [...prev, '']);
@@ -1121,7 +1121,7 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                   setNumCentres(String(n));
                   setCentres(prev => {
                     const arr = [...prev];
-                    while(arr.length < n) arr.push({ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', lab:'Yes', own:'Owned' });
+                    while(arr.length < n) arr.push({ name:'', code:'', type:'', status:'', yearStarted:'', infra:[], addr:'', state:'', district:'', city:'', pin:'', area:'', cap:'', classrooms:'', labs:'', lab:'Yes', internet:'', power_backup:'', geo:'', own:'Owned' });
                     return arr.slice(0, n);
                   });
                 }} placeholder="e.g. 5" min={1} />
@@ -1274,11 +1274,36 @@ export default function TrainingPartnerOnboarding({ standalone = true, onDone })
                     <F label="City"><Inp value={c.city} onChange={e => updateCentre(i,'city',e.target.value)} placeholder="City" /></F>
                     <F label="Area (sq ft)"><Inp type="number" value={c.area} onChange={e => updateCentre(i,'area',e.target.value)} placeholder="e.g. 3000" /></F>
                     <F label="Seating Capacity"><Inp type="number" value={c.cap} onChange={e => updateCentre(i,'cap',e.target.value)} placeholder="e.g. 40" /></F>
+                  </G3>
+                  <G3>
+                    <F label="Classrooms"><Inp type="number" value={c.classrooms} onChange={e => updateCentre(i,'classrooms',e.target.value)} placeholder="e.g. 4" /></F>
+                    <F label="Labs"><Inp type="number" value={c.labs} onChange={e => updateCentre(i,'labs',e.target.value)} placeholder="e.g. 2" /></F>
                     <F label="Lab / Workshop">
                       <Sel value={c.lab} onChange={e => updateCentre(i,'lab',e.target.value)}>
                         <option>Yes</option><option>No</option>
                       </Sel>
                     </F>
+                  </G3>
+                  <G3>
+                    <F label="Internet Connectivity">
+                      <Sel value={c.internet} onChange={e => updateCentre(i,'internet',e.target.value)}>
+                        <option value="">Select</option>
+                        <option>Broadband</option>
+                        <option>Leased line</option>
+                        <option>Mobile data / 4G</option>
+                        <option>None</option>
+                      </Sel>
+                    </F>
+                    <F label="Power Backup">
+                      <Sel value={c.power_backup} onChange={e => updateCentre(i,'power_backup',e.target.value)}>
+                        <option value="">Select</option>
+                        <option>Generator</option>
+                        <option>UPS</option>
+                        <option>Solar</option>
+                        <option>None</option>
+                      </Sel>
+                    </F>
+                    <F label="Geo-location"><Inp value={c.geo} onChange={e => updateCentre(i,'geo',e.target.value)} placeholder="19.1136, 72.8697" /></F>
                   </G3>
                 </SubCard>
               ))}

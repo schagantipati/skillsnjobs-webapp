@@ -566,6 +566,13 @@ function CentreForm({ form, setForm, onSave, onCancel, saving, setSaving, saveEr
           </select>
         </div>
         <div style={S.fGroup}>
+          <label style={S.label}>Centre status</label>
+          <select style={S.select} value={fv('centre_status')} onChange={f('centre_status')}>
+            <option value="">Select</option>
+            {['Active','Inactive','Under Construction','Temporarily Closed','Permanently Closed'].map(o => <option key={o}>{o}</option>)}
+          </select>
+        </div>
+        <div style={S.fGroup}>
           <label style={S.label}>Ownership</label>
           <select style={S.select} value={fv('ownership')} onChange={f('ownership')}>
             <option value="">Select</option>
