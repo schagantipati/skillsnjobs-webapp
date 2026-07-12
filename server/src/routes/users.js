@@ -207,6 +207,40 @@ router.get('/enrolments', authRequired, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Superadmin: unified assessments across trainer + vendor portals
+router.get('/assessments', authRequired, async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'superadmin'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+    const trainerRows = await query(`
+      SELECT ta.*, 'trainer' AS source,
+        b.batch_code, u.name AS owner_name,
+        NULL AS agency_name
+      FROM trainer_assessments ta
+      LEFT JOIN batches b ON b.id=ta.batch_id
+      LEFT JOIN users u ON u.id=ta.trainer_id
+      ORDER BY ta.date DESC LIMIT 500`);
+    const vendorRows = await query(`
+      SELECT va.*, 'vendor' AS source,
+        b.batch_code, vu.name AS owner_name,
+        va.agency AS agency_name
+      FROM vendor_assessments va
+      LEFT JOIN batches b ON b.id=va.unified_batch_id
+      LEFT JOIN users vu ON vu.id=va.vendor_id
+      WHERE COALESCE(va.status,'scheduled') != 'cancelled'
+      ORDER BY va.scheduled_date DESC LIMIT 500`);
+    // Collect unique agencies from both tables
+    const agencySet = new Set();
+    vendorRows.rows.forEach(r => { if (r.agency) agencySet.add(r.agency); });
+    trainerRows.rows.forEach(r => { if (r.agency) agencySet.add(r.agency); });
+    res.json({
+      trainer: trainerRows.rows,
+      vendor: vendorRows.rows,
+      agencies: [...agencySet].sort(),
+      totals: { trainer: trainerRows.rows.length, vendor: vendorRows.rows.length }
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // Superadmin / administrator: list users by role
 router.get('/by-role/:role', authRequired, async (req, res) => {
   try {

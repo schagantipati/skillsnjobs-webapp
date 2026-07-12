@@ -1118,27 +1118,65 @@ export default function CandidatePortal() {
   }
 
   function PanelAssessments() {
+    const [assessData, setAssessData] = React.useState(null);
+    const [assessLoading, setAssessLoading] = React.useState(true);
+    React.useEffect(() => {
+      api.myAssessments()
+        .then(d => setAssessData(d))
+        .catch(() => setAssessData({ upcoming: [], completed: [] }))
+        .finally(() => setAssessLoading(false));
+    }, []);
+    const upcoming  = assessData?.upcoming  || [];
+    const completed = assessData?.completed || [];
+
+    function AssessRow({ a }) {
+      const date = a.assess_date || a.scheduled_date || a.date || '';
+      const agency = a.agency || a.assessor || '—';
+      const marks = a.total_marks ? `${a.passing_marks||50}/${a.total_marks}` : '—';
+      return (
+        <div style={{ padding:'12px 0', borderBottom:`1px solid ${C.border}`, display:'grid', gridTemplateColumns:'1fr 1fr 1fr auto', gap:12, alignItems:'center' }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:13 }}>{a.course_title || a.batch_code || 'Assessment'}</div>
+            <div style={{ fontSize:11, color:C.ink3 }}>Batch: {a.batch_code || '—'} · {a.type || 'Final'}</div>
+          </div>
+          <div style={{ fontSize:12, color:C.ink2 }}>{agency}</div>
+          <div style={{ fontSize:12 }}>{date ? date.slice(0,10) : '—'}{a.time_slot ? ` · ${a.time_slot}` : ''}</div>
+          <div style={{ fontSize:12, color:C.ink3 }}>Pass: {marks}</div>
+        </div>
+      );
+    }
+
     return (
       <div>
         <div style={{ marginBottom:6, fontSize:12, color:C.ink3 }}>📝 <span style={{ color:C.saffron }}>Assessments</span></div>
         <SectionHead title="Assessments 📝" />
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:18, marginBottom:20 }}>
-          <Card>
-            <CardTitle>📅 Upcoming Assessments</CardTitle>
-            <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}>
-              <div style={{ fontSize:36 }}>📅</div>
-              <p style={{ marginTop:10, fontSize:13 }}>No upcoming assessments scheduled.</p>
-              <Btn primary sm style={{ marginTop:12 }} onClick={() => go('browse-courses')}>Enroll in Courses</Btn>
-            </div>
-          </Card>
-          <Card>
-            <CardTitle>✅ Completed Assessments</CardTitle>
-            <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}>
-              <div style={{ fontSize:36 }}>✅</div>
-              <p style={{ marginTop:10, fontSize:13 }}>No assessments completed yet.</p>
-            </div>
-          </Card>
-        </div>
+        {assessLoading ? (
+          <Card><div style={{ textAlign:'center', padding:20, color:C.ink3 }}>Loading…</div></Card>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:18, marginBottom:20 }}>
+            <Card>
+              <CardTitle>📅 Upcoming Assessments</CardTitle>
+              {upcoming.length === 0
+                ? <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}>
+                    <div style={{ fontSize:36 }}>📅</div>
+                    <p style={{ marginTop:10, fontSize:13 }}>No upcoming assessments scheduled.</p>
+                    <Btn primary sm style={{ marginTop:12 }} onClick={() => go('browse-courses')}>Enroll in Courses</Btn>
+                  </div>
+                : upcoming.map((a, i) => <AssessRow key={i} a={a} />)
+              }
+            </Card>
+            <Card>
+              <CardTitle>✅ Completed Assessments</CardTitle>
+              {completed.length === 0
+                ? <div style={{ textAlign:'center', padding:'30px 0', color:C.ink3 }}>
+                    <div style={{ fontSize:36 }}>✅</div>
+                    <p style={{ marginTop:10, fontSize:13 }}>No assessments completed yet.</p>
+                  </div>
+                : completed.map((a, i) => <AssessRow key={i} a={a} />)
+              }
+            </Card>
+          </div>
+        )}
         <Card>
           <CardTitle>🏅 RPL — Recognition of Prior Learning</CardTitle>
           <p style={{ fontSize:13, color:C.ink2, lineHeight:1.7, marginBottom:14 }}>

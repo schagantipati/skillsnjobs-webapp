@@ -1492,6 +1492,23 @@ export default function TrainerPortal() {
             <Field label="Passing Marks"><Inp value={assessForm.passing_marks} onChange={e=>setAssessForm(f=>({...f,passing_marks:e.target.value}))} placeholder="50" /></Field>
             <Field label="Assessor Name"><Inp value={assessForm.assessor} onChange={e=>setAssessForm(f=>({...f,assessor:e.target.value}))} placeholder="e.g. SSC-Designated Assessor" /></Field>
           </G>
+          <G cols={3}>
+            <Field label="Assessment Agency">
+              <select value={assessForm.agency||''} onChange={e=>setAssessForm(f=>({...f,agency:e.target.value}))}
+                style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+                <option value="">— Select —</option>
+                {['Wheebox','NSDC Assessment','Ernst & Young','MERIT-TNL','CDAC','NTTF','Manipal ProLearn','Other'].map(a=><option key={a}>{a}</option>)}
+              </select>
+            </Field>
+            <Field label="Time Slot">
+              <select value={assessForm.time_slot||''} onChange={e=>setAssessForm(f=>({...f,time_slot:e.target.value}))}
+                style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+                <option value="">— Select —</option>
+                {['9:00 AM – 12:00 PM','12:00 PM – 3:00 PM','2:00 PM – 5:00 PM','Full day'].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="No. of Candidates"><Inp type="number" value={assessForm.candidate_count||''} onChange={e=>setAssessForm(f=>({...f,candidate_count:e.target.value}))} placeholder="0" /></Field>
+          </G>
           <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
             <Btn onClick={()=>setShowAddAssess(false)}>Cancel</Btn>
             <Btn primary onClick={submitAssess}>📅 Schedule Assessment</Btn>
@@ -1501,10 +1518,12 @@ export default function TrainerPortal() {
       <Card>
         <CardTitle>📋 Assessments</CardTitle>
         {assessList.length === 0 ? <div style={{ color:'#888', padding:8 }}>No assessments scheduled yet.</div> :
-        <Table headers={['Date','Batch','Type','Marks','Passing','Assessor','Status','']} rows={assessList.map(a =>
+        <Table headers={['Date','Batch','Type','Agency','Time Slot','Candidates','Marks','Assessor','Status','']} rows={assessList.map(a =>
           <tr key={a.id}>
             <Td>{a.date}</Td><Td>{a.batch_code||'—'}</Td><Td>{a.type}</Td>
-            <Td>{a.total_marks}</Td><Td>{a.passing_marks}</Td>
+            <Td>{a.agency||'—'}</Td><Td>{a.time_slot||'—'}</Td>
+            <Td>{a.candidate_count||0}</Td>
+            <Td>{a.total_marks}/{a.passing_marks}</Td>
             <Td>{a.assessor||'—'}</Td>
             <Td><Badge color={statusColor[a.status]||'blue'}>{a.status}</Badge></Td>
             <Td><Btn sm onClick={()=>api.deleteTrainerAssessment(a.id).then(()=>setAssessList(p=>p.filter(x=>x.id!==a.id)))} style={{ background:C.red }}>Delete</Btn></Td>

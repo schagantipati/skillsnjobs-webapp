@@ -39,6 +39,7 @@ export const api = {
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
   allEnrolments: () => request('/users/enrolments'),
+  allAssessments: () => request('/users/assessments'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
   auditLogs: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/audit-logs' + (qs ? `?${qs}` : '')); },
   adminSessions: () => request('/users/admin/sessions'),
@@ -169,6 +170,7 @@ export const api = {
   deleteBatch: (id) => request(`/batches/${id}`, { method: 'DELETE' }),
   batchLearners: (id) => request(`/batches/${id}/learners`),
   enrollLearner: (batchId, body) => request(`/batches/${batchId}/learners`, { method: 'POST', body }),
+  myAssessments: () => request('/batches/my-assessments'),
   batchAttendance: (id, date) => request(`/batches/${id}/attendance` + (date ? `?date=${date}` : '')),
   markAttendance: (id, date, records) => request(`/batches/${id}/attendance`, { method: 'POST', body: { date, records } }),
 

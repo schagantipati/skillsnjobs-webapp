@@ -459,6 +459,16 @@ async function initDb() {
     "ALTER TABLE sg_candidates ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
     // Fix D: add batch assignment to enrollments (candidate self-enroll)
     "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
+    // Assessment sync Fix A: add missing columns to trainer_assessments
+    "ALTER TABLE trainer_assessments ADD COLUMN IF NOT EXISTS agency TEXT",
+    "ALTER TABLE trainer_assessments ADD COLUMN IF NOT EXISTS candidate_count INTEGER DEFAULT 0",
+    "ALTER TABLE trainer_assessments ADD COLUMN IF NOT EXISTS time_slot TEXT",
+    // Assessment sync Fix A: add missing columns to vendor_assessments
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'Final'",
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS total_marks INTEGER DEFAULT 100",
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS passing_marks INTEGER DEFAULT 50",
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS assessor TEXT",
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS duration_hrs REAL",
   ];
   for (const sql of colMigrations) { await pool.query(sql); }
 

@@ -171,4 +171,42 @@ router.post('/:id/attendance', authRequired, requireRole('trainer', 'admin'), as
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Candidate: get all assessments for my enrolled batches (Fix B)
+router.get('/my-assessments', authRequired, requireRole('candidate'), async (req, res) => {
+  try {
+    const myBatchIds = (await query(
+      'SELECT batch_id FROM batch_enrollments WHERE candidate_id=$1', [req.user.id]
+    )).rows.map(r => r.batch_id);
+    if (!myBatchIds.length) return res.json({ upcoming: [], completed: [] });
+    const placeholders = myBatchIds.map((_, i) => `$${i + 1}`).join(',');
+    // trainer_assessments for these batches
+    const ta = await query(`
+      SELECT ta.*, b.batch_code, COALESCE(c.title, vc.title) AS course_title,
+        'trainer' AS source, ta.date AS assess_date
+      FROM trainer_assessments ta
+      JOIN batches b ON b.id=ta.batch_id
+      LEFT JOIN courses c ON c.id=b.course_id AND b.vendor_id IS NULL
+      LEFT JOIN vendor_courses vc ON vc.id=b.vendor_course_id
+      WHERE ta.batch_id IN (${placeholders})
+      ORDER BY ta.date ASC`, myBatchIds);
+    // vendor_assessments for these batches
+    const va = await query(`
+      SELECT va.*, b.batch_code, vc.title AS course_title,
+        'vendor' AS source, va.scheduled_date AS assess_date
+      FROM vendor_assessments va
+      JOIN batches b ON b.id=va.unified_batch_id
+      LEFT JOIN vendor_courses vc ON vc.id=b.vendor_course_id
+      WHERE va.unified_batch_id IN (${placeholders})
+        AND COALESCE(va.status,'scheduled') != 'cancelled'
+      ORDER BY va.scheduled_date ASC`, myBatchIds);
+    const all = [...ta.rows, ...va.rows].sort((a, b) =>
+      new Date(a.assess_date || 0) - new Date(b.assess_date || 0));
+    const today = new Date().toISOString().slice(0, 10);
+    res.json({
+      upcoming: all.filter(a => (a.assess_date || '') >= today && a.status !== 'completed'),
+      completed: all.filter(a => a.status === 'completed' || (a.assess_date || '') < today),
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 module.exports = router;

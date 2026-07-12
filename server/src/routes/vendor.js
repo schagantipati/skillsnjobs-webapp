@@ -415,23 +415,28 @@ router.get('/assessments', auth, async (req, res) => {
 
 router.post('/assessments', auth, async (req, res) => {
   try {
-    const { batch_id, agency, scheduled_date, time_slot, candidate_count } = req.body;
+    const { batch_id, agency, scheduled_date, time_slot, candidate_count, type, total_marks, passing_marks, assessor, duration_hrs } = req.body;
     const result = await execute(`INSERT INTO vendor_assessments
-      (vendor_id,unified_batch_id,agency,scheduled_date,time_slot,candidate_count)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [req.user.id, batch_id||null, agency, scheduled_date, time_slot, candidate_count||0]);
+      (vendor_id,unified_batch_id,agency,scheduled_date,time_slot,candidate_count,type,total_marks,passing_marks,assessor,duration_hrs)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [req.user.id, batch_id||null, agency, scheduled_date, time_slot, candidate_count||0,
+       type||'Final', total_marks||100, passing_marks||50, assessor||null, duration_hrs||null]);
     res.json({ id: result.rows[0].id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/assessments/:id', auth, async (req, res) => {
   try {
-    const { agency, scheduled_date, time_slot, candidate_count, results, status } = req.body;
+    const { agency, scheduled_date, time_slot, candidate_count, results, status, type, total_marks, passing_marks, assessor, duration_hrs } = req.body;
     await execute(`UPDATE vendor_assessments SET
       agency=$1,scheduled_date=$2,time_slot=$3,candidate_count=$4,
-      results=COALESCE($5,results),status=COALESCE($6,status) WHERE id=$7 AND vendor_id=$8`,
+      results=COALESCE($5,results),status=COALESCE($6,status),
+      type=COALESCE($7,type),total_marks=COALESCE($8,total_marks),
+      passing_marks=COALESCE($9,passing_marks),assessor=COALESCE($10,assessor),
+      duration_hrs=COALESCE($11,duration_hrs) WHERE id=$12 AND vendor_id=$13`,
       [agency, scheduled_date, time_slot, candidate_count||0,
        results ? JSON.stringify(results) : null, status||null,
+       type||null, total_marks||null, passing_marks||null, assessor||null, duration_hrs||null,
        req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }

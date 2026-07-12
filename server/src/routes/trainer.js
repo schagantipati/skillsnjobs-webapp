@@ -152,24 +152,33 @@ router.delete('/sessions/:id', authRequired, trainerOnly, async (req, res) => {
 // ── Assessments ──
 router.get('/assessments', authRequired, trainerOnly, async (req, res) => {
   try {
-    res.json(await query('SELECT * FROM trainer_assessments WHERE trainer_id=$1 ORDER BY date DESC', [req.user.id]));
+    const rows = await query(`SELECT ta.*, b.batch_code FROM trainer_assessments ta
+      LEFT JOIN batches b ON b.id=ta.batch_id
+      WHERE ta.trainer_id=$1 ORDER BY ta.date DESC`, [req.user.id]);
+    res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 router.post('/assessments', authRequired, trainerOnly, async (req, res) => {
   try {
-    const { batch_id, type, date, duration_hrs, total_marks, passing_marks, assessor, status } = req.body;
+    const { batch_id, type, date, duration_hrs, total_marks, passing_marks, assessor, status, agency, candidate_count, time_slot } = req.body;
     if (!date) return res.status(400).json({ error: 'date is required' });
-    const r = await execute(`INSERT INTO trainer_assessments (trainer_id,batch_id,type,date,duration_hrs,total_marks,passing_marks,assessor,status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [req.user.id, batch_id||null, type||'Final', date, duration_hrs||null, total_marks||100, passing_marks||50, assessor||null, status||'scheduled']);
-    res.json({ id: r.rows[0].id, trainer_id: req.user.id, batch_id, type: type||'Final', date, duration_hrs, total_marks: total_marks||100, passing_marks: passing_marks||50, assessor, status: status||'scheduled' });
+    const r = await execute(`INSERT INTO trainer_assessments
+      (trainer_id,batch_id,type,date,duration_hrs,total_marks,passing_marks,assessor,status,agency,candidate_count,time_slot)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [req.user.id, batch_id||null, type||'Final', date, duration_hrs||null, total_marks||100, passing_marks||50,
+       assessor||null, status||'scheduled', agency||null, candidate_count||0, time_slot||null]);
+    res.json({ id: r.rows[0].id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 router.put('/assessments/:id', authRequired, trainerOnly, async (req, res) => {
   try {
-    const { type, date, duration_hrs, total_marks, passing_marks, assessor, status } = req.body;
-    await execute(`UPDATE trainer_assessments SET type=$1,date=$2,duration_hrs=$3,total_marks=$4,passing_marks=$5,assessor=$6,status=$7 WHERE id=$8 AND trainer_id=$9`,
-      [type, date, duration_hrs, total_marks, passing_marks, assessor, status, req.params.id, req.user.id]);
+    const { type, date, duration_hrs, total_marks, passing_marks, assessor, status, agency, candidate_count, time_slot } = req.body;
+    await execute(`UPDATE trainer_assessments SET
+      type=$1,date=$2,duration_hrs=$3,total_marks=$4,passing_marks=$5,assessor=$6,status=$7,
+      agency=COALESCE($8,agency),candidate_count=COALESCE($9,candidate_count),time_slot=COALESCE($10,time_slot)
+      WHERE id=$11 AND trainer_id=$12`,
+      [type, date, duration_hrs, total_marks, passing_marks, assessor, status,
+       agency||null, candidate_count||null, time_slot||null, req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });

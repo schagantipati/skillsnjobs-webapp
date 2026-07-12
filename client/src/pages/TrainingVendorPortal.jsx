@@ -1355,17 +1355,20 @@ function Assessments() {
         {busy ? <Empty icon="⏳" msg="Loading…" /> : assessments.length === 0 ? <Empty icon="📋" msg="No assessments scheduled yet" /> : (
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead><tr>
-              {['Batch','Course','Agency','Date','Time slot','Candidates','Status','Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
+              {['Batch','Course','Type','Agency','Date','Time slot','Candidates','Marks','Assessor','Status','Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
             </tr></thead>
             <tbody>
               {assessments.map(a => (
                 <tr key={a.id}>
                   <td style={S.td}>{a.batch_code || '—'}</td>
                   <td style={S.td}>{a.course_title || '—'}</td>
+                  <td style={S.td}>{a.type || '—'}</td>
                   <td style={S.td}>{a.agency || '—'}</td>
                   <td style={S.td}>{fmtDate(a.scheduled_date)}</td>
                   <td style={S.td}>{a.time_slot || '—'}</td>
-                  <td style={S.td}>{a.candidate_count}</td>
+                  <td style={S.td}>{a.candidate_count || 0}</td>
+                  <td style={S.td}>{a.total_marks||100}/{a.passing_marks||50}</td>
+                  <td style={S.td}>{a.assessor || '—'}</td>
                   <td style={S.td}>{statusPill(a.status)}</td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:6 }}>
@@ -1403,6 +1406,16 @@ function Assessments() {
               </select>
             </div>
             <div style={S.fGroup}><label style={S.label}>Number of candidates</label><input style={S.input} type="number" value={fv('candidate_count')} onChange={f('candidate_count')} /></div>
+            <div style={S.fGroup}><label style={S.label}>Assessment Type</label>
+              <select style={S.select} value={fv('type')} onChange={f('type')}>
+                <option value="">Select</option>
+                {['Final','Mid-term','Mock','RPL'].map(t => <option key={t}>{t}</option>)}
+              </select>
+            </div>
+            <div style={S.fGroup}><label style={S.label}>Total Marks</label><input style={S.input} type="number" value={fv('total_marks')} onChange={f('total_marks')} placeholder="100" /></div>
+            <div style={S.fGroup}><label style={S.label}>Passing Marks</label><input style={S.input} type="number" value={fv('passing_marks')} onChange={f('passing_marks')} placeholder="50" /></div>
+            <div style={S.fGroup}><label style={S.label}>Assessor Name</label><input style={S.input} value={fv('assessor')} onChange={f('assessor')} placeholder="e.g. SSC-Designated Assessor" /></div>
+            <div style={S.fGroup}><label style={S.label}>Duration (hrs)</label><input style={S.input} type="number" value={fv('duration_hrs')} onChange={f('duration_hrs')} placeholder="2" /></div>
             <div style={S.fGroup}><label style={S.label}>Status</label>
               <select style={S.select} value={fv('status')} onChange={f('status')}>
                 {['scheduled','completed','cancelled'].map(s => <option key={s}>{s}</option>)}

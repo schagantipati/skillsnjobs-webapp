@@ -687,6 +687,111 @@ function PanelCandidates() {
   );
 }
 
+function PanelAssessScheduled() {
+  const [data, loading] = useLoad(() => api.allAssessments());
+  const [tab, setTab] = React.useState('all');
+  if (loading) return <Loading />;
+  const d = data || {};
+  const trainer = d.trainer || [];
+  const vendor  = d.vendor  || [];
+  const today   = new Date().toISOString().slice(0, 10);
+  const allRows = [
+    ...trainer.map(r => ({ ...r, assess_date: r.date })),
+    ...vendor.map(r  => ({ ...r, assess_date: r.scheduled_date })),
+  ].sort((a, b) => new Date(a.assess_date || 0) - new Date(b.assess_date || 0));
+  const upcoming  = allRows.filter(r => (r.assess_date || '') >= today && r.status !== 'completed' && r.status !== 'cancelled');
+  const completed = allRows.filter(r => r.status === 'completed' || (r.assess_date || '') < today);
+  const rows = tab === 'all' ? allRows : tab === 'upcoming' ? upcoming : tab === 'completed' ? completed : (d[tab] || []).map(r => ({ ...r, assess_date: r.date || r.scheduled_date }));
+  return (
+    <>
+      <div className="ph"><h1>Scheduled Assessments</h1><p>Unified assessment schedule across Trainer and Vendor portals</p></div>
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{allRows.length}</div><div className="lbl">Total</div></div>
+        <div className="kpi" style={{'--c':'#D97706'}}><div className="val">{upcoming.length}</div><div className="lbl">Upcoming</div></div>
+        <div className="kpi" style={{'--c':'#15803D'}}><div className="val">{completed.length}</div><div className="lbl">Completed</div></div>
+        <div className="kpi" style={{'--c':'#6D28D9'}}><div className="val">{trainer.length}</div><div className="lbl">Trainer Portal</div></div>
+      </div>
+      <div className="card">
+        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          {[['all',`All (${allRows.length})`],['upcoming',`Upcoming (${upcoming.length})`],['completed',`Completed (${completed.length})`],['trainer',`Trainer (${trainer.length})`],['vendor',`Vendor (${vendor.length})`]].map(([k,lbl]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ padding:'5px 14px', borderRadius:20, border:'none', cursor:'pointer', fontWeight:600, fontSize:12, background: tab===k ? '#0B1E3D' : '#F1F5F9', color: tab===k ? '#fff' : '#374151' }}>{lbl}</button>
+          ))}
+        </div>
+        {rows.length === 0 ? <Empty icon="📆" msg="No assessments found." /> : (
+          <table className="sa-table">
+            <thead><tr><th>Source</th><th>Owner</th><th>Batch</th><th>Type</th><th>Agency / Assessor</th><th>Date</th><th>Time Slot</th><th>Candidates</th><th>Marks (Pass/Total)</th><th>Status</th></tr></thead>
+            <tbody>
+              {rows.slice(0,300).map((r,i) => (
+                <tr key={i}>
+                  <td><span style={{ fontSize:10, padding:'2px 7px', borderRadius:10, background: r.source==='trainer'?'#D1FAE5':'#EDE9FE', color: r.source==='trainer'?'#15803D':'#6D28D9', fontWeight:700 }}>{r.source==='trainer'?'Trainer':'Vendor'}</span></td>
+                  <td style={{ fontSize:'11px' }}>{r.owner_name||'—'}</td>
+                  <td style={{ fontWeight:600, fontSize:'11px' }}>{r.batch_code||'—'}</td>
+                  <td style={{ fontSize:'11px' }}>{r.type||'Final'}</td>
+                  <td style={{ fontSize:'11px' }}>{r.agency||r.assessor||'—'}</td>
+                  <td style={{ fontSize:'10.5px', color:'#6B7FA3' }}>{r.assess_date ? String(r.assess_date).slice(0,10) : '—'}</td>
+                  <td style={{ fontSize:'10.5px' }}>{r.time_slot||'—'}</td>
+                  <td style={{ fontWeight:700 }}>{r.candidate_count||0}</td>
+                  <td style={{ fontSize:'11px' }}>{r.passing_marks||50}/{r.total_marks||100}</td>
+                  <td><Pill v={r.status||'scheduled'} map={{ scheduled:'amber', confirmed:'blue', completed:'green', cancelled:'red' }} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+const KNOWN_AGENCIES = ['Wheebox','NSDC Assessment','Ernst & Young','MERIT-TNL','CDAC','NTTF','Manipal ProLearn'];
+
+function PanelAssessAgencies() {
+  const [data, loading] = useLoad(() => api.allAssessments());
+  if (loading) return <Loading />;
+  const d = data || {};
+  // Build agency stats from actual assessment records
+  const allRows = [...(d.trainer||[]), ...(d.vendor||[])];
+  const agencyMap = {};
+  allRows.forEach(r => {
+    const name = r.agency || r.assessor;
+    if (!name) return;
+    if (!agencyMap[name]) agencyMap[name] = { name, total: 0, completed: 0, candidates: 0 };
+    agencyMap[name].total++;
+    if (r.status === 'completed') agencyMap[name].completed++;
+    agencyMap[name].candidates += (r.candidate_count || 0);
+  });
+  // Merge known agencies that may not have records yet
+  KNOWN_AGENCIES.forEach(a => { if (!agencyMap[a]) agencyMap[a] = { name: a, total: 0, completed: 0, candidates: 0 }; });
+  const agencies = Object.values(agencyMap).sort((a, b) => b.total - a.total);
+  return (
+    <>
+      <div className="ph"><h1>Assessment Agencies</h1><p>{agencies.length} empanelled agencies for skill certification assessments</p></div>
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{agencies.length}</div><div className="lbl">Total Agencies</div></div>
+        <div className="kpi" style={{'--c':'#15803D'}}><div className="val">{agencies.filter(a=>a.total>0).length}</div><div className="lbl">Active</div></div>
+        <div className="kpi" style={{'--c':'#D97706'}}><div className="val">{agencies.reduce((s,a)=>s+a.candidates,0)}</div><div className="lbl">Total Candidates Assessed</div></div>
+        <div className="kpi" style={{'--c':'#6D28D9'}}><div className="val">{agencies.reduce((s,a)=>s+a.completed,0)}</div><div className="lbl">Assessments Completed</div></div>
+      </div>
+      <div className="card">
+        <table className="sa-table">
+          <thead><tr><th>Agency Name</th><th>Assessments Scheduled</th><th>Completed</th><th>Candidates Assessed</th><th>Status</th></tr></thead>
+          <tbody>
+            {agencies.map((a, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight:700 }}>{a.name}</td>
+                <td style={{ fontWeight:700 }}>{a.total}</td>
+                <td>{a.completed}</td>
+                <td>{a.candidates}</td>
+                <td><Pill v={a.total > 0 ? 'active' : 'empanelled'} map={{ active:'green', empanelled:'amber' }} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function PanelEnrolments() {
   const [data, loading] = useLoad(() => api.allEnrolments());
   const [tab, setTab] = React.useState('all');
@@ -1828,8 +1933,8 @@ export default function SuperadminDashboard() {
       case 'dropout': return <PanelComingSoon title="Dropout Management" desc="Dropout analysis and intervention tracking." icon="⚠️" />;
       case 'target-ben': return <PanelTargetBeneficiaries />;
 
-      case 'assess-agencies': return <PanelComingSoon title="Assessment Agencies" desc="Empanelled agencies conducting skill assessments." icon="🏅" />;
-      case 'assess-sched': return <PanelComingSoon title="Scheduled Assessments" desc="Upcoming and completed assessment schedules." icon="📆" />;
+      case 'assess-agencies': return <PanelAssessAgencies />;
+      case 'assess-sched': return <PanelAssessScheduled />;
       case 'results': return <PanelComingSoon title="Results & Marks" desc="Assessment results and candidate score records." icon="📊" />;
       case 'certificates': return <PanelComingSoon title="Certificate Generation" desc="Issue and manage skill certificates." icon="📜" />;
       case 'cert-verify': return <PanelComingSoon title="Certificate Verification" desc="Verify candidate certificates by certificate number." icon="🔍" />;
