@@ -20,16 +20,27 @@ router.get('/mine', authRequired, requireRole('trainer', 'admin'), async (req, r
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
-// Admin: list all batches
+// Admin: list all batches (trainer-owned + vendor-owned unified)
 router.get('/', authRequired, requireRole('admin'), async (req, res) => {
   try {
     const rows = await query(`
-      SELECT b.*, c.title as course_title, u.name as trainer_name,
-        (SELECT COUNT(*) FROM batch_enrollments WHERE batch_id=b.id) as learner_count
+      SELECT b.*,
+        COALESCE(c.title, vco.title) AS course_title,
+        u.name AS trainer_name,
+        vu.name AS vendor_name,
+        vc_centre.name AS centre_name,
+        vt.name AS vendor_trainer_name,
+        (SELECT COUNT(*) FROM batch_enrollments WHERE batch_id=b.id) AS learner_count,
+        CASE WHEN b.vendor_id IS NOT NULL THEN 'vendor' ELSE 'trainer' END AS source
       FROM batches b
-      LEFT JOIN courses c ON c.id=b.course_id
+      LEFT JOIN courses c ON c.id=b.course_id AND b.vendor_id IS NULL
+      LEFT JOIN vendor_courses vco ON vco.id=b.vendor_course_id
       LEFT JOIN users u ON u.id=b.trainer_id
-      ORDER BY b.start_date DESC
+      LEFT JOIN users vu ON vu.id=b.vendor_id
+      LEFT JOIN vendor_centres vc_centre ON vc_centre.id=b.centre_id
+      LEFT JOIN vendor_trainers vt ON vt.id=b.vendor_trainer_id
+      WHERE COALESCE(b.status,'upcoming') != 'cancelled'
+      ORDER BY b.created_at DESC
     `);
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }

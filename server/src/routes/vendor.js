@@ -18,7 +18,7 @@ router.get('/stats', auth, async (req, res) => {
     const n = async (sql, p) => parseInt((await queryOne(sql, p)).c || 0);
     const centres = await n('SELECT COUNT(*) c FROM vendor_centres WHERE vendor_id=$1 AND status!=$2', [vid, 'deleted']);
     const trainers = await n('SELECT COUNT(*) c FROM vendor_trainers WHERE vendor_id=$1 AND status=$2', [vid, 'active']);
-    const batches  = await n("SELECT COUNT(*) c FROM vendor_batches WHERE vendor_id=$1 AND status IN ('active','upcoming')", [vid]);
+    const batches  = await n("SELECT COUNT(*) c FROM batches WHERE vendor_id=$1 AND status IN ('active','upcoming')", [vid]);
     const candidates = await n("SELECT COUNT(*) c FROM vendor_candidates WHERE vendor_id=$1 AND status='active'", [vid]);
     const docs_pending = await n("SELECT COUNT(*) c FROM vendor_documents WHERE vendor_id=$1 AND status='expiring'", [vid]);
     const tickets_open = await n("SELECT COUNT(*) c FROM vendor_grievances WHERE vendor_id=$1 AND status='open'", [vid]);
@@ -273,12 +273,13 @@ router.delete('/courses/:id', auth, async (req, res) => {
 router.get('/batches', auth, async (req, res) => {
   try {
     const rows = await query(`SELECT b.*,
-      c.name AS centre_name, vc.title AS course_title, t.name AS trainer_name
-      FROM vendor_batches b
-      LEFT JOIN vendor_centres c ON c.id=b.centre_id
-      LEFT JOIN vendor_courses vc ON vc.id=b.course_id
-      LEFT JOIN vendor_trainers t ON t.id=b.trainer_id
-      WHERE b.vendor_id=$1 ORDER BY b.created_at DESC`, [req.user.id]);
+      vc.name AS centre_name, vco.title AS course_title, t.name AS trainer_name
+      FROM batches b
+      LEFT JOIN vendor_centres vc ON vc.id=b.centre_id
+      LEFT JOIN vendor_courses vco ON vco.id=b.vendor_course_id
+      LEFT JOIN vendor_trainers t ON t.id=b.vendor_trainer_id
+      WHERE b.vendor_id=$1 AND COALESCE(b.status,'upcoming')!='cancelled'
+      ORDER BY b.created_at DESC`, [req.user.id]);
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -288,11 +289,11 @@ router.post('/batches', auth, async (req, res) => {
     const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id } = req.body;
     const code = batch_code || `BT-${Date.now().toString().slice(-6)}`;
     const dup = await queryOne(
-      'SELECT id FROM vendor_batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2))',
+      'SELECT id FROM batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2))',
       [req.user.id, code]);
     if (dup) return res.status(409).json({ error: `A batch with code "${code.trim()}" already exists.`, field: 'batch_code' });
-    const result = await execute(`INSERT INTO vendor_batches
-      (vendor_id,centre_id,course_id,batch_code,start_date,end_date,capacity,trainer_id,status)
+    const result = await execute(`INSERT INTO batches
+      (vendor_id,centre_id,vendor_course_id,batch_code,start_date,end_date,capacity,vendor_trainer_id,status)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [req.user.id, centre_id||null, course_id||null, code, start_date, end_date, capacity||30, trainer_id||null, 'upcoming']);
     res.json({ id: result.rows[0].id, batch_code: code });
@@ -304,13 +305,13 @@ router.put('/batches/:id', auth, async (req, res) => {
     const { centre_id, course_id, batch_code, start_date, end_date, capacity, trainer_id, status } = req.body;
     if (batch_code) {
       const dup = await queryOne(
-        'SELECT id FROM vendor_batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2)) AND id!=$3',
+        'SELECT id FROM batches WHERE vendor_id=$1 AND LOWER(TRIM(batch_code))=LOWER(TRIM($2)) AND id!=$3',
         [req.user.id, batch_code, req.params.id]);
       if (dup) return res.status(409).json({ error: `A batch with code "${batch_code.trim()}" already exists.`, field: 'batch_code' });
     }
-    await execute(`UPDATE vendor_batches SET
-      centre_id=$1,course_id=$2,batch_code=$3,start_date=$4,end_date=$5,capacity=$6,
-      trainer_id=$7,status=COALESCE($8,status) WHERE id=$9 AND vendor_id=$10`,
+    await execute(`UPDATE batches SET
+      centre_id=$1,vendor_course_id=$2,batch_code=$3,start_date=$4,end_date=$5,capacity=$6,
+      vendor_trainer_id=$7,status=COALESCE($8,status) WHERE id=$9 AND vendor_id=$10`,
       [centre_id||null, course_id||null, batch_code, start_date, end_date, capacity||30,
        trainer_id||null, status||null, req.params.id, req.user.id]);
     res.json({ ok: true });
@@ -319,7 +320,7 @@ router.put('/batches/:id', auth, async (req, res) => {
 
 router.delete('/batches/:id', auth, async (req, res) => {
   try {
-    await execute('UPDATE vendor_batches SET status=$1 WHERE id=$2 AND vendor_id=$3', ['cancelled', req.params.id, req.user.id]);
+    await execute('UPDATE batches SET status=$1 WHERE id=$2 AND vendor_id=$3', ['cancelled', req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -328,9 +329,13 @@ router.delete('/batches/:id', auth, async (req, res) => {
 router.get('/candidates', auth, async (req, res) => {
   try {
     const { batch_id } = req.query;
-    let sql = 'SELECT vc.*, vb.batch_code, vco.title AS course_title FROM vendor_candidates vc LEFT JOIN vendor_batches vb ON vb.id=vc.batch_id LEFT JOIN vendor_courses vco ON vco.id=vb.course_id WHERE vc.vendor_id=$1';
+    let sql = `SELECT vc.*, b.batch_code, vco.title AS course_title
+      FROM vendor_candidates vc
+      LEFT JOIN batches b ON b.id=vc.unified_batch_id
+      LEFT JOIN vendor_courses vco ON vco.id=b.vendor_course_id
+      WHERE vc.vendor_id=$1`;
     const params = [req.user.id];
-    if (batch_id) { sql += ' AND vc.batch_id=$2'; params.push(batch_id); }
+    if (batch_id) { sql += ' AND vc.unified_batch_id=$2'; params.push(batch_id); }
     sql += ' ORDER BY vc.created_at DESC';
     res.json(await query(sql, params));
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
@@ -341,11 +346,11 @@ router.post('/candidates', auth, async (req, res) => {
     const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id } = req.body;
     if (!name) return res.status(400).json({ error: 'Candidate name required' });
     const result = await execute(`INSERT INTO vendor_candidates
-      (vendor_id,batch_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
+      (vendor_id,unified_batch_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [req.user.id, batch_id||null, name, mobile, aadhaar_masked, dob, gender, category, scheme]);
     if (batch_id) {
-      await execute('UPDATE vendor_batches SET enrolled=enrolled+1 WHERE id=$1', [batch_id]);
+      await execute('UPDATE batches SET enrolled=enrolled+1 WHERE id=$1 AND vendor_id=$2', [batch_id, req.user.id]);
     }
     res.json({ id: result.rows[0].id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
@@ -357,7 +362,7 @@ router.put('/candidates/:id', auth, async (req, res) => {
     await execute(`UPDATE vendor_candidates SET
       name=COALESCE($1,name),mobile=COALESCE($2,mobile),aadhaar_masked=COALESCE($3,aadhaar_masked),
       dob=COALESCE($4,dob),gender=COALESCE($5,gender),category=COALESCE($6,category),
-      scheme=COALESCE($7,scheme),batch_id=COALESCE($8,batch_id),
+      scheme=COALESCE($7,scheme),unified_batch_id=COALESCE($8,unified_batch_id),
       status=COALESCE($9,status),attendance_pct=COALESCE($10,attendance_pct),placement_status=COALESCE($11,placement_status)
       WHERE id=$12 AND vendor_id=$13`,
       [name||null, mobile||null, aadhaar_masked||null, dob||null, gender||null, category||null,
@@ -378,9 +383,9 @@ router.delete('/candidates/:id', auth, async (req, res) => {
 // ── Assessments ───────────────────────────────────────────────────────────────
 router.get('/assessments', auth, async (req, res) => {
   try {
-    const rows = await query(`SELECT a.*, vb.batch_code, vc.title AS course_title FROM vendor_assessments a
-      LEFT JOIN vendor_batches vb ON vb.id=a.batch_id
-      LEFT JOIN vendor_courses vc ON vc.id=vb.course_id
+    const rows = await query(`SELECT a.*, b.batch_code, vc.title AS course_title FROM vendor_assessments a
+      LEFT JOIN batches b ON b.id=a.unified_batch_id
+      LEFT JOIN vendor_courses vc ON vc.id=b.vendor_course_id
       WHERE a.vendor_id=$1 ORDER BY a.created_at DESC`, [req.user.id]);
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
@@ -390,7 +395,7 @@ router.post('/assessments', auth, async (req, res) => {
   try {
     const { batch_id, agency, scheduled_date, time_slot, candidate_count } = req.body;
     const result = await execute(`INSERT INTO vendor_assessments
-      (vendor_id,batch_id,agency,scheduled_date,time_slot,candidate_count)
+      (vendor_id,unified_batch_id,agency,scheduled_date,time_slot,candidate_count)
       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
       [req.user.id, batch_id||null, agency, scheduled_date, time_slot, candidate_count||0]);
     res.json({ id: result.rows[0].id });

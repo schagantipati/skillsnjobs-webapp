@@ -442,8 +442,50 @@ async function initDb() {
     "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS ownership TEXT",
     "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS year_started TEXT",
     "ALTER TABLE vendor_centres ADD COLUMN IF NOT EXISTS area_sqft INTEGER",
+    // Unify batches: extend common batches table with vendor-specific columns
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS centre_id INTEGER REFERENCES vendor_centres(id) ON DELETE SET NULL",
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS vendor_trainer_id INTEGER REFERENCES vendor_trainers(id) ON DELETE SET NULL",
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS vendor_course_id INTEGER REFERENCES vendor_courses(id) ON DELETE SET NULL",
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS enrolled INTEGER DEFAULT 0",
+    // Allow NULL on batches.name (vendor batches may not have a name)
+    "ALTER TABLE batches ALTER COLUMN name DROP NOT NULL",
+    // vendor_candidates and vendor_assessments: add unified_batch_id pointing to batches
+    "ALTER TABLE vendor_candidates ADD COLUMN IF NOT EXISTS unified_batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
+    "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS unified_batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
   ];
   for (const sql of colMigrations) { await pool.query(sql); }
+
+  // Migrate existing vendor_batches rows into batches (idempotent via vendor_id+batch_code check)
+  const vbRows = await pool.query('SELECT * FROM vendor_batches ORDER BY id');
+  for (const vb of vbRows.rows) {
+    const existing = await pool.query(
+      'SELECT id FROM batches WHERE vendor_id=$1 AND batch_code=$2',
+      [vb.vendor_id, vb.batch_code]
+    );
+    let batchId;
+    if (existing.rows.length === 0) {
+      const ins = await pool.query(
+        `INSERT INTO batches (vendor_id, centre_id, vendor_course_id, vendor_trainer_id, batch_code,
+          start_date, end_date, capacity, enrolled, status, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [vb.vendor_id, vb.centre_id, vb.course_id, vb.trainer_id, vb.batch_code,
+         vb.start_date, vb.end_date, vb.capacity, vb.enrolled, vb.status || 'upcoming', vb.created_at]
+      );
+      batchId = ins.rows[0].id;
+    } else {
+      batchId = existing.rows[0].id;
+    }
+    // Point vendor_candidates that referenced this vendor_batch to the unified batch
+    await pool.query(
+      'UPDATE vendor_candidates SET unified_batch_id=$1 WHERE batch_id=$2 AND (unified_batch_id IS NULL)',
+      [batchId, vb.id]
+    );
+    await pool.query(
+      'UPDATE vendor_assessments SET unified_batch_id=$1 WHERE batch_id=$2 AND (unified_batch_id IS NULL)',
+      [batchId, vb.id]
+    );
+  }
 
   // Seed org_classifications
   const ocCount = (await pool.query('SELECT COUNT(*) c FROM org_classifications')).rows[0].c;

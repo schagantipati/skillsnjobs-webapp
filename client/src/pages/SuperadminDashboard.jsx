@@ -703,17 +703,19 @@ function PanelBatches() {
       <div className="card">
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="📅" msg="No batches found." /> : (
           <table className="sa-table">
-            <thead><tr><th>Batch Code</th><th>Course</th><th>Trainer</th><th>Start</th><th>End</th><th>Enrolled</th><th>Status</th></tr></thead>
+            <thead><tr><th>Batch Code</th><th>Course</th><th>Centre</th><th>Trainer / Vendor</th><th>Source</th><th>Start</th><th>End</th><th>Enrolled</th><th>Status</th></tr></thead>
             <tbody>
               {list.map(b => (
                 <tr key={b.id}>
-                  <td style={{fontWeight:700,fontSize:'10.5px'}}>{b.batch_code||b.code||`#${b.id}`}</td>
-                  <td style={{fontSize:'11px'}}>{b.course_title||b.course||'—'}</td>
-                  <td style={{fontSize:'11px'}}>{b.trainer_name||b.trainer||'—'}</td>
+                  <td style={{fontWeight:700,fontSize:'10.5px'}}>{b.batch_code||`#${b.id}`}</td>
+                  <td style={{fontSize:'11px'}}>{b.course_title||'—'}</td>
+                  <td style={{fontSize:'11px'}}>{b.centre_name||'—'}</td>
+                  <td style={{fontSize:'11px'}}>{b.source==='vendor' ? (b.vendor_trainer_name||b.vendor_name||'—') : (b.trainer_name||'—')}</td>
+                  <td><span style={{fontSize:10,padding:'2px 6px',borderRadius:10,background:b.source==='vendor'?'#EDE9FE':'#DBEAFE',color:b.source==='vendor'?'#6D28D9':'#1D4ED8',fontWeight:600}}>{b.source==='vendor'?'Vendor':'Trainer'}</span></td>
                   <td style={{fontSize:'10.5px',color:'#6B7FA3'}}>{b.start_date||'—'}</td>
                   <td style={{fontSize:'10.5px',color:'#6B7FA3'}}>{b.end_date||'—'}</td>
-                  <td style={{fontWeight:700}}>{b.enrolled_count??b.learner_count??'—'}</td>
-                  <td><Pill v={b.status||'active'} map={{active:'blue',ongoing:'blue',completed:'green',upcoming:'amber',planned:'amber',cancelled:'red'}} /></td>
+                  <td style={{fontWeight:700}}>{b.enrolled??b.learner_count??'—'}</td>
+                  <td><Pill v={b.status||'upcoming'} map={{active:'blue',completed:'green',upcoming:'amber',cancelled:'red'}} /></td>
                 </tr>
               ))}
             </tbody>
