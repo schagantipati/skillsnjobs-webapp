@@ -40,7 +40,12 @@ router.post('/:id/enroll', authRequired, requireRole('candidate'), async (req, r
     if (!course) return res.status(404).json({ error: 'Course not found' });
     const existing = await queryOne('SELECT id FROM enrollments WHERE course_id=$1 AND candidate_id=$2', [req.params.id, req.user.id]);
     if (existing) return res.status(409).json({ error: 'Already enrolled' });
-    await execute('INSERT INTO enrollments (course_id, candidate_id) VALUES ($1,$2)', [req.params.id, req.user.id]);
+    const { batch_id } = req.body || {};
+    await execute('INSERT INTO enrollments (course_id, candidate_id, batch_id) VALUES ($1,$2,$3)', [req.params.id, req.user.id, batch_id || null]);
+    if (batch_id) {
+      const be = await queryOne('SELECT id FROM batch_enrollments WHERE batch_id=$1 AND candidate_id=$2', [batch_id, req.user.id]);
+      if (!be) await execute('INSERT INTO batch_enrollments (batch_id, candidate_id) VALUES ($1,$2)', [batch_id, req.user.id]);
+    }
     res.status(201).json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });

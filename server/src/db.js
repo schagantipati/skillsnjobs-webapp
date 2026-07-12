@@ -453,6 +453,12 @@ async function initDb() {
     // vendor_candidates and vendor_assessments: add unified_batch_id pointing to batches
     "ALTER TABLE vendor_candidates ADD COLUMN IF NOT EXISTS unified_batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
     "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS unified_batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
+    // Fix A: link vendor_candidates to registered user accounts
+    "ALTER TABLE vendor_candidates ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+    // Fix B: link sg_candidates to unified batches table
+    "ALTER TABLE sg_candidates ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
+    // Fix D: add batch assignment to enrollments (candidate self-enroll)
+    "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS batch_id INTEGER REFERENCES batches(id) ON DELETE SET NULL",
   ];
   for (const sql of colMigrations) { await pool.query(sql); }
 

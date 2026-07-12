@@ -236,6 +236,9 @@ export default function CandidatePortal() {
   const [loading,     setLoading]   = useState(true);
   const [applyingId,  setApplyingId]= useState(null);
   const [enrollingId, setEnrollingId]=useState(null);
+  const [enrollBatchModal, setEnrollBatchModal] = useState(null); // course object | null
+  const [availBatches, setAvailBatches] = useState([]);
+  const [selectedBatch, setSelectedBatch] = useState('');
   const [toast,       setToast]     = useState(null);
   const [searchQ,     setSearchQ]   = useState('');
   const [searchOpen,  setSearchOpen]= useState(false);
@@ -441,13 +444,24 @@ export default function CandidatePortal() {
     finally { setApplyingId(null); }
   }
 
-  async function enrollCourse(id) {
-    setEnrollingId(id);
+  async function openEnrollModal(course) {
+    setEnrollBatchModal(course);
+    setSelectedBatch('');
+    // fetch batches linked to this course
     try {
-      await api.enroll(id);
+      const all = await api.allBatches();
+      setAvailBatches((all || []).filter(b => b.course_id === course.id && b.status !== 'cancelled' && b.status !== 'completed'));
+    } catch { setAvailBatches([]); }
+  }
+
+  async function enrollCourse(courseId, batchId) {
+    setEnrollingId(courseId);
+    try {
+      await api.enroll(courseId, batchId ? { batch_id: batchId } : undefined);
       setMyEnroll(await api.myEnrollments() || []);
       setDbStats(await api.dashboardStats() || {});
       toast3('Enrolled successfully!');
+      setEnrollBatchModal(null);
     } catch (e) { toast3(e.message, false); }
     finally { setEnrollingId(null); }
   }
@@ -879,7 +893,7 @@ export default function CandidatePortal() {
                       <span style={{ fontSize:12, fontWeight:700, color:C.teal }}>{c.duration || '—'} hrs</span>
                       {enrolledIds.has(c.id)
                         ? <span style={{ fontSize:11.5, fontWeight:700, color:C.teal }}>✓ Enrolled</span>
-                        : <Btn primary sm onClick={() => enrollCourse(c.id)}
+                        : <Btn primary sm onClick={() => openEnrollModal(c)}
                             style={{ opacity: enrollingId===c.id ? .6 : 1 }}>
                             {enrollingId===c.id ? 'Enrolling…' : 'Enroll Free'}
                           </Btn>
@@ -2260,6 +2274,31 @@ export default function CandidatePortal() {
           padding:'12px 20px', borderRadius:10, fontSize:13, fontWeight:600,
           boxShadow:'0 4px 20px rgba(0,0,0,.25)', display:'flex', alignItems:'center', gap:8 }}>
           {toast.ok ? '✅' : '❌'} {toast.msg}
+        </div>
+      )}
+      {enrollBatchModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
+          <div style={{ background:'#fff', borderRadius:14, padding:28, width:420, boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>Enroll in Course</div>
+            <div style={{ fontSize:13, color:'#64748B', marginBottom:16 }}>{enrollBatchModal.title}</div>
+            {availBatches.length > 0 && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:13, fontWeight:600, marginBottom:6 }}>Select a Batch (optional)</div>
+                <select style={{ width:'100%', padding:'9px 12px', border:'1px solid #CBD5E1', borderRadius:8, fontSize:13 }}
+                  value={selectedBatch} onChange={e => setSelectedBatch(e.target.value)}>
+                  <option value="">— No specific batch —</option>
+                  {availBatches.map(b => <option key={b.id} value={b.id}>{b.batch_code} · {b.start_date || 'TBD'} → {b.end_date || 'TBD'}</option>)}
+                </select>
+              </div>
+            )}
+            <div style={{ display:'flex', gap:10 }}>
+              <button style={{ flex:1, padding:'9px 0', background:'#F1F5F9', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }} onClick={() => setEnrollBatchModal(null)}>Cancel</button>
+              <button style={{ flex:2, padding:'9px 0', background:C.teal, color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600, opacity: enrollingId===enrollBatchModal.id ? .6 : 1 }}
+                onClick={() => enrollCourse(enrollBatchModal.id, selectedBatch || null)}>
+                {enrollingId===enrollBatchModal.id ? 'Enrolling…' : 'Confirm Enrollment'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -108,13 +108,19 @@ router.get('/candidates', authRequired, stateOnly, async (req, res) => {
 router.post('/candidates', authRequired, stateOnly, async (req, res) => {
   try {
     const uid = req.user.id;
-    const { name, gender, dob, district, state_name, mobile, aadhaar_masked, scheme, course, tp_id, batch_code, enroll_date } = req.body;
+    const { name, gender, dob, district, state_name, mobile, aadhaar_masked, scheme, course, tp_id, batch_code, batch_id, enroll_date } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
     const ref = `SKL-${(req.user.state_name || 'ST').substring(0,2).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+    // Fix B: resolve batch_id from batch_code if not provided directly
+    let resolvedBatchId = batch_id || null;
+    if (!resolvedBatchId && batch_code) {
+      const b = await queryOne('SELECT id FROM batches WHERE LOWER(TRIM(batch_code))=LOWER(TRIM($1))', [batch_code]);
+      if (b) resolvedBatchId = b.id;
+    }
     const result = await execute(
-      `INSERT INTO sg_candidates (state_user_id,candidate_ref,name,gender,dob,district,state_name,mobile,aadhaar_masked,scheme,course,tp_id,batch_code,enroll_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      [uid, ref, name, gender, dob, district, state_name, mobile, aadhaar_masked, scheme, course, tp_id || null, batch_code, enroll_date || new Date().toISOString().split('T')[0]]
+      `INSERT INTO sg_candidates (state_user_id,candidate_ref,name,gender,dob,district,state_name,mobile,aadhaar_masked,scheme,course,tp_id,batch_code,batch_id,enroll_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [uid, ref, name, gender, dob, district, state_name, mobile, aadhaar_masked, scheme, course, tp_id || null, batch_code, resolvedBatchId, enroll_date || new Date().toISOString().split('T')[0]]
     );
     await logAudit({ user: req.user, action: 'Candidate Enrolled', entity: 'sg_candidates', entityId: result.rows[0].id, detail: name });
     res.json({ id: result.rows[0].id, candidate_ref: ref });

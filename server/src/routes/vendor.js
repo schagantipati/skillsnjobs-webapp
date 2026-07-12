@@ -343,32 +343,54 @@ router.get('/candidates', auth, async (req, res) => {
 
 router.post('/candidates', auth, async (req, res) => {
   try {
-    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id } = req.body;
+    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id, email } = req.body;
     if (!name) return res.status(400).json({ error: 'Candidate name required' });
+    // Fix A: auto-link to registered candidate user account by email or mobile
+    let user_id = null;
+    if (email) {
+      const u = await queryOne("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND role='candidate'", [email]);
+      if (u) user_id = u.id;
+    }
+    if (!user_id && mobile) {
+      const u = await queryOne("SELECT id FROM users WHERE phone=$1 AND role='candidate'", [mobile]);
+      if (u) user_id = u.id;
+    }
     const result = await execute(`INSERT INTO vendor_candidates
-      (vendor_id,unified_batch_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [req.user.id, batch_id||null, name, mobile, aadhaar_masked, dob, gender, category, scheme]);
+      (vendor_id,unified_batch_id,user_id,name,mobile,aadhaar_masked,dob,gender,category,scheme)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [req.user.id, batch_id||null, user_id, name, mobile, aadhaar_masked, dob, gender, category, scheme]);
     if (batch_id) {
       await execute('UPDATE batches SET enrolled=enrolled+1 WHERE id=$1 AND vendor_id=$2', [batch_id, req.user.id]);
     }
-    res.json({ id: result.rows[0].id });
+    res.json({ id: result.rows[0].id, user_id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/candidates/:id', auth, async (req, res) => {
   try {
-    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id, status, attendance_pct, placement_status } = req.body;
+    const { name, mobile, aadhaar_masked, dob, gender, category, scheme, batch_id, status, attendance_pct, placement_status, email } = req.body;
+    // Fix A: auto-link user_id if not already set
+    const existing = await queryOne('SELECT user_id FROM vendor_candidates WHERE id=$1', [req.params.id]);
+    let user_id = existing?.user_id || null;
+    if (!user_id && email) {
+      const u = await queryOne("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND role='candidate'", [email]);
+      if (u) user_id = u.id;
+    }
+    if (!user_id && mobile) {
+      const u = await queryOne("SELECT id FROM users WHERE phone=$1 AND role='candidate'", [mobile]);
+      if (u) user_id = u.id;
+    }
     await execute(`UPDATE vendor_candidates SET
       name=COALESCE($1,name),mobile=COALESCE($2,mobile),aadhaar_masked=COALESCE($3,aadhaar_masked),
       dob=COALESCE($4,dob),gender=COALESCE($5,gender),category=COALESCE($6,category),
       scheme=COALESCE($7,scheme),unified_batch_id=COALESCE($8,unified_batch_id),
-      status=COALESCE($9,status),attendance_pct=COALESCE($10,attendance_pct),placement_status=COALESCE($11,placement_status)
-      WHERE id=$12 AND vendor_id=$13`,
+      status=COALESCE($9,status),attendance_pct=COALESCE($10,attendance_pct),
+      placement_status=COALESCE($11,placement_status),user_id=COALESCE($12,user_id)
+      WHERE id=$13 AND vendor_id=$14`,
       [name||null, mobile||null, aadhaar_masked||null, dob||null, gender||null, category||null,
        scheme||null, batch_id||null,
        status||null, attendance_pct!=null?attendance_pct:null, placement_status||null,
-       req.params.id, req.user.id]);
+       user_id, req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });

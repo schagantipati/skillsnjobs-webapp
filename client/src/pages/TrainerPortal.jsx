@@ -285,6 +285,9 @@ export default function TrainerPortal() {
   const [allLearners, setAllLearners] = useState([]);
   const [allLearnersLoaded, setAllLearnersLoaded] = useState(false);
   const [toast, setToast] = useState(null);
+  const [enrolModal, setEnrolModal] = useState(null); // batchId | null
+  const [enrolEmail, setEnrolEmail] = useState('');
+  const [enrolMsg, setEnrolMsg] = useState('');
   const [showAddQual, setShowAddQual] = useState(false);
   const [qualForm, setQualForm] = useState({ degree:'', institution:'', year:'', score:'' });
   const [qualList, setQualList] = useState([]);
@@ -1043,14 +1046,20 @@ export default function TrainerPortal() {
           <Td>{b.avg_attendance ? `${Math.round(b.avg_attendance)}%` : '—'}</Td>
           <Td><Btn sm primary onClick={() => loadLearnersForBatch(b.id)}>Learners</Btn></Td>
         </tr>)} />}
-        {selectedBatchId && batchLearners.length > 0 && <div style={{ marginTop:16 }}>
-          <CardTitle>👥 Learners in selected batch</CardTitle>
-          <Table headers={['Name','Email','Attendance','Score','Status']} rows={batchLearners.map(l => <tr key={l.id}>
-            <Td>{l.name}</Td><Td>{l.email}</Td>
-            <Td>{l.attendance_pct != null ? `${Math.round(l.attendance_pct)}%` : '—'}</Td>
-            <Td>{l.assessment_score != null ? l.assessment_score : '—'}</Td>
-            <Td><Badge color={l.status==='completed'?'green':l.status==='dropped'?'red':'blue'}>{l.status}</Badge></Td>
-          </tr>)} />
+        {selectedBatchId && <div style={{ marginTop:16 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+            <CardTitle style={{ margin:0 }}>👥 Learners in selected batch</CardTitle>
+            <Btn sm primary onClick={() => setEnrolModal(selectedBatchId)}>+ Enrol Learner</Btn>
+          </div>
+          {batchLearners.length === 0
+            ? <div style={{ color:'#888', padding:8 }}>No learners yet. Click "Enrol Learner" to add one.</div>
+            : <Table headers={['Name','Email','Attendance','Score','Status']} rows={batchLearners.map(l => <tr key={l.id}>
+                <Td>{l.name}</Td><Td>{l.email}</Td>
+                <Td>{l.attendance_pct != null ? `${Math.round(l.attendance_pct)}%` : '—'}</Td>
+                <Td>{l.assessment_score != null ? l.assessment_score : '—'}</Td>
+                <Td><Badge color={l.status==='completed'?'green':l.status==='dropped'?'red':'blue'}>{l.status}</Badge></Td>
+              </tr>)} />
+          }
         </div>}
         <div style={{ marginTop:14 }}><Btn onClick={() => go('batch-create')}>+ Create New Batch</Btn></div>
       </Card>
@@ -2117,6 +2126,36 @@ export default function TrainerPortal() {
       {toast && (
         <div style={{ position:'fixed', bottom:28, right:28, background: toast.type==='error'?C.red : toast.type==='warn'?C.gold : C.teal, color:'#fff', padding:'12px 22px', borderRadius:10, fontSize:14, fontWeight:600, boxShadow:'0 4px 18px rgba(0,0,0,0.18)', zIndex:9999, animation:'fadeIn .2s' }}>
           {toast.type==='error'?'❌ ':toast.type==='warn'?'⚠️ ':'✅ '}{toast.msg}
+        </div>
+      )}
+      {enrolModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
+          <div style={{ background:'#fff', borderRadius:12, padding:28, width:380, boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontWeight:700, fontSize:16, marginBottom:16 }}>Enrol Learner into Batch</div>
+            <div style={{ marginBottom:6, fontSize:13, color:'#374151' }}>Candidate email address</div>
+            <input
+              style={{ width:'100%', padding:'9px 12px', border:'1px solid #CBD5E1', borderRadius:8, fontSize:14, boxSizing:'border-box' }}
+              placeholder="candidate@example.com"
+              value={enrolEmail}
+              onChange={e => { setEnrolEmail(e.target.value); setEnrolMsg(''); }}
+            />
+            {enrolMsg && <div style={{ marginTop:8, fontSize:12, color: enrolMsg.startsWith('✅') ? '#15803D' : '#C0392B' }}>{enrolMsg}</div>}
+            <div style={{ display:'flex', gap:10, marginTop:18 }}>
+              <button style={{ flex:1, padding:'9px 0', background:'#F1F5F9', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }} onClick={() => { setEnrolModal(null); setEnrolEmail(''); setEnrolMsg(''); }}>Cancel</button>
+              <button style={{ flex:2, padding:'9px 0', background:C.blue, color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }} onClick={async () => {
+                if (!enrolEmail.trim()) return setEnrolMsg('Email is required');
+                try {
+                  await api.enrollLearner(enrolModal, { email: enrolEmail.trim() });
+                  setEnrolMsg('✅ Learner enrolled successfully');
+                  loadLearnersForBatch(enrolModal);
+                  setTimeout(() => { setEnrolModal(null); setEnrolEmail(''); setEnrolMsg(''); }, 1200);
+                } catch (e) {
+                  const msg = await e?.response?.json?.().catch(() => null);
+                  setEnrolMsg(msg?.error || 'Enrolment failed');
+                }
+              }}>Enrol</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -145,6 +145,68 @@ router.get('/candidates', authRequired, async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Superadmin: unified enrolments across all portals
+router.get('/enrolments', authRequired, async (req, res) => {
+  try {
+    if (!['admin', 'administrator', 'superadmin'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+    // 1. Candidate self-enrollments (Candidate Portal)
+    const selfEnroll = await query(`
+      SELECT e.id, 'self' AS source,
+        u.name AS candidate_name, u.email AS candidate_email, u.phone AS candidate_mobile,
+        c.title AS course_title, b.batch_code,
+        NULL AS scheme, NULL AS district, NULL AS state_name,
+        e.status, e.created_at AS enroll_date
+      FROM enrollments e
+      JOIN users u ON u.id=e.candidate_id
+      JOIN courses c ON c.id=e.course_id
+      LEFT JOIN batches b ON b.id=e.batch_id
+      ORDER BY e.created_at DESC LIMIT 500`);
+    // 2. Trainer batch enrollments
+    const batchEnroll = await query(`
+      SELECT be.id, 'trainer' AS source,
+        u.name AS candidate_name, u.email AS candidate_email, u.phone AS candidate_mobile,
+        COALESCE(c.title, vc.title) AS course_title, b.batch_code,
+        NULL AS scheme, NULL AS district, NULL AS state_name,
+        be.status, be.created_at AS enroll_date
+      FROM batch_enrollments be
+      JOIN users u ON u.id=be.candidate_id
+      JOIN batches b ON b.id=be.batch_id
+      LEFT JOIN courses c ON c.id=b.course_id AND b.vendor_id IS NULL
+      LEFT JOIN vendor_courses vc ON vc.id=b.vendor_course_id
+      ORDER BY be.created_at DESC LIMIT 500`);
+    // 3. Vendor manual candidates
+    const vendorCand = await query(`
+      SELECT vc.id, 'vendor' AS source,
+        vc.name AS candidate_name,
+        u.email AS candidate_email,
+        vc.mobile AS candidate_mobile,
+        vco.title AS course_title, b.batch_code,
+        vc.scheme, NULL AS district, NULL AS state_name,
+        vc.status, vc.enroll_date
+      FROM vendor_candidates vc
+      LEFT JOIN batches b ON b.id=vc.unified_batch_id
+      LEFT JOIN vendor_courses vco ON vco.id=b.vendor_course_id
+      LEFT JOIN users u ON u.id=vc.user_id
+      ORDER BY vc.created_at DESC LIMIT 500`);
+    // 4. State Govt beneficiaries
+    const sgCand = await query(`
+      SELECT c.id, 'state' AS source,
+        c.name AS candidate_name, NULL AS candidate_email, c.mobile AS candidate_mobile,
+        c.course AS course_title, c.batch_code,
+        c.scheme, c.district, c.state_name,
+        c.status, c.enroll_date
+      FROM sg_candidates c
+      ORDER BY c.created_at DESC LIMIT 500`);
+    res.json({
+      self: selfEnroll.rows,
+      trainer: batchEnroll.rows,
+      vendor: vendorCand.rows,
+      state: sgCand.rows,
+      totals: { self: selfEnroll.rows.length, trainer: batchEnroll.rows.length, vendor: vendorCand.rows.length, state: sgCand.rows.length }
+    });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // Superadmin / administrator: list users by role
 router.get('/by-role/:role', authRequired, async (req, res) => {
   try {

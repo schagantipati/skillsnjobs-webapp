@@ -94,6 +94,32 @@ router.delete('/:id', authRequired, requireRole('trainer', 'admin'), async (req,
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
+// Enrol a candidate (registered user) into a batch
+router.post('/:id/learners', authRequired, requireRole('trainer', 'admin'), async (req, res) => {
+  try {
+    const { candidate_id, email } = req.body;
+    let cid = candidate_id;
+    if (!cid && email) {
+      const u = await queryOne("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND role='candidate'", [email]);
+      if (!u) return res.status(404).json({ error: 'No candidate account found with that email' });
+      cid = u.id;
+    }
+    if (!cid) return res.status(400).json({ error: 'candidate_id or email required' });
+    const existing = await queryOne('SELECT id FROM batch_enrollments WHERE batch_id=$1 AND candidate_id=$2', [req.params.id, cid]);
+    if (existing) return res.status(409).json({ error: 'Candidate already enrolled in this batch' });
+    await execute('INSERT INTO batch_enrollments (batch_id, candidate_id) VALUES ($1,$2)', [req.params.id, cid]);
+    // Also link in enrollments table if batch has a course
+    const batch = await queryOne('SELECT course_id FROM batches WHERE id=$1', [req.params.id]);
+    if (batch?.course_id) {
+      const alreadyEnrolled = await queryOne('SELECT id FROM enrollments WHERE course_id=$1 AND candidate_id=$2', [batch.course_id, cid]);
+      if (!alreadyEnrolled) {
+        await execute('INSERT INTO enrollments (course_id, candidate_id, batch_id) VALUES ($1,$2,$3)', [batch.course_id, cid, req.params.id]);
+      }
+    }
+    res.status(201).json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 // Learners in a batch
 router.get('/:id/learners', authRequired, requireRole('trainer', 'admin'), async (req, res) => {
   try {

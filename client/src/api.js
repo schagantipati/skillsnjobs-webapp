@@ -38,6 +38,7 @@ export const api = {
   changePassword: (current_password, new_password) => request('/users/me/change-password', { method: 'POST', body: { current_password, new_password } }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
+  allEnrolments: () => request('/users/enrolments'),
   usersByRole: (role) => request(`/users/by-role/${role}`),
   auditLogs: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/audit-logs' + (qs ? `?${qs}` : '')); },
   adminSessions: () => request('/users/admin/sessions'),
@@ -66,7 +67,7 @@ export const api = {
 
   courses: () => request('/courses'),
   createCourse: (payload) => request('/courses', { method: 'POST', body: payload }),
-  enroll: (id) => request(`/courses/${id}/enroll`, { method: 'POST' }),
+  enroll: (id, body) => request(`/courses/${id}/enroll`, { method: 'POST', body: body || {} }),
   myEnrollments: () => request('/courses/mine/enrollments'),
   myCertificates: () => request('/courses/mine/certificates'),
   myGrievances: () => request('/courses/mine/grievances'),
@@ -167,6 +168,7 @@ export const api = {
   updateBatch: (id, b) => request(`/batches/${id}`, { method: 'PUT', body: b }),
   deleteBatch: (id) => request(`/batches/${id}`, { method: 'DELETE' }),
   batchLearners: (id) => request(`/batches/${id}/learners`),
+  enrollLearner: (batchId, body) => request(`/batches/${batchId}/learners`, { method: 'POST', body }),
   batchAttendance: (id, date) => request(`/batches/${id}/attendance` + (date ? `?date=${date}` : '')),
   markAttendance: (id, date, records) => request(`/batches/${id}/attendance`, { method: 'POST', body: { date, records } }),
 

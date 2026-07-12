@@ -192,6 +192,7 @@ export default function StateGovtPortal() {
   const [certErr, setCertErr] = useState('');
   const [auditLogs, setAuditLogs] = useState([]);
   const [portalUsers, setPortalUsers] = useState([]);
+  const [allBatches, setAllBatches] = useState([]);
 
   const showToast = (msg, type = 'green') => {
     setToast({ msg, type });
@@ -202,7 +203,10 @@ export default function StateGovtPortal() {
     try { const s = await api.sgStats(); setStats(s); } catch {}
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => {
+    loadStats();
+    api.allBatches().then(b => setAllBatches(Array.isArray(b) ? b : [])).catch(() => {});
+  }, [loadStats]);
 
   const NEEDS_CANDIDATES = new Set(['candidate-list','enrolment','placements','dropouts','sectors','employers','live-analytics','pmkvy','ddu-gky','naps','state-scheme','csr-programs','mis-district']);
   const NEEDS_TPS = new Set(['tp-list','tp-onboard','tp-verify','tc-list','tc-map','trainer-list','assessor-list','enrolment','pmkvy','ddu-gky','naps','state-scheme','csr-programs']);
@@ -1555,9 +1559,21 @@ export default function StateGovtPortal() {
     if (modal === 'add-candidate') return (
       <Modal title="Enrol Beneficiary" onClose={() => setModal(null)}>
         <div className="sg-form-grid">
-          {[['name','Full Name *'],['gender','Gender (M/F/Other)'],['dob','Date of Birth'],['district','District'],['state_name','State'],['mobile','Mobile'],['aadhaar_masked','Aadhaar (Last 4)'],['scheme','Scheme'],['course','Course Name'],['batch_code','Batch Code']].map(([k, lbl]) => (
+          {[['name','Full Name *'],['gender','Gender (M/F/Other)'],['dob','Date of Birth'],['district','District'],['state_name','State'],['mobile','Mobile'],['aadhaar_masked','Aadhaar (Last 4)'],['scheme','Scheme'],['course','Course Name']].map(([k, lbl]) => (
             <div className="sg-form-group" key={k}><label>{lbl}</label><input value={form[k] || ''} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} /></div>
           ))}
+          <div className="sg-form-group">
+            <label>Batch</label>
+            <select value={form.batch_id || ''} onChange={e => {
+              const b = allBatches.find(x => String(x.id) === e.target.value);
+              setForm(p => ({ ...p, batch_id: e.target.value || '', batch_code: b?.batch_code || '' }));
+            }}>
+              <option value="">— Select batch —</option>
+              {allBatches.filter(b => b.status !== 'cancelled').map(b => (
+                <option key={b.id} value={b.id}>{b.batch_code}{b.course_title ? ` · ${b.course_title}` : ''}{b.centre_name ? ` · ${b.centre_name}` : ''}</option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="sg-modal-actions">
           <button className="sg-btn sg-btn-outline" onClick={() => setModal(null)}>Cancel</button>

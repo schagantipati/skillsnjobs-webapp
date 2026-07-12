@@ -687,6 +687,60 @@ function PanelCandidates() {
   );
 }
 
+function PanelEnrolments() {
+  const [data, loading] = useLoad(() => api.allEnrolments());
+  const [tab, setTab] = React.useState('all');
+  if (loading) return <Loading />;
+  const d = data || {};
+  const totals = d.totals || {};
+  const all = [...(d.self||[]), ...(d.trainer||[]), ...(d.vendor||[]), ...(d.state||[])].sort((a,b) => new Date(b.enroll_date||0) - new Date(a.enroll_date||0));
+  const rows = tab === 'all' ? all : (d[tab] || []);
+  const sourceColor = { self:'#DBEAFE', trainer:'#D1FAE5', vendor:'#EDE9FE', state:'#FEF3C7' };
+  const sourceText  = { self:'#1D4ED8', trainer:'#15803D', vendor:'#6D28D9', state:'#92400E' };
+  const sourceLabel = { self:'Self', trainer:'Trainer', vendor:'Vendor', state:'State Govt' };
+  return (
+    <>
+      <div className="ph"><h1>Enrolments</h1><p>Unified view across all portals — {all.length} total enrolments</p></div>
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{totals.self||0}</div><div className="lbl">Self-Enrolled</div><div className="sub">Candidate Portal</div></div>
+        <div className="kpi" style={{'--c':'#15803D'}}><div className="val">{totals.trainer||0}</div><div className="lbl">Batch Enrolled</div><div className="sub">Trainer Portal</div></div>
+        <div className="kpi" style={{'--c':'#6D28D9'}}><div className="val">{totals.vendor||0}</div><div className="lbl">Vendor Enrolled</div><div className="sub">Vendor Portal</div></div>
+        <div className="kpi" style={{'--c':'#D97706'}}><div className="val">{totals.state||0}</div><div className="lbl">State Beneficiaries</div><div className="sub">State Govt Portal</div></div>
+      </div>
+      <div className="card">
+        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+          {['all','self','trainer','vendor','state'].map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{ padding:'5px 14px', borderRadius:20, border:'none', cursor:'pointer', fontWeight:600, fontSize:12,
+              background: tab===t ? '#0B1E3D' : '#F1F5F9', color: tab===t ? '#fff' : '#374151' }}>
+              {t==='all' ? `All (${all.length})` : `${sourceLabel[t]} (${totals[t]||0})`}
+            </button>
+          ))}
+        </div>
+        {rows.length === 0 ? <Empty icon="📋" msg="No enrolments found." /> : (
+          <table className="sa-table">
+            <thead><tr><th>Source</th><th>Candidate</th><th>Contact</th><th>Course</th><th>Batch</th><th>Scheme</th><th>District/State</th><th>Status</th><th>Enrol Date</th></tr></thead>
+            <tbody>
+              {rows.slice(0,200).map((r,i) => (
+                <tr key={i}>
+                  <td><span style={{ fontSize:10, padding:'2px 7px', borderRadius:10, background:sourceColor[r.source]||'#F1F5F9', color:sourceText[r.source]||'#374151', fontWeight:700 }}>{sourceLabel[r.source]||r.source}</span></td>
+                  <td style={{ fontWeight:600, fontSize:'11px' }}>{r.candidate_name||'—'}</td>
+                  <td style={{ fontSize:'10.5px', color:'#6B7FA3' }}>{r.candidate_email||r.candidate_mobile||'—'}</td>
+                  <td style={{ fontSize:'11px' }}>{r.course_title||'—'}</td>
+                  <td style={{ fontSize:'10.5px' }}>{r.batch_code||'—'}</td>
+                  <td style={{ fontSize:'10.5px' }}>{r.scheme||'—'}</td>
+                  <td style={{ fontSize:'10.5px', color:'#6B7FA3' }}>{[r.district,r.state_name].filter(Boolean).join(', ')||'—'}</td>
+                  <td><Pill v={r.status||'enrolled'} map={{enrolled:'blue','in-training':'blue',assessed:'amber',certified:'green',placed:'green',completed:'green',dropped:'red',withdrawn:'red'}} /></td>
+                  <td style={{ fontSize:'10.5px', color:'#6B7FA3' }}>{r.enroll_date ? String(r.enroll_date).slice(0,10) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 function PanelBatches() {
   const [batches, loading] = useLoad(() => api.allBatches ? api.allBatches() : fetch('/api/batches', {headers:{Authorization:`Bearer ${localStorage.getItem('snj_token')}`}}).then(r=>r.json()));
   const list = Array.isArray(batches) ? batches : [];
@@ -1768,7 +1822,7 @@ export default function SuperadminDashboard() {
       case 'scheme-config': return <PanelComingSoon title="Scheme Configuration" desc="Configure scheme parameters, targets and eligibility." icon="⚙️" />;
 
       case 'candidate-reg': return <PanelCandidates />;
-      case 'enrolments': return <PanelComingSoon title="Enrolments" desc="Beneficiary enrolment records across all batches and schemes." icon="📋" />;
+      case 'enrolments': return <PanelEnrolments />;
       case 'batches': return <PanelBatches />;
       case 'attendance': return <PanelComingSoon title="Attendance" desc="Batch-level attendance records and compliance." icon="✅" />;
       case 'dropout': return <PanelComingSoon title="Dropout Management" desc="Dropout analysis and intervention tracking." icon="⚠️" />;
