@@ -695,10 +695,39 @@ function TrainersList({ activeSection, onNav }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [linkStatus, setLinkStatus] = useState(''); // '' | 'searching' | 'linked' | 'notfound'
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const fv = (k) => form[k] || '';
   const setErr = (k, msg) => setErrors(e => ({ ...e, [k]: msg }));
   const clearErr = (k) => setErrors(e => ({ ...e, [k]: '' }));
+
+  const openModal = (val) => {
+    setModal(val); setErrors({});
+    setLinkStatus(val === 'add' ? '' : (val.user_id ? 'linked' : ''));
+  };
+
+  const lookupTrainer = async (email) => {
+    if (!email || !/\S+@\S+\.\S+/.test(email)) return;
+    setLinkStatus('searching');
+    try {
+      const u = await api.lookupTrainerByEmail(email);
+      setForm(p => ({
+        ...p,
+        user_id:       u.id,
+        name:          p.name || u.name || '',
+        mobile:        p.mobile || (u.phone || '').replace(/^\+91/, '') || '',
+        dob:           p.dob   || u.dob   || '',
+        gender:        p.gender    || u.gender    || '',
+        category:      p.category  || u.category  || '',
+        pan:           p.pan   || u.pan   || '',
+        qualification: p.qualification || u.qualification || '',
+        sector:        p.sector || u.preferred_sector || '',
+      }));
+      setLinkStatus('linked');
+    } catch {
+      setLinkStatus('notfound');
+    }
+  };
 
   const save = async () => {
     if (!form.name) { setErr('name', 'Trainer name required'); return; }
@@ -727,7 +756,7 @@ function TrainersList({ activeSection, onNav }) {
         <div style={S.tblHdr}>
           <span style={{ fontWeight:700, fontSize:13, color:'#0B1E3D' }}>{trainers.length} trainers</span>
           <div style={{ marginLeft:'auto' }}>
-            <button style={S.btnPrimary} onClick={() => { setForm({}); setModal('add'); setErrors({}); }}>+ Add Trainer</button>
+            <button style={S.btnPrimary} onClick={() => { setForm({}); openModal('add'); }}>+ Add Trainer</button>
           </div>
         </div>
         {busy ? <Empty icon="⏳" msg="Loading…" /> : trainers.length === 0 ? <Empty icon="👨‍🏫" msg="No trainers added yet" /> : (
@@ -738,7 +767,10 @@ function TrainersList({ activeSection, onNav }) {
             <tbody>
               {trainers.map(t => (
                 <tr key={t.id}>
-                  <td style={S.td}><div style={{ fontWeight:600 }}>{t.name}</div><div style={{ fontSize:11, color:'#64748B' }}>{t.email}</div></td>
+                  <td style={S.td}>
+                    <div style={{ fontWeight:600 }}>{t.name}{t.user_id && <span style={{ marginLeft:6, fontSize:10, background:'#DCFCE7', color:'#15803D', borderRadius:4, padding:'1px 5px', fontWeight:600 }}>🔗 Linked</span>}</div>
+                    <div style={{ fontSize:11, color:'#64748B' }}>{t.email}</div>
+                  </td>
                   <td style={S.td}>{t.qualification || '—'}</td>
                   <td style={S.td}>{t.sector || '—'}</td>
                   <td style={S.td}>{t.experience_years ? `${t.experience_years} yrs` : '—'}</td>
@@ -747,7 +779,7 @@ function TrainersList({ activeSection, onNav }) {
                   <td style={S.td}>{statusPill(t.status)}</td>
                   <td style={S.td}>
                     <div style={{ display:'flex', gap:6 }}>
-                      <button style={S.btnSm} onClick={() => { setForm({ ...t }); setModal(t); setErrors({}); }}>Edit</button>
+                      <button style={S.btnSm} onClick={() => { setForm({ ...t }); openModal(t); }}>Edit</button>
                       <button style={S.btnSmDanger} onClick={() => del(t.id)}>Del</button>
                     </div>
                   </td>
@@ -759,7 +791,7 @@ function TrainersList({ activeSection, onNav }) {
       </div>
 
       {modal && (
-        <Modal title={modal === 'add' ? 'Add Trainer' : 'Edit Trainer'} onClose={() => { setModal(null); setErrors({}); }}>
+        <Modal title={modal === 'add' ? 'Add Trainer' : 'Edit Trainer'} onClose={() => { setModal(null); setErrors({}); setLinkStatus(''); }}>
           <div style={S.fGrid(2)}>
             {errors._global && <div style={{ gridColumn:'1/-1', background:'#FEE2E2', border:'1px solid #FECACA', color:'#991B1B', borderRadius:6, padding:'8px 12px', fontSize:12 }}>⚠ {errors._global}</div>}
             <div style={{ ...S.fGroup, gridColumn:'1/-1' }}>
@@ -767,11 +799,20 @@ function TrainersList({ activeSection, onNav }) {
               <input style={{ ...S.input, ...(errors.name ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }} value={fv('name')} onChange={e => { f('name')(e); clearErr('name'); }} />
               {errors.name && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.name}</div>}
             </div>
-            <div style={S.fGroup}><label style={S.label}>Email</label>
-              <input style={{ ...S.input, ...(errors.email ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}) }}
+            <div style={S.fGroup}>
+              <label style={S.label}>
+                Email
+                {linkStatus === 'searching' && <span style={{ marginLeft:6, fontSize:11, color:'#64748B' }}>🔍 Looking up…</span>}
+                {linkStatus === 'linked'    && <span style={{ marginLeft:6, fontSize:11, color:'#15803D', fontWeight:600 }}>🔗 Linked to trainer account</span>}
+                {linkStatus === 'notfound'  && <span style={{ marginLeft:6, fontSize:11, color:'#B45309' }}>No trainer account found — fields filled manually</span>}
+              </label>
+              <input style={{ ...S.input, ...(errors.email ? { borderColor:'#C0392B', background:'#FEF2F2' } : {}), ...(linkStatus === 'linked' ? { borderColor:'#16A34A', background:'#F0FDF4' } : {}) }}
                 type="email" value={fv('email')}
-                onChange={e => { f('email')(e); clearErr('email'); }}
-                onBlur={() => { const v = fv('email'); if (v) setErr('email', fieldValidate('email', v)); }} />
+                onChange={e => { f('email')(e); clearErr('email'); setLinkStatus(''); setForm(p => ({ ...p, user_id: undefined })); }}
+                onBlur={() => {
+                  const v = fv('email');
+                  if (v) { setErr('email', fieldValidate('email', v)); if (!errors.email) lookupTrainer(v); }
+                }} />
               {errors.email && <div style={{ color:'#C0392B', fontSize:11, marginTop:3, fontWeight:500 }}>⚠ {errors.email}</div>}
             </div>
             <div style={S.fGroup}><label style={S.label}>Mobile</label>

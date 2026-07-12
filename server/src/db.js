@@ -427,6 +427,17 @@ async function initDb() {
     );
   `);
 
+  // Column migrations — safe to run repeatedly
+  const colMigrations = [
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS dob TEXT",
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS gender TEXT",
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS category TEXT",
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS aadhaar TEXT",
+    "ALTER TABLE vendor_trainers ADD COLUMN IF NOT EXISTS pan TEXT",
+  ];
+  for (const sql of colMigrations) { await pool.query(sql); }
+
   // Seed org_classifications
   const ocCount = (await pool.query('SELECT COUNT(*) c FROM org_classifications')).rows[0].c;
   if (parseInt(ocCount) === 0) {

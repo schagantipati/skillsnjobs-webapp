@@ -83,10 +83,32 @@ router.delete('/centres/:id', auth, async (req, res) => {
 });
 
 // ── Trainers ──────────────────────────────────────────────────────────────────
+
+// Lookup a registered trainer user by email (for linking)
+router.get('/trainers/lookup', auth, async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ error: 'email required' });
+    const u = await queryOne(
+      `SELECT id, name, email, phone, gender, dob, category, pan, preferred_sector, qualification
+       FROM users WHERE LOWER(email)=LOWER($1) AND role='trainer'`, [email]);
+    if (!u) return res.status(404).json({ error: 'No registered trainer found with this email.' });
+    res.json(u);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
 router.get('/trainers', auth, async (req, res) => {
   try {
-    const rows = await query(`SELECT t.*, c.name AS centre_name FROM vendor_trainers t
+    const rows = await query(`
+      SELECT t.*, c.name AS centre_name,
+             u.name AS linked_name, u.email AS linked_email,
+             u.phone AS linked_phone, u.gender AS linked_gender,
+             u.dob AS linked_dob, u.category AS linked_category,
+             u.pan AS linked_pan, u.preferred_sector AS linked_sector,
+             u.qualification AS linked_qualification
+      FROM vendor_trainers t
       LEFT JOIN vendor_centres c ON c.id=t.centre_id
+      LEFT JOIN users u ON u.id=t.user_id
       WHERE t.vendor_id=$1 AND t.status!='deleted' ORDER BY t.created_at DESC`, [req.user.id]);
     res.json(rows);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
@@ -94,37 +116,66 @@ router.get('/trainers', auth, async (req, res) => {
 
 router.post('/trainers', auth, async (req, res) => {
   try {
-    const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id } = req.body;
+    const { name, email, mobile, qualification, sector, experience_years, nsqf_level,
+            centre_id, dob, gender, category, aadhaar, pan, user_id } = req.body;
     if (!name) return res.status(400).json({ error: 'Trainer name required' });
     const dup = await queryOne(
       "SELECT id FROM vendor_trainers WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted'",
       [req.user.id, name]);
     if (dup) return res.status(409).json({ error: `A trainer named "${name.trim()}" already exists.`, field: 'name' });
+
+    // Auto-link by email if user_id not provided
+    let resolvedUserId = user_id || null;
+    if (!resolvedUserId && email) {
+      const u = await queryOne("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND role='trainer'", [email]);
+      if (u) resolvedUserId = u.id;
+    }
+
     const result = await execute(`INSERT INTO vendor_trainers
-      (vendor_id,centre_id,name,email,mobile,qualification,sector,experience_years,nsqf_level)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [req.user.id, centre_id||null, name, email, mobile, qualification, sector, experience_years||0, nsqf_level]);
+      (vendor_id,centre_id,name,email,mobile,qualification,sector,experience_years,nsqf_level,dob,gender,category,aadhaar,pan,user_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      [req.user.id, centre_id||null, name, email||null, mobile||null, qualification||null,
+       sector||null, experience_years||0, nsqf_level||null,
+       dob||null, gender||null, category||null, aadhaar||null, pan||null, resolvedUserId]);
     res.json({ id: result.rows[0].id });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/trainers/:id', auth, async (req, res) => {
   try {
-    const { name, email, mobile, qualification, sector, experience_years, nsqf_level, centre_id, status } = req.body;
+    const { name, email, mobile, qualification, sector, experience_years, nsqf_level,
+            centre_id, status, dob, gender, category, aadhaar, pan, user_id } = req.body;
     if (name) {
       const dup = await queryOne(
         "SELECT id FROM vendor_trainers WHERE vendor_id=$1 AND LOWER(TRIM(name))=LOWER(TRIM($2)) AND status!='deleted' AND id!=$3",
         [req.user.id, name, req.params.id]);
       if (dup) return res.status(409).json({ error: `A trainer named "${name.trim()}" already exists.`, field: 'name' });
     }
+
+    // Auto-link by email if user_id not already set on this record
+    let resolvedUserId = user_id !== undefined ? (user_id || null) : undefined;
+    if (resolvedUserId === undefined && email) {
+      const existing = await queryOne('SELECT user_id FROM vendor_trainers WHERE id=$1', [req.params.id]);
+      if (!existing?.user_id) {
+        const u = await queryOne("SELECT id FROM users WHERE LOWER(email)=LOWER($1) AND role='trainer'", [email]);
+        resolvedUserId = u ? u.id : null;
+      }
+    }
+
     await execute(`UPDATE vendor_trainers SET
-      name=COALESCE($1,name),email=COALESCE($2,email),mobile=COALESCE($3,mobile),
-      qualification=COALESCE($4,qualification),sector=COALESCE($5,sector),
-      experience_years=COALESCE($6,experience_years),nsqf_level=COALESCE($7,nsqf_level),
-      centre_id=COALESCE($8,centre_id),status=COALESCE($9,status) WHERE id=$10 AND vendor_id=$11`,
+      name=COALESCE($1,name), email=COALESCE($2,email), mobile=COALESCE($3,mobile),
+      qualification=COALESCE($4,qualification), sector=COALESCE($5,sector),
+      experience_years=COALESCE($6,experience_years), nsqf_level=COALESCE($7,nsqf_level),
+      centre_id=COALESCE($8,centre_id), status=COALESCE($9,status),
+      dob=COALESCE($10,dob), gender=COALESCE($11,gender), category=COALESCE($12,category),
+      aadhaar=COALESCE($13,aadhaar), pan=COALESCE($14,pan),
+      user_id=COALESCE($15::integer,user_id)
+      WHERE id=$16 AND vendor_id=$17`,
       [name||null, email||null, mobile||null, qualification||null, sector||null,
        experience_years!=null?experience_years:null, nsqf_level||null,
-       centre_id||null, status||null, req.params.id, req.user.id]);
+       centre_id||null, status||null,
+       dob||null, gender||null, category||null, aadhaar||null, pan||null,
+       resolvedUserId!=null?resolvedUserId:null, req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
