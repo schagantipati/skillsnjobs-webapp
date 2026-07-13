@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -101,15 +101,19 @@ export default function AccountPreferences({ onLogout, cardStyle = {} }) {
   const [pwError, setPwError] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
 
-  // Notification preferences — load from localStorage if saved, else use role defaults
-  const [notifState, setNotifState] = useState(() => {
-    const defaults = Object.fromEntries(notifItems.map(([lbl,, checked]) => [lbl, checked]));
-    try {
-      const saved = localStorage.getItem(`snj_notif_${user?.id}`);
-      return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
-    } catch { return defaults; }
-  });
+  // Notification preferences — load from server (falls back to role defaults)
+  const [notifState, setNotifState] = useState(() =>
+    Object.fromEntries(notifItems.map(([lbl,, checked]) => [lbl, checked]))
+  );
   const [notifMsg, setNotifMsg] = useState('');
+  const [notifSaving, setNotifSaving] = useState(false);
+
+  useEffect(() => {
+    if (user?.notifications_pref) {
+      const defaults = Object.fromEntries(notifItems.map(([lbl,, checked]) => [lbl, checked]));
+      setNotifState({ ...defaults, ...user.notifications_pref });
+    }
+  }, [user?.id]); // eslint-disable-line
 
   // Delete account
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -230,12 +234,18 @@ export default function AccountPreferences({ onLogout, cardStyle = {} }) {
         ))}
         {notifMsg && <div style={{ marginTop: 10, fontSize: 13, color: '#1A7C3E' }}>{notifMsg}</div>}
         <div style={{ textAlign: 'right', marginTop: 14 }}>
-          <button style={btn} onClick={() => {
-            // Save to localStorage keyed by user id
-            localStorage.setItem(`snj_notif_${user?.id}`, JSON.stringify(notifState));
-            setNotifMsg('✅ Notification preferences saved.');
-            setTimeout(() => setNotifMsg(''), 3000);
-          }}>💾 Save Preferences</button>
+          <button style={btn} disabled={notifSaving} onClick={async () => {
+            setNotifSaving(true);
+            try {
+              const updated = await api.updateMe({ notifications_pref: notifState });
+              if (setUser) setUser(updated);
+              setNotifMsg('✅ Notification preferences saved.');
+            } catch { setNotifMsg('❌ Failed to save preferences.'); }
+            finally {
+              setNotifSaving(false);
+              setTimeout(() => setNotifMsg(''), 3000);
+            }
+          }}>{notifSaving ? 'Saving…' : '💾 Save Preferences'}</button>
         </div>
       </div>
 

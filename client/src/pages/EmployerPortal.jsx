@@ -202,6 +202,7 @@ export default function EmployerPortal() {
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [dbStats, setDbStats] = useState({});
+  const [menuPerms, setMenuPerms] = useState({});
   const searchRef = useRef(null);
 
   // ── Job management state ──
@@ -338,6 +339,13 @@ export default function EmployerPortal() {
   const GST_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
 
   useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['employer'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile-info','profile-contact','profile-docs','profile-bank','profile-hr']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(panel)) setPanel('dashboard'); }, [menuPerms]); // eslint-disable-line
+
+  useEffect(() => {
     api.dashboardStats().then(setDbStats).catch(() => {});
     // Load jobs and apps eagerly for dashboard
     api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
@@ -386,7 +394,8 @@ export default function EmployerPortal() {
 
   // ── SIDEBAR ──────────────────────────────────────────────────────────────
   function Sidebar() {
-    function NavItem({ icon, label, id, badge, onClick, active }) {
+    function NavItem({ icon, label, id, badge, onClick, active, permKey }) {
+      if (permKey && !allowed(permKey)) return null;
       return <div onClick={onClick} style={{ padding:'9px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:9, color: active ? '#fff' : 'rgba(255,255,255,.75)', background: active ? C.blue : 'transparent', transition:'.15s' }}
         onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(255,255,255,.07)'; }}
         onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent'; }}>
@@ -398,6 +407,7 @@ export default function EmployerPortal() {
     }
     function Sub({ id, children }) { return openMenus[id] ? <div style={{ background:'rgba(0,0,0,.12)' }}>{children}</div> : null; }
     function SubItem({ label, k }) {
+      if (!allowed(k)) return null;
       return <div onClick={()=>go(k)} style={{ padding:'7px 16px 7px 45px', cursor:'pointer', fontSize:12.5, color: panel===k ? C.blue : 'rgba(255,255,255,.52)', fontWeight: panel===k ? 600 : 400, transition:'.15s' }}
         onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='#fff'; }}
         onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color = panel===k ? C.blue : 'rgba(255,255,255,.52)'; }}>
@@ -498,9 +508,9 @@ export default function EmployerPortal() {
         </Sub>
 
         {lbl('Support')}
-        <NavItem icon="🎧" label="Helpdesk" active={panel==='helpdesk'} onClick={()=>go('helpdesk')} />
-        <NavItem icon="📣" label="Grievance" active={panel==='grievance'} onClick={()=>go('grievance')} />
-        <NavItem icon="❓" label="FAQ" active={panel==='faq'} onClick={()=>go('faq')} />
+        <NavItem icon="🎧" label="Helpdesk" permKey="helpdesk" active={panel==='helpdesk'} onClick={()=>go('helpdesk')} />
+        <NavItem icon="📣" label="Grievance" permKey="grievance" active={panel==='grievance'} onClick={()=>go('grievance')} />
+        <NavItem icon="❓" label="FAQ" permKey="faq" active={panel==='faq'} onClick={()=>go('faq')} />
 
         {lbl('Account')}
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />

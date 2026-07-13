@@ -175,6 +175,7 @@ export default function StateGovtPortal() {
   const routerNavigate = useNavigate();
   const [activePanel, setActivePanel] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
+  const [menuPerms, setMenuPerms] = useState({});
   const [stats, setStats] = useState(null);
   const [modal, setModal] = useState(null);
   const [tps, setTps] = useState([]);
@@ -207,6 +208,12 @@ export default function StateGovtPortal() {
     loadStats();
     api.allBatches().then(b => setAllBatches(Array.isArray(b) ? b : [])).catch(() => {});
   }, [loadStats]);
+  useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['state_government'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(activePanel)) setActivePanel('dashboard'); }, [menuPerms]); // eslint-disable-line
 
   const NEEDS_CANDIDATES = new Set(['candidate-list','enrolment','placements','dropouts','sectors','employers','live-analytics','pmkvy','ddu-gky','naps','state-scheme','csr-programs','mis-district']);
   const NEEDS_TPS = new Set(['tp-list','tp-onboard','tp-verify','tc-list','tc-map','trainer-list','assessor-list','enrolment','pmkvy','ddu-gky','naps','state-scheme','csr-programs']);
@@ -240,6 +247,7 @@ export default function StateGovtPortal() {
   const toggleMenu = (key) => setOpenMenus(p => ({ ...p, [key]: !p[key] }));
 
   const Nav = ({ id, icon, label, badge, children, menuKey }) => {
+    if (id && !allowed(id)) return null;
     if (children) {
       return (
         <>
@@ -258,11 +266,14 @@ export default function StateGovtPortal() {
     );
   };
 
-  const Child = ({ id, label }) => (
-    <div className={`sg-child${activePanel === id ? ' active' : ''}`} onClick={() => navigate(id)}>
-      <span className="dot" />{label}
-    </div>
-  );
+  const Child = ({ id, label }) => {
+    if (!allowed(id)) return null;
+    return (
+      <div className={`sg-child${activePanel === id ? ' active' : ''}`} onClick={() => navigate(id)}>
+        <span className="dot" />{label}
+      </div>
+    );
+  };
 
   // ══ PANELS ══
 

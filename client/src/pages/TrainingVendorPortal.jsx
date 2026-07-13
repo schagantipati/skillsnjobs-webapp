@@ -2518,7 +2518,15 @@ export default function TrainingVendorPortal() {
   const [openMenus, setOpenMenus] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [menuPerms, setMenuPerms] = useState({});
   const navigate = (key) => { setActiveKey(key); setSearchQuery(''); setSearchFocused(false); };
+
+  useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['training_vendor'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','org-profile','settings','onboarding']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(activeKey)) setActiveKey('dashboard'); }, [menuPerms]); // eslint-disable-line
 
   const searchResults = searchQuery.trim().length > 0
     ? SEARCH_INDEX.filter(item =>
@@ -2579,8 +2587,10 @@ export default function TrainingVendorPortal() {
               return item.section ? <div key={i} style={S.sbSection}>{item.section}</div> : <div key={i} style={{ height:6 }} />;
             }
             if (item.children) {
+              const visChildren = item.children.filter(c => allowed(c.key));
+              if (!visChildren.length) return null;
               const isOpen = openMenus[item.label];
-              const anyActive = item.children.some(c => c.key === activeKey);
+              const anyActive = visChildren.some(c => c.key === activeKey);
               return (
                 <div key={item.label}>
                   <div style={S.sbItem(anyActive)} onClick={() => toggleMenu(item.label)}>
@@ -2588,7 +2598,7 @@ export default function TrainingVendorPortal() {
                     <span>{item.label}</span>
                     <span style={S.sbChev(isOpen)}>▾</span>
                   </div>
-                  {isOpen && item.children.map(ch => (
+                  {isOpen && visChildren.map(ch => (
                     <div key={ch.key} style={S.sbChild(ch.key === activeKey)} onClick={() => navigate(ch.key)}>
                       <span style={{ width:5, height:5, borderRadius:'50%', background:'currentColor', flexShrink:0 }} />
                       {ch.label}
@@ -2611,6 +2621,7 @@ export default function TrainingVendorPortal() {
                 </div>
               );
             }
+            if (!allowed(item.key)) return null;
             return (
               <div key={item.key} style={S.sbItem(item.key === activeKey)} onClick={() => navigate(item.key)}>
                 <span>{item.icon}</span>

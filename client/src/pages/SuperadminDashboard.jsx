@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
+import AccountPreferences from '../components/AccountPreferences.jsx';
 
 const CSS = `
   .sa-wrap *{box-sizing:border-box;margin:0;padding:0}
@@ -1982,6 +1983,7 @@ export default function SuperadminDashboard() {
       case 'audit-logs': return <PanelAuditLogs />;
       case 'sys-settings': return <PanelComingSoon title="System Settings" desc="Platform-wide configuration and feature flags." icon="⚙️" />;
       case 'api-config': return <PanelComingSoon title="API Configuration" desc="Manage API keys, webhooks and third-party integrations." icon="🔗" />;
+      case 'settings': return <AccountPreferences onLogout={() => { logout(); navigate('/'); }} />;
 
       default: return <PanelComingSoon title={getLabel(activeId)} desc="This module is under development." />;
     }

@@ -228,6 +228,7 @@ export default function CandidatePortal() {
 
   const [active,      setActive]    = useState('dashboard');
   const [openMenus,   setOpenMenus] = useState({});
+  const [menuPerms,   setMenuPerms] = useState({});
   const [jobs,        setJobs]      = useState([]);
   const [courses,     setCourses]   = useState([]);
   const [myApps,      setMyApps]    = useState([]);
@@ -405,6 +406,13 @@ export default function CandidatePortal() {
   const initials = (u.name || 'CA').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
   useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['candidate'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile','profile-personal','skill-passport']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(active)) setActive('dashboard'); }, [menuPerms]); // eslint-disable-line
+
+  useEffect(() => {
     (async () => {
       try {
         const [j, c, apps, enroll, stats, certs, grievs] = await Promise.allSettled([
@@ -491,12 +499,16 @@ export default function CandidatePortal() {
 
         {/* Nav items */}
         <nav style={{ flex:1, padding:'4px 0', overflowY:'auto' }}>
-          {NAV.map(sec => (
+          {NAV.map(sec => {
+            const visItems = sec.items.filter(item => allowed(item.id));
+            if (!visItems.length) return null;
+            return (
             <div key={sec.section}>
               <div style={{ fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.28)',
                 letterSpacing:'1px', textTransform:'uppercase', padding:'8px 16px 3px' }}>{sec.section}</div>
-              {sec.items.map(item => {
-                const hasActiveChild = item.children && item.children.some(c => c.id === active);
+              {visItems.map(item => {
+                const visChildren = item.children ? item.children.filter(c => allowed(c.id)) : null;
+                const hasActiveChild = visChildren && visChildren.some(c => c.id === active);
                 const isActive = active === item.id;
                 return (
                   <div key={item.id}>
@@ -520,16 +532,16 @@ export default function CandidatePortal() {
                           <span style={{ fontSize:9, fontWeight:800, padding:'2px 6px', borderRadius:20,
                             background: item.badgeBlue ? C.blue : C.saffron, color:'#fff' }}>{item.badge}</span>
                         )}
-                        {item.children && (
+                        {visChildren && (
                           <span style={{ fontSize:10, color:'rgba(255,255,255,.35)',
                             display:'inline-block', transform: openMenus[item.id] ? 'rotate(180deg)' : 'none',
                             transition:'transform .2s' }}>▾</span>
                         )}
                       </div>
                     </div>
-                    {item.children && openMenus[item.id] && (
+                    {visChildren && openMenus[item.id] && (
                       <div>
-                        {item.children.map(ch => (
+                        {visChildren.map(ch => (
                           <div key={ch.id} onClick={() => go(ch.id)}
                             style={{ display:'flex', alignItems:'center', gap:7,
                               padding:'6px 14px 6px 43px', margin:'1px 8px', borderRadius:6, cursor:'pointer',
@@ -549,7 +561,8 @@ export default function CandidatePortal() {
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
       </aside>

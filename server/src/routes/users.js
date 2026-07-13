@@ -34,6 +34,7 @@ function publicUser(u) {
     bank_account_number: u.bank_account_number,
     training_centres: u.training_centres, centre_photos: u.centre_photos,
     vendor_profile: u.vendor_profile ? JSON.parse(u.vendor_profile) : null,
+    notifications_pref: u.notifications_pref || null,
     is_active: u.is_active, verification_status: u.verification_status,
   };
 }
@@ -61,6 +62,7 @@ router.put('/me', authRequired, async (req, res) => {
       ceo_name, spoc_name, ops_head, finance_contact, placement_officer,
       bank_account_name, bank_ifsc, bank_account_number,
       training_centres, centre_photos, vendor_profile,
+      notifications_pref,
     } = req.body;
 
     const e = await queryOne('SELECT * FROM users WHERE id = $1', [req.user.id]);
@@ -89,8 +91,9 @@ router.put('/me', authRequired, async (req, res) => {
       registration_number=$38, pan=$39, gstin=$40, year_established=$41, head_office=$42, branch_offices=$43,
       ceo_name=$44, spoc_name=$45, ops_head=$46, finance_contact=$47, placement_officer=$48,
       bank_account_name=$49, bank_ifsc=$50, bank_account_number=$51,
-      training_centres=$52, centre_photos=$53, vendor_profile=$54
-      WHERE id=$55`, [
+      training_centres=$52, centre_photos=$53, vendor_profile=$54,
+      notifications_pref=$55
+      WHERE id=$56`, [
       name ?? e.name, location ?? e.location, bio ?? e.bio,
       JSON.stringify(skills ?? JSON.parse(e.skills || '[]')),
       experience_years ?? e.experience_years, org_name ?? e.org_name,
@@ -112,6 +115,7 @@ router.put('/me', authRequired, async (req, res) => {
       bank_account_number ?? e.bank_account_number,
       training_centres ?? e.training_centres, centre_photos ?? e.centre_photos,
       vendor_profile !== undefined ? JSON.stringify(vendor_profile) : e.vendor_profile,
+      notifications_pref !== undefined ? notifications_pref : e.notifications_pref,
       req.user.id
     ]);
 
@@ -132,6 +136,14 @@ router.post('/me/change-password', authRequired, async (req, res) => {
     await execute('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
     await logAudit({ user: req.user, action: 'Password changed', entity: 'user', entityId: req.user.id, ip: req.ip });
     res.json({ message: 'Password updated successfully' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+router.delete('/me', authRequired, async (req, res) => {
+  try {
+    await logAudit({ user: req.user, action: 'Account deleted', entity: 'user', entityId: req.user.id, ip: req.ip });
+    await execute('DELETE FROM users WHERE id = $1', [req.user.id]);
+    res.json({ message: 'Account deleted successfully' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Internal server error' }); }
 });
 
@@ -397,7 +409,6 @@ router.get('/stats', authRequired, async (req, res) => {
 // Superadmin: get role permissions
 router.get('/admin/role-permissions', authRequired, async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin') return res.status(403).json({ error: 'Forbidden' });
     const rows = await query('SELECT role, menu_key, enabled FROM role_permissions ORDER BY role, menu_key', []);
     // Return as { role: { menu_key: bool } }
     const result = {};

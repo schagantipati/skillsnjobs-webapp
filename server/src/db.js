@@ -469,6 +469,8 @@ async function initDb() {
     "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS passing_marks INTEGER DEFAULT 50",
     "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS assessor TEXT",
     "ALTER TABLE vendor_assessments ADD COLUMN IF NOT EXISTS duration_hrs REAL",
+    // Account preferences
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications_pref JSONB",
   ];
   for (const sql of colMigrations) { await pool.query(sql); }
 

@@ -268,6 +268,7 @@ export default function TrainerPortal() {
   const [searchQ, setSearchQ] = useState('');
   const [searchShow, setSearchShow] = useState(false);
   const [dbStats, setDbStats] = useState({});
+  const [menuPerms, setMenuPerms] = useState({});
 
   // ── Batch management state ──
   const [myBatches, setMyBatches] = useState([]);
@@ -378,6 +379,12 @@ export default function TrainerPortal() {
 
   useEffect(() => { api.dashboardStats().then(setDbStats).catch(() => {}); }, []);
   useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['trainer'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile','profile-personal','profile-qualifications','profile-experience','profile-expertise','profile-certifications','profile-docs']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(panel)) setPanel('dashboard'); }, [menuPerms]); // eslint-disable-line
+  useEffect(() => {
     if (user) setPersonalForm(f => ({
       ...f,
       name: user.name || '',
@@ -454,10 +461,15 @@ export default function TrainerPortal() {
           <div><div style={{ color:'#fff', fontWeight:800, fontSize:14 }}>SkillsNJobs</div><div style={{ color:'rgba(255,255,255,.4)', fontSize:9.5 }}>TRAINER PORTAL</div></div>
         </div>
         <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
-        {NAV.map(sec => (
+        {NAV.map(sec => {
+          const visItems = sec.items.filter(item => allowed(item.id));
+          if (!visItems.length) return null;
+          return (
           <div key={sec.section}>
             <div style={{ padding:'14px 16px 4px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' }}>{sec.section}</div>
-            {sec.items.map(item => (
+            {visItems.map(item => {
+              const visChildren = item.children ? item.children.filter(c => allowed(c.id)) : null;
+              return (
               <div key={item.id}>
                 <div onClick={() => item.children ? toggleMenu(item.id) : go(item.id)}
                   style={{ padding:'9px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:9,
@@ -468,11 +480,11 @@ export default function TrainerPortal() {
                   <span style={{ width:20, textAlign:'center', fontSize:15, flexShrink:0 }}>{item.icon}</span>
                   <span style={{ flex:1, fontSize:13, fontWeight:500 }}>{item.label}</span>
                   {item.badge && <span style={{ background:C.red, color:'#fff', fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:10 }}>{item.badge}</span>}
-                  {item.children && <span style={{ fontSize:10, transition:'.2s', transform: openMenus[item.id] ? 'rotate(90deg)' : 'none', display:'inline-block' }}>›</span>}
+                  {visChildren && <span style={{ fontSize:10, transition:'.2s', transform: openMenus[item.id] ? 'rotate(90deg)' : 'none', display:'inline-block' }}>›</span>}
                 </div>
-                {item.children && openMenus[item.id] && (
+                {visChildren && openMenus[item.id] && (
                   <div style={{ background:'rgba(0,0,0,.15)' }}>
-                    {item.children.map(c => (
+                    {visChildren.map(c => (
                       <div key={c.id} onClick={() => go(c.id)}
                         style={{ padding:'7px 16px 7px 45px', cursor:'pointer', fontSize:12.5,
                           color: panel===c.id ? C.gold : 'rgba(255,255,255,.5)', fontWeight: panel===c.id ? 700 : 400 }}
@@ -484,9 +496,11 @@ export default function TrainerPortal() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
-        ))}
+          );
+        })}
       </div>
       </div>
     );

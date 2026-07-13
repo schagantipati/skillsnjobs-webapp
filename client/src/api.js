@@ -36,6 +36,7 @@ export const api = {
   me: () => request('/users/me'),
   updateMe: (payload) => request('/users/me', { method: 'PUT', body: payload }),
   changePassword: (current_password, new_password) => request('/users/me/change-password', { method: 'POST', body: { current_password, new_password } }),
+  deleteMe: () => request('/users/me', { method: 'DELETE' }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   candidates: () => request('/users/candidates'),
   allEnrolments: () => request('/users/enrolments'),

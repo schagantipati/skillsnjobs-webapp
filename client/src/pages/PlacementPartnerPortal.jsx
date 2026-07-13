@@ -182,6 +182,7 @@ export default function PlacementPartnerPortal() {
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [dbStats, setDbStats] = useState({});
+  const [menuPerms, setMenuPerms] = useState({});
   const searchRef = useRef(null);
 
   // ── Placement & Job state ──
@@ -448,6 +449,13 @@ export default function PlacementPartnerPortal() {
   }
 
   useEffect(() => {
+    api.getRolePermissions().then(all => setMenuPerms(all['placement_agency'] || {})).catch(() => {});
+  }, []);
+  const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile-info','profile-contact','profile-docs','profile-bank']);
+  const allowed = k => !k || PERM_LOCKED.has(k) || menuPerms[k] !== false;
+  useEffect(() => { if (Object.keys(menuPerms).length && !allowed(panel)) setPanel('dashboard'); }, [menuPerms]); // eslint-disable-line
+
+  useEffect(() => {
     api.dashboardStats().then(setDbStats).catch(() => {});
     api.myPlacements().then(p => { setMyPlacements(p); setPlacementsLoaded(true); }).catch(() => {});
     api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
@@ -504,7 +512,8 @@ export default function PlacementPartnerPortal() {
 
   // ── SIDEBAR ────────────────────────────────────────────────────────────────
   function Sidebar() {
-    function NavItem({ icon, label, id, badge, onClick, active }) {
+    function NavItem({ icon, label, id, badge, onClick, active, permKey }) {
+      if (permKey && !allowed(permKey)) return null;
       return <div onClick={onClick} style={{
         padding:'9px 18px', cursor:'pointer', display:'flex', alignItems:'center', gap:10,
         color: active ? '#fff' : 'rgba(255,255,255,.75)',
@@ -522,6 +531,7 @@ export default function PlacementPartnerPortal() {
       return openMenus[id] ? <div style={{ paddingLeft:0 }}>{children}</div> : null;
     }
     function SubItem({ label, k }) {
+      if (!allowed(k)) return null;
       return <div onClick={()=>go(k)} style={{
         padding:'7px 18px 7px 48px', cursor:'pointer', fontSize:12.5,
         color: panel===k ? C.blue : 'rgba(255,255,255,.55)', fontWeight: panel===k ? 600 : 400, transition:'.15s',
@@ -613,9 +623,9 @@ export default function PlacementPartnerPortal() {
         </Sub>
 
         {label('Support')}
-        <NavItem icon="🎧" label="Helpdesk" active={panel==='helpdesk'} onClick={()=>go('helpdesk')} />
-        <NavItem icon="📣" label="Grievance" active={panel==='grievance'} onClick={()=>go('grievance')} />
-        <NavItem icon="❓" label="FAQ" active={panel==='faq'} onClick={()=>go('faq')} />
+        <NavItem icon="🎧" label="Helpdesk" permKey="helpdesk" active={panel==='helpdesk'} onClick={()=>go('helpdesk')} />
+        <NavItem icon="📣" label="Grievance" permKey="grievance" active={panel==='grievance'} onClick={()=>go('grievance')} />
+        <NavItem icon="❓" label="FAQ" permKey="faq" active={panel==='faq'} onClick={()=>go('faq')} />
 
         {label('Account')}
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />
