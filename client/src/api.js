@@ -145,6 +145,13 @@ export const api = {
   vendorGrievances: () => request('/vendor/grievances'),
   createVendorGrievance: (b) => request('/vendor/grievances', { method: 'POST', body: b }),
   updateVendorGrievance: (id, b) => request(`/vendor/grievances/${id}`, { method: 'PUT', body: b }),
+  vendorCertifications: () => request('/vendor/certifications'),
+  vendorPlacements: () => request('/vendor/placements'),
+  vendorAnalytics: () => request('/vendor/analytics'),
+  vendorRevenue: () => request('/vendor/revenue'),
+  vendorAiInsights: () => request('/vendor/ai-insights'),
+  vendorMarketing: () => request('/vendor/marketing'),
+  vendorReviews: () => request('/vendor/reviews'),
 
   // ── CSR Organization Portal ──
   csrStats: () => request('/csr/stats'),
@@ -176,6 +183,7 @@ export const api = {
   markAttendance: (id, date, records) => request(`/batches/${id}/attendance`, { method: 'POST', body: { date, records } }),
 
   // ── Placements (Placement Partner Portal) ──
+  candidatePlacements: () => request('/placements/my'),
   myPlacements: () => request('/placements/mine'),
   placementSummary: () => request('/placements/summary'),
   createPlacement: (b) => request('/placements', { method: 'POST', body: b }),
@@ -295,6 +303,45 @@ export const api = {
   collabListResource: (payload) => request('/collaboration/resources', { method: 'POST', body: payload }),
   collabDeleteResource: (id) => request(`/collaboration/resources/${id}`, { method: 'DELETE' }),
   collabRequestResource: (id, payload) => request(`/collaboration/resources/${id}/request`, { method: 'POST', body: payload }),
+
+  // ── Candidate Features ──
+  savedJobs: () => request('/candidate/saved-jobs'),
+  saveJob: (jobId) => request(`/candidate/saved-jobs/${jobId}`, { method: 'POST' }),
+  unsaveJob: (jobId) => request(`/candidate/saved-jobs/${jobId}`, { method: 'DELETE' }),
+
+  getJobAlert: () => request('/candidate/job-alerts'),
+  upsertJobAlert: (payload) => request('/candidate/job-alerts', { method: 'PUT', body: payload }),
+
+  candidateNotifications: () => request('/candidate/notifications'),
+  markAllNotificationsRead: () => request('/candidate/notifications/mark-read', { method: 'PUT' }),
+  markNotificationRead: (id) => request(`/candidate/notifications/${id}/read`, { method: 'PUT' }),
+
+  getResume: () => request('/candidate/resume'),
+  saveResume: (content) => request('/candidate/resume', { method: 'POST', body: { content } }),
+
+  // ── AI Features (Python backend) ──
+  // Resume Parser
+  parseResume: (text) => request('/ai/resume/parse', { method: 'POST', body: { text } }),
+  parseResumeFile: (data, content_type) => request('/ai/resume/parse-url', { method: 'POST', body: { data, content_type } }),
+
+  // Job Matching
+  aiJobsForMe: () => request('/ai/matching/jobs-for-me'),
+  aiCandidatesForJob: (jobId) => request(`/ai/matching/candidates-for-job/${jobId}`),
+  aiExplainMatch: (payload) => request('/ai/matching/explain-match', { method: 'POST', body: payload }),
+
+  // Dropout Risk
+  dropoutRiskBatch: (batchId) => request(`/ai/dropout/batch/${batchId}`),
+  dropoutRiskSummary: () => request('/ai/dropout/trainer-summary'),
+  dropoutRiskVendor: () => request('/ai/dropout/vendor-summary'),
+
+  // Training Analytics
+  trainingOutcomes: () => request('/ai/analytics/training-outcomes'),
+  aiInsights: (metrics, context) => request('/ai/analytics/ai-insights', { method: 'POST', body: { metrics, context } }),
+  skillGapAnalysis: () => request('/ai/analytics/skill-gap-analysis'),
+
+  // Chatbot
+  chatbot: (message, history = []) => request('/ai/chatbot/chat', { method: 'POST', body: { message, history } }),
+  chatbotSuggestions: () => request('/ai/chatbot/suggestions'),
 };
 
 export function setToken(token) {

@@ -89,9 +89,11 @@ export default function Register() {
   const [addrLine1, setAddrLine1] = useState('');
   const [addrLine2, setAddrLine2] = useState('');
   const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
   const [stateName, setStateName] = useState('');
   const [country, setCountry] = useState('India');
   const [pincode, setPincode] = useState('');
+  const [pinLookupLoading, setPinLookupLoading] = useState(false);
 
   // Date parts — shared for both candidate DOB and vendor incorporation date
   const [dateDay, setDateDay] = useState('');
@@ -383,9 +385,55 @@ export default function Register() {
                   <input value={addrLine2} onChange={e => setAddrLine2(e.target.value)} placeholder="Landmark, Colony (optional)" />
                 </Field>
                 <div className="grid grid-2">
-                  <Field label="City / Town" required>
-                    <input value={city} onChange={e => setCity(e.target.value)} placeholder="City" required />
+                  <Field label={country === 'India' ? 'PIN Code' : 'ZIP / Postal Code'} required>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        value={pincode}
+                        maxLength={country === 'India' ? 6 : 10}
+                        inputMode="numeric"
+                        onChange={async e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, country === 'India' ? 6 : 10);
+                          setPincode(val);
+                          setPincodeError('');
+                          if (country === 'India' && val.length === 6) {
+                            setPinLookupLoading(true);
+                            try {
+                              const res = await fetch(`https://api.postalpincode.in/pincode/${val}`);
+                              const data = await res.json();
+                              if (data[0]?.Status === 'Success') {
+                                const po = data[0].PostOffice[0];
+                                setCity(po.Division || po.Block || po.Name || '');
+                                setDistrict(po.District || '');
+                                setStateName(po.State || '');
+                              }
+                            } catch (_) {}
+                            finally { setPinLookupLoading(false); }
+                          }
+                        }}
+                        onBlur={() => { if (country === 'India' && pincode) setPincodeError(pincode.length === 6 ? '' : 'Must be a 6-digit PIN code'); }}
+                        placeholder={country === 'India' ? '6-digit PIN' : 'Postal code'}
+                        required
+                        style={{ paddingRight: pinLookupLoading ? 30 : undefined, ...(pincodeError ? { borderColor: '#EF4444' } : {}) }}
+                      />
+                      {pinLookupLoading && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 12 }}>⏳</span>}
+                      {pincodeError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{pincodeError}</div>}
+                    </div>
                   </Field>
+                  <Field label="Country" required>
+                    <select value={country} onChange={e => setCountry(e.target.value)} required>
+                      {COUNTRIES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <div className="grid grid-2">
+                  <Field label="City / Town" required>
+                    <input value={city} onChange={e => setCity(e.target.value)} placeholder={pinLookupLoading ? 'Looking up…' : 'Auto-filled from PIN'} required />
+                  </Field>
+                  <Field label="District">
+                    <input value={district} onChange={e => setDistrict(e.target.value)} placeholder="Auto-filled from PIN" />
+                  </Field>
+                </div>
+                <div className="grid grid-2">
                   <Field label="State / Province" required>
                     {country === 'India' ? (
                       <select value={stateName} onChange={e => setStateName(e.target.value)} required>
@@ -395,22 +443,6 @@ export default function Register() {
                     ) : (
                       <input value={stateName} onChange={e => setStateName(e.target.value)} placeholder="State / Province" required />
                     )}
-                  </Field>
-                </div>
-                <div className="grid grid-2">
-                  <Field label="Country" required>
-                    <select value={country} onChange={e => setCountry(e.target.value)} required>
-                      {COUNTRIES.map(c => <option key={c}>{c}</option>)}
-                    </select>
-                  </Field>
-                  <Field label={country === 'India' ? 'PIN Code' : 'ZIP / Postal Code'} required>
-                    <div style={{ width: '100%' }}>
-                      <input value={pincode} onChange={e => { setPincode(e.target.value.replace(/\D/g, '').slice(0, 10)); setPincodeError(''); }}
-                        onBlur={() => { if (country === 'India' && pincode) setPincodeError(pincode.length === 6 ? '' : 'Must be a 6-digit PIN code'); }}
-                        placeholder={country === 'India' ? '6-digit PIN' : 'Postal code'} required
-                        style={pincodeError ? { borderColor: '#EF4444' } : undefined} />
-                      {pincodeError && <div style={{ color: '#EF4444', fontSize: 11, marginTop: 3 }}>{pincodeError}</div>}
-                    </div>
                   </Field>
                 </div>
               </div>
