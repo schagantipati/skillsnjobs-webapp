@@ -26,9 +26,6 @@ const SECTORS = ['Retail','IT / ITeS','BFSI','Healthcare','Construction','Logist
 const NAV = [
   { section:'Main', items:[
     { id:'dashboard',     icon:'🏠', label:'Dashboard' },
-    { id:'notifications', icon:'🔔', label:'Notifications', badge:5, badgeRed:true },
-  ]},
-  { section:'My Profile', items:[
     { id:'profile', icon:'👤', label:'My Profile', children:[
       { id:'profile-personal',        label:'Personal Information' },
       { id:'profile-qualifications',  label:'Educational Qualifications' },
@@ -37,6 +34,7 @@ const NAV = [
       { id:'profile-certifications',  label:'Certifications & Awards' },
       { id:'profile-docs',            label:'Documents & KYC' },
     ]},
+    { id:'notifications', icon:'🔔', label:'Notifications', badge:5, badgeRed:true },
   ]},
   { section:'Training Management', items:[
     { id:'batch', icon:'📋', label:'Batch Management', children:[
@@ -103,6 +101,39 @@ const NAV = [
       { id:'scheme-rpl',   label:'RPL — Prior Learning' },
       { id:'scheme-naps',  label:'NAPS / NATS' },
       { id:'scheme-ddu',   label:'DDU-GKY' },
+    ]},
+  ]},
+  { section:'Communication', items:[
+    { id:'communication', icon:'📢', label:'Announcements', children:[
+      { id:'announce-send',    label:'Send Announcement' },
+      { id:'announce-history', label:'Announcement History' },
+    ]},
+  ]},
+  { section:'Feedback & Ratings', items:[
+    { id:'feedback', icon:'⭐', label:'Feedback & Ratings', children:[
+      { id:'feedback-session',  label:'Session Feedback' },
+      { id:'feedback-overall',  label:'My Trainer Rating' },
+    ]},
+  ]},
+  { section:'Earnings', items:[
+    { id:'earnings', icon:'💰', label:'Earnings & Payments', children:[
+      { id:'earnings-history', label:'Payment History' },
+      { id:'earnings-pending', label:'Pending Dues' },
+      { id:'earnings-bank',    label:'Bank Details' },
+    ]},
+  ]},
+  { section:'Job Board', items:[
+    { id:'jobs', icon:'💼', label:'Job Board', children:[
+      { id:'jobs-browse',   label:'Browse Jobs' },
+      { id:'jobs-referrals',label:'My Referrals' },
+    ]},
+  ]},
+  { section:'AI Tools', items:[
+    { id:'ai', icon:'🤖', label:'AI Assistant', children:[
+      { id:'ai-session',    label:'Session Planner' },
+      { id:'ai-assessment', label:'Assessment Builder' },
+      { id:'ai-insights',   label:'Batch Insights' },
+      { id:'ai-dropout',    label:'Dropout Risk' },
     ]},
   ]},
   { section:'Support', items:[
@@ -265,6 +296,8 @@ export default function TrainerPortal() {
   const navigate = useNavigate();
   const [panel, setPanel] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [searchShow, setSearchShow] = useState(false);
   const [dbStats, setDbStats] = useState({});
@@ -273,7 +306,7 @@ export default function TrainerPortal() {
   // ── Batch management state ──
   const [myBatches, setMyBatches] = useState([]);
   const [batchesLoaded, setBatchesLoaded] = useState(false);
-  const [batchForm, setBatchForm] = useState({ name:'', batch_code:'', start_date:'', end_date:'', capacity:30, status:'upcoming', scheme_type:'None' });
+  const [batchForm, setBatchForm] = useState({ name:'', batch_code:'', course_id:'', start_date:'', end_date:'', capacity:30, status:'upcoming', scheme_type:'None', mode:'Classroom', venue:'' });
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchMsg, setBatchMsg] = useState('');
   const [selectedBatchId, setSelectedBatchId] = useState(null);
@@ -325,12 +358,12 @@ export default function TrainerPortal() {
   // Mock Tests
   const [mockList, setMockList] = useState([]);
   const [showAddMock, setShowAddMock] = useState(false);
-  const [mockForm, setMockForm] = useState({ batch_id:'', subject:'', date:'', duration_min:'60', questions:'50' });
+  const [mockForm, setMockForm] = useState({ batch_id:'', subject:'', date:'', duration_min:'60', questions:'50', total_marks:'100', passing_marks:'50', mode:'Online', time_slot:'' });
 
   // Content
   const [contentList, setContentList] = useState([]);
   const [showAddContent, setShowAddContent] = useState(false);
-  const [contentForm, setContentForm] = useState({ type:'Study Material (PDF)', title:'', description:'', batch_targets:'All', file_name:'' });
+  const [contentForm, setContentForm] = useState({ type:'Study Material (PDF)', title:'', description:'', batch_targets:'All', file_name:'', url:'' });
 
   // Support Tickets
   const [ticketList, setTicketList] = useState([]);
@@ -363,6 +396,14 @@ export default function TrainerPortal() {
   const [reportPlacement, setReportPlacement] = useState([]);
   const [reportScheme, setReportScheme] = useState([]);
   const [certEligible, setCertEligible] = useState([]);
+  const [certIssued, setCertIssued] = useState([]);
+  const [certIssuedLoading, setCertIssuedLoading] = useState(true);
+  useEffect(() => {
+    api.trainerCertIssued()
+      .then(r => setCertIssued(Array.isArray(r) ? r : []))
+      .catch(() => {})
+      .finally(() => setCertIssuedLoading(false));
+  }, []);
 
   // Notifications
   const [notifList, setNotifList] = useState([]);
@@ -372,10 +413,104 @@ export default function TrainerPortal() {
   const [certVerifyResult, setCertVerifyResult] = useState(null); // null=untouched, false=not found, object=found
   const [certVerifying, setCertVerifying] = useState(false);
 
+  // Course dropdown (PanelBatchCreate) — must be top-level (Rules of Hooks)
+  const [courseOpts, setCourseOpts] = useState([]);
+  useEffect(() => { api.courses().then(r => setCourseOpts(Array.isArray(r) ? r : r.courses || [])).catch(() => {}); }, []);
+
+  // Announcements (PanelAnnounceSend / PanelAnnounceHistory)
+  const [announceForm, setAnnounceForm] = useState({ batch_id:'', title:'', message:'', priority:'Normal' });
+  const [announceSent, setAnnounceSent] = useState([]);
+  const [announceSaving, setAnnounceSaving] = useState(false);
+  const [announceHistory, setAnnounceHistory] = useState([]);
+  const [announceHistoryLoading, setAnnounceHistoryLoading] = useState(true);
+  useEffect(() => {
+    api.trainerAnnouncements()
+      .then(r => setAnnounceHistory(Array.isArray(r) ? r : r.announcements || []))
+      .catch(() => {})
+      .finally(() => setAnnounceHistoryLoading(false));
+  }, []);
+
+  // Bank Details (PanelEarningsBank)
+  const [bankForm, setBankForm] = useState({ account_name:'', account_no:'', ifsc:'', bank_name:'', branch:'', upi_id:'' });
+  const [bankSaving, setBankSaving] = useState(false);
+  const [bankSaved, setBankSaved] = useState(false);
+  useEffect(() => {
+    api.trainerBankDetails()
+      .then(r => { if (r && r.account_name) setBankForm({ account_name:r.account_name||'', account_no:r.account_no||'', ifsc:r.ifsc||'', bank_name:r.bank_name||'', branch:r.branch||'', upi_id:r.upi_id||'' }); })
+      .catch(() => {});
+  }, []);
+
+  // Job Board (PanelJobsBrowse)
+  const [jobsList, setJobsList] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [referModal, setReferModal] = useState(null);
+  const [referEmail, setReferEmail] = useState('');
+  const [referNote, setReferNote] = useState('');
+  const [referSending, setReferSending] = useState(false);
+  const [referrals, setReferrals] = useState([]);
+  const [referralsLoading, setReferralsLoading] = useState(true);
+  useEffect(() => {
+    api.jobs().then(r => { setJobsList(Array.isArray(r) ? r : r.jobs || []); setJobsLoading(false); })
+      .catch(() => setJobsLoading(false));
+    api.trainerReferrals().then(r => setReferrals(Array.isArray(r) ? r : [])).catch(() => {}).finally(() => setReferralsLoading(false));
+  }, []);
+
+  // Feedback & Ratings state
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(true);
+  const [ratingSummary, setRatingSummary] = useState(null);
+  useEffect(() => {
+    api.trainerFeedbackSessions().then(r => setFeedbackList(Array.isArray(r) ? r : [])).catch(() => {}).finally(() => setFeedbackLoading(false));
+    api.trainerRatingSummary().then(r => setRatingSummary(r)).catch(() => {});
+  }, []);
+
+  // Payments state
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [paymentPending, setPaymentPending] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  useEffect(() => {
+    Promise.all([api.trainerPaymentHistory(), api.trainerPaymentPending()])
+      .then(([hist, pend]) => {
+        setPaymentHistory(Array.isArray(hist) ? hist : []);
+        setPaymentPending(Array.isArray(pend?.pending) ? pend.pending : []);
+      }).catch(() => {}).finally(() => setPaymentsLoading(false));
+  }, []);
+
+  // AI Tools state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSuggestions, setChatSuggestions] = useState([]);
+  useEffect(() => { api.chatbotSuggestions().then(r => setChatSuggestions(r.suggestions || [])).catch(() => {}); }, []);
+
+  const [sessionPlan, setSessionPlan] = useState({ topic:'', batch_id:'', duration:'60', learner_count:'', objectives:'', prior_knowledge:'' });
+  const [sessionPlanResult, setSessionPlanResult] = useState('');
+  const [sessionPlanLoading, setSessionPlanLoading] = useState(false);
+
+  const [assessBuilder, setAssessBuilder] = useState({ topic:'', type:'MCQ', count:'10', difficulty:'Medium', batch_id:'' });
+  const [assessBuilderResult, setAssessBuilderResult] = useState('');
+  const [assessBuilderLoading, setAssessBuilderLoading] = useState(false);
+
+  const [batchInsights, setBatchInsights] = useState(null);
+  const [batchInsightsLoading, setBatchInsightsLoading] = useState(false);
+  const [batchInsightsBatch, setBatchInsightsBatch] = useState('');
+
+  const [dropoutData, setDropoutData] = useState(null);
+  const [dropoutLoading, setDropoutLoading] = useState(false);
+  const [dropoutBatch, setDropoutBatch] = useState('');
+
   function showToast(msg, type = 'success') {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   }
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [panel]); // eslint-disable-line
 
   useEffect(() => { api.dashboardStats().then(setDbStats).catch(() => {}); }, []);
   useEffect(() => {
@@ -455,30 +590,34 @@ export default function TrainerPortal() {
   // ── SIDEBAR ──────────────────────────────────────────────────────
   function Sidebar() {
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+      <>
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column', transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)', transition:'transform 0.25s ease' }}>
         <div style={{ padding:'0 16px', height:TH, minHeight:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.08)', flexShrink:0 }}>
           <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div><div style={{ color:'#fff', fontWeight:800, fontSize:14 }}>SkillsNJobs</div><div style={{ color:'rgba(255,255,255,.4)', fontSize:9.5 }}>TRAINER PORTAL</div></div>
         </div>
-        <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
+        <div style={{ flex:1, overflowY:'auto', paddingBottom:4 }}>
         {NAV.map(sec => {
           const visItems = sec.items.filter(item => allowed(item.id));
           if (!visItems.length) return null;
           return (
           <div key={sec.section}>
-            <div style={{ padding:'14px 16px 4px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' }}>{sec.section}</div>
+            <div style={{ padding:'6px 16px 2px', fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'.08em', textTransform:'uppercase' }}>{sec.section}</div>
             {visItems.map(item => {
               const visChildren = item.children ? item.children.filter(c => allowed(c.id)) : null;
               return (
               <div key={item.id}>
                 <div onClick={() => item.children ? toggleMenu(item.id) : go(item.id)}
-                  style={{ padding:'9px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:9,
+                  style={{ padding:'5px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:9,
                     color: panel===item.id ? '#fff' : 'rgba(255,255,255,.72)',
                     background: panel===item.id ? C.blue : 'transparent' }}
                   onMouseEnter={e => { if(panel!==item.id) e.currentTarget.style.background='rgba(255,255,255,.07)'; }}
                   onMouseLeave={e => { if(panel!==item.id) e.currentTarget.style.background='transparent'; }}>
-                  <span style={{ width:20, textAlign:'center', fontSize:15, flexShrink:0 }}>{item.icon}</span>
-                  <span style={{ flex:1, fontSize:13, fontWeight:500 }}>{item.label}</span>
+                  <span style={{ width:20, textAlign:'center', fontSize:14, flexShrink:0 }}>{item.icon}</span>
+                  <span style={{ flex:1, fontSize:12.5, fontWeight:500 }}>{item.label}</span>
                   {item.badge && <span style={{ background:C.red, color:'#fff', fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:10 }}>{item.badge}</span>}
                   {visChildren && <span style={{ fontSize:10, transition:'.2s', transform: openMenus[item.id] ? 'rotate(90deg)' : 'none', display:'inline-block' }}>›</span>}
                 </div>
@@ -486,7 +625,7 @@ export default function TrainerPortal() {
                   <div style={{ background:'rgba(0,0,0,.15)' }}>
                     {visChildren.map(c => (
                       <div key={c.id} onClick={() => go(c.id)}
-                        style={{ padding:'7px 16px 7px 45px', cursor:'pointer', fontSize:12.5,
+                        style={{ padding:'5px 16px 5px 45px', cursor:'pointer', fontSize:12,
                           color: panel===c.id ? C.gold : 'rgba(255,255,255,.5)', fontWeight: panel===c.id ? 700 : 400 }}
                         onMouseEnter={e => { e.currentTarget.style.color='#fff'; }}
                         onMouseLeave={e => { e.currentTarget.style.color = panel===c.id ? C.gold : 'rgba(255,255,255,.5)'; }}>
@@ -503,13 +642,17 @@ export default function TrainerPortal() {
         })}
       </div>
       </div>
+      </>
     );
   }
 
   // ── TOPBAR ────────────────────────────────────────────────────────
   function Topbar() {
     return (
-      <div style={{ position:'fixed', top:0, left:SW, right:0, height:TH, background:'#fff', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+      <div style={{ position:'fixed', top:0, left: isMobile ? 0 : SW, right:0, height:TH, background:'#fff', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+        )}
         <div style={{ flex:1, maxWidth:400, position:'relative' }}>
           <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
             onFocus={() => setSearchShow(true)} onBlur={() => setTimeout(() => setSearchShow(false), 150)}
@@ -529,86 +672,232 @@ export default function TrainerPortal() {
             </div>
           )}
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginLeft:'auto' }}>
+          {/* Notification bell */}
           <div style={{ cursor:'pointer', padding:6, position:'relative', fontSize:18 }} onClick={() => go('notifications')}>
-            🔔<span style={{ position:'absolute', top:2, right:2, width:17, height:17, borderRadius:'50%', background:C.red, color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>5</span>
+            🔔{notifList.length > 0 && (
+              <span style={{ position:'absolute', top:2, right:2, width:17, height:17, borderRadius:'50%', background:C.red, color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{notifList.length > 9 ? '9+' : notifList.length}</span>
+            )}
           </div>
-          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>AK</div>
-          <div style={{ lineHeight:1.25 }}>
-            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.name || 'Aryan Kapoor'}</div>
-            <div style={{ fontSize:11.5, color:C.ink3 }}>Trainer · SkillBridge Institute</div>
+          {/* Avatar with tooltip */}
+          <div style={{ position:'relative' }}
+            onMouseEnter={e => { const t = e.currentTarget.querySelector('.tp-tooltip'); if(t){t.style.opacity='1';t.style.pointerEvents='auto';} }}
+            onMouseLeave={e => { const t = e.currentTarget.querySelector('.tp-tooltip'); if(t){t.style.opacity='0';t.style.pointerEvents='none';} }}>
+            <div onClick={() => go('profile-personal')} style={{ display:'flex', alignItems:'center', padding:5, borderRadius:'50%', background:C.surface, border:`1px solid ${C.border}`, cursor:'pointer' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:`linear-gradient(135deg,${C.blue},${C.teal})`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:14, color:'#fff', border:`2px solid ${C.bluePale||'#e0e7ff'}` }}>
+                {(user?.name||'T').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}
+              </div>
+            </div>
+            <div className="tp-tooltip" style={{ position:'absolute', top:'calc(100% + 8px)', right:0, zIndex:500, background:'#fff', border:`1px solid ${C.border}`, borderRadius:12, padding:'12px 14px', minWidth:190, boxShadow:'0 8px 24px rgba(0,0,0,.12)', opacity:0, pointerEvents:'none', transition:'opacity 0.15s ease', whiteSpace:'nowrap' }}>
+              <div style={{ fontSize:13, fontWeight:700, color:C.navy }}>{user?.name||'Trainer'}</div>
+              <div style={{ fontSize:11, color:C.ink3, marginTop:2 }}>Trainer{user?.org_name ? ` · ${user.org_name}` : ''}</div>
+              <div style={{ marginTop:10, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+                <button onClick={() => go('profile-personal')} style={{ width:'100%', padding:'5px 0', background:C.navy, color:'#fff', border:'none', borderRadius:7, fontSize:11.5, fontWeight:600, cursor:'pointer' }}>View Profile →</button>
+              </div>
+            </div>
           </div>
-          <button onClick={handleLogout} style={{ background:C.blue, color:'#fff', border:'none', padding:'7px 16px', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer' }}>⏻ Sign Out</button>
+          {/* Sign out icon button */}
+          <button onClick={handleLogout} title="Sign Out" style={{ display:'flex', alignItems:'center', justifyContent:'center', width:38, height:38, borderRadius:'50%', border:'none', background:C.blue, color:'#fff', fontSize:18, cursor:'pointer' }}>⏻</button>
         </div>
       </div>
     );
   }
 
   // ── PANELS ────────────────────────────────────────────────────────
-  const u = { name: user?.name || 'Aryan Kapoor', email: user?.email || 'trainer@skillbridge.in', phone: user?.phone || '9876543210' };
+  const u = { name: user?.name || '', email: user?.email || '', phone: user?.phone || '' };
 
   function PanelDashboard() {
     const todayStr = new Date().toISOString().slice(0, 10);
+    const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+    const monthStart = todayStr.slice(0, 7) + '-01';
+
     const batchLookup = Object.fromEntries(reportBatch.map(b => [b.id, b]));
     const attLookup = Object.fromEntries(reportAtt.map(b => [b.id, b]));
     const perfColors = [C.green, C.blue, C.teal, C.gold, C.purple];
 
     const todaySessions = sessionList.filter(s => s.session_date && s.session_date.slice(0, 10) === todayStr);
+    const sessionsThisMonth = sessionList.filter(s => s.session_date && s.session_date.slice(0, 7) === todayStr.slice(0, 7));
+    const pendingAssessments = assessList.filter(a => a.date >= todayStr && a.status !== 'completed' && a.status !== 'cancelled');
+    const atRiskLearners = reportDropout.length;
+    const placementCount = reportPlacement.length;
+
+    // Learner funnel
+    const totalEnrolled = reportBatch.reduce((s, b) => s + (b.enrolled || 0), 0);
+    const totalCompleted = reportBatch.reduce((s, b) => s + (b.completed_count || 0), 0);
+    const totalPassed = reportBatch.reduce((s, b) => s + (b.passed_count || 0), 0);
 
     const activity = [
-      ...sessionList.map(s => ({ date: s.created_at, dot: C.blue, title: `Session "${s.topic}" scheduled for ${batchLookup[s.batch_id]?.batch_code || 'a batch'} on ${formatDate(s.session_date)}` })),
-      ...assessList.map(a => ({ date: a.created_at, dot: C.gold, title: `${a.type} assessment scheduled for ${batchLookup[a.batch_id]?.batch_code || 'a batch'} on ${formatDate(a.date)}` })),
-      ...mockList.map(m => ({ date: m.created_at, dot: C.teal, title: `Mock test "${m.subject}" scheduled for ${formatDate(m.date)}` })),
-      ...contentList.map(c => ({ date: c.created_at, dot: C.purple, title: `Content "${c.title}" uploaded` })),
-    ].filter(a => a.date).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+      ...sessionList.map(s => ({ date: s.created_at, dot: C.blue, icon: '📅', title: `Session "${s.topic}" scheduled for ${batchLookup[s.batch_id]?.batch_code || 'a batch'} on ${formatDate(s.session_date)}` })),
+      ...assessList.map(a => ({ date: a.created_at, dot: C.gold, icon: '📝', title: `${a.type} assessment scheduled for ${batchLookup[a.batch_id]?.batch_code || 'a batch'} on ${formatDate(a.date)}` })),
+      ...mockList.map(m => ({ date: m.created_at, dot: C.teal, icon: '🧪', title: `Mock test "${m.subject}" scheduled for ${formatDate(m.date)}` })),
+      ...contentList.map(c => ({ date: c.created_at, dot: C.purple, icon: '📤', title: `Content "${c.title}" uploaded` })),
+    ].filter(a => a.date).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
 
-    const upcoming = [
-      ...sessionList.filter(s => s.session_date >= todayStr).map(s => ({ date: s.session_date, dot: C.blue, title: `${s.topic} — ${batchLookup[s.batch_id]?.batch_code || 'Batch'}`, meta: [formatDate(s.session_date), s.start_time, s.venue].filter(Boolean).join(' · ') })),
-      ...assessList.filter(a => a.date >= todayStr).map(a => ({ date: a.date, dot: C.gold, title: `${a.type} Assessment — ${batchLookup[a.batch_id]?.batch_code || 'Batch'}`, meta: formatDate(a.date) })),
-    ].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 4);
+    const upcomingWeek = [
+      ...sessionList.filter(s => s.session_date >= todayStr && s.session_date <= weekEndStr).map(s => ({ date: s.session_date, dot: C.blue, icon: '📅', title: `${s.topic}`, sub: `${batchLookup[s.batch_id]?.batch_code || '—'} · ${s.start_time || 'TBD'} · ${s.venue || 'TBD'}` })),
+      ...assessList.filter(a => a.date >= todayStr && a.date <= weekEndStr).map(a => ({ date: a.date, dot: C.gold, icon: '📝', title: `${a.type} Assessment`, sub: `${batchLookup[a.batch_id]?.batch_code || '—'} · ${a.time_slot || 'TBD'}` })),
+      ...mockList.filter(m => m.date >= todayStr && m.date <= weekEndStr).map(m => ({ date: m.date, dot: C.teal, icon: '🧪', title: `Mock: ${m.subject}`, sub: `${m.batch_code || '—'} · ${m.time_slot || 'TBD'}` })),
+    ].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 6);
+
+    const quickActions = [
+      { icon: '📅', label: 'Schedule Session', panel: 'session-schedule', color: C.blue },
+      { icon: '🆕', label: 'Create Batch', panel: 'batch-create', color: C.teal },
+      { icon: '📤', label: 'Upload Content', panel: 'content-materials', color: C.purple },
+      { icon: '🧪', label: 'Create Mock Test', panel: 'assess-mock', color: C.gold },
+      { icon: '👥', label: 'View Learners', panel: 'learner-list', color: C.green },
+      { icon: '📊', label: 'View Reports', panel: 'report-batch', color: C.red },
+    ];
 
     return <>
-      <Alert type="info">📋 You have <strong>{todaySessions.length} session{todaySessions.length === 1 ? '' : 's'} today</strong>. Mark attendance before 5 PM to avoid compliance flag.</Alert>
-      <SectionHead title={`Welcome, ${u.name}! 🎓`} />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard icon="📋" value={dbStats.myActiveBatches ?? '—'} label="Active Batches" sub={`${dbStats.myBatches ?? 0} total`} accent={C.blue} />
-        <KpiCard icon="👥" value={dbStats.myLearners ?? '—'} label="My Learners" sub="Across all batches" accent={C.teal} />
-        <KpiCard icon="✅" value={dbStats.avgAttendance != null ? `${dbStats.avgAttendance}%` : '—'} label="Avg Attendance" sub="All batches" accent={C.green} />
-        <KpiCard icon="🏆" value={dbStats.assessmentPassRate != null ? `${dbStats.assessmentPassRate}%` : '—'} label="Assessment Pass Rate" sub="All assessments" accent={C.gold} />
+      {atRiskLearners > 0 && (
+        <Alert type="red">⚠️ <strong>{atRiskLearners} learner{atRiskLearners > 1 ? 's are' : ' is'} at risk</strong> (attendance below 70%). <span onClick={() => go('learner-dropout')} style={{ cursor:'pointer', textDecoration:'underline', fontWeight:600 }}>View dropout list →</span></Alert>
+      )}
+      {todaySessions.length > 0 && (
+        <Alert type="info">📋 You have <strong>{todaySessions.length} session{todaySessions.length === 1 ? '' : 's'} today</strong>. Mark attendance before 5 PM to avoid compliance flag.</Alert>
+      )}
+
+      {/* KPI Row — single compact row of 6 */}
+      <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:10 }}>
+        <h2 style={{ fontSize:17, fontWeight:800, color:C.navy, margin:0 }}>Welcome back, {u.name || 'Trainer'} 🎓</h2>
+        <span style={{ fontSize:12, color:C.ink3 }}>— {new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short',year:'numeric'})}</span>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
-        <Card>
-          <CardTitle>📅 Today's Sessions</CardTitle>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:10, marginBottom:12 }}>
+        {[
+          { icon:'📋', value: dbStats.myActiveBatches ?? '—', label:'Active Batches', sub:`${dbStats.myBatches ?? 0} total`, accent:C.blue },
+          { icon:'👥', value: dbStats.myLearners ?? '—', label:'Learners', sub:'All batches', accent:C.teal },
+          { icon:'✅', value: dbStats.avgAttendance != null ? `${dbStats.avgAttendance}%` : '—', label:'Avg Attendance', sub:'Active batches', accent:C.green },
+          { icon:'🏆', value: dbStats.assessmentPassRate != null ? `${dbStats.assessmentPassRate}%` : '—', label:'Pass Rate', sub:'All assessments', accent:C.gold },
+          { icon:'📅', value: sessionsThisMonth.length, label:'Sessions / Month', sub:`${pendingAssessments.length} pending`, accent:C.purple },
+          { icon:'🏢', value: placementCount, label:'Placements', sub:'Made', accent:C.red },
+        ].map(k => (
+          <div key={k.label} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'10px 12px', position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:k.accent, borderRadius:'8px 8px 0 0' }} />
+            <div style={{ fontSize:16, marginBottom:4 }}>{k.icon}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:C.navy, lineHeight:1 }}>{k.value}</div>
+            <div style={{ fontSize:10.5, color:C.ink3, marginTop:3, fontWeight:500 }}>{k.label}</div>
+            <div style={{ fontSize:10, fontWeight:700, color:k.accent, marginTop:2 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Row 2: Today's Sessions + Quick Actions */}
+      <div style={{ display:'grid', gridTemplateColumns:'1.4fr 1fr', gap:12, marginBottom:12 }}>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>📅 Today's Sessions ({todaySessions.length})</div>
           {todaySessions.length === 0
-            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No sessions scheduled today.</div>
-            : <Table headers={['Batch','Topic','Time','Venue','Status']} rows={todaySessions.map(s => (
-                <tr key={s.id}><Td>{batchLookup[s.batch_id]?.batch_code || '—'}</Td><Td>{s.topic}</Td><Td>{s.start_time || '—'}</Td><Td>{s.venue || '—'}</Td><Td><Badge color={s.status==='completed'?'green':s.status==='rescheduled'?'gold':'blue'}>{s.status}</Badge></Td></tr>
-              ))} />}
-        </Card>
-        <Card>
-          <CardTitle>🔔 Recent Activity</CardTitle>
-          {activity.length === 0
-            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No recent activity yet.</div>
-            : activity.map((a, i) => <TlItem key={i} dot={a.dot} title={a.title} meta={formatDate(a.date)} />)}
-        </Card>
+            ? <div style={{ color:C.ink3, fontSize:12.5, padding:'4px 0' }}>No sessions today. <span onClick={() => go('session-schedule')} style={{ color:C.blue, cursor:'pointer', fontWeight:600 }}>Schedule one →</span></div>
+            : <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <thead><tr>{['Batch','Topic','Time','Venue','Status',''].map((h,i)=><th key={i} style={{ background:'#F8FAFC', padding:'6px 10px', textAlign:'left', fontSize:10, fontWeight:700, color:C.ink3, textTransform:'uppercase', letterSpacing:'.04em', borderBottom:`1px solid ${C.border}` }}>{h}</th>)}</tr></thead>
+                <tbody>{todaySessions.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}`, color:C.ink2 }}>{batchLookup[s.batch_id]?.batch_code || '—'}</td>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}`, color:C.ink2 }}>{s.topic}</td>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}`, color:C.ink2 }}>{s.start_time || '—'}</td>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}`, color:C.ink2 }}>{s.venue || '—'}</td>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}` }}><Badge color={s.status==='completed'?'green':s.status==='rescheduled'?'gold':'blue'}>{s.status || 'scheduled'}</Badge></td>
+                    <td style={{ padding:'7px 10px', borderBottom:`1px solid ${C.border}` }}>
+                      {s.status !== 'completed' &&
+                        <Btn sm primary onClick={() =>
+                          api.updateTrainerSession(s.id, { ...s, status:'completed' })
+                            .then(() => { setSessionList(p => p.map(x => x.id===s.id ? { ...x, status:'completed' } : x)); showToast('Session marked as completed!'); })
+                            .catch(e => showToast(e.message||'Failed','error'))
+                        }>✓ Done</Btn>}
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>}
+        </div>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>⚡ Quick Actions</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            {quickActions.map(qa => (
+              <button key={qa.panel} onClick={() => go(qa.panel)}
+                style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', border:`1.5px solid ${C.border}`, borderRadius:8, background:'#fafbfc', cursor:'pointer', fontSize:12, fontWeight:600, color:C.ink1 }}
+                onMouseOver={e => { e.currentTarget.style.background=qa.color+'15'; e.currentTarget.style.borderColor=qa.color; }}
+                onMouseOut={e => { e.currentTarget.style.background='#fafbfc'; e.currentTarget.style.borderColor=C.border; }}>
+                <span style={{ fontSize:16 }}>{qa.icon}</span><span>{qa.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-        <Card>
-          <CardTitle>📊 Batch Performance</CardTitle>
+
+      {/* Row 3: Batch Attendance + Learner Funnel */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>📊 Batch Attendance</div>
           {reportBatch.length === 0
-            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>No batches yet.</div>
-            : reportBatch.map((b, i) => {
+            ? <div style={{ color:C.ink3, fontSize:12.5 }}>No batches yet.</div>
+            : reportBatch.slice(0, 6).map((b, i) => {
                 const att = parseFloat(attLookup[b.id]?.avg_att || 0);
-                return <StatRow key={b.id} n={b.batch_code} label={`${b.name} · ${b.enrolled} learners · ${att}% attendance`} pct={att} color={perfColors[i % perfColors.length]} />;
+                return (
+                  <div key={b.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0', borderBottom:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:C.navy, minWidth:72, flexShrink:0 }}>{b.batch_code}</div>
+                    <div style={{ flex:1, minWidth:0 }}><ProgBar pct={att} color={perfColors[i % perfColors.length]} /></div>
+                    <div style={{ fontSize:11, color:C.ink3, minWidth:34, textAlign:'right', flexShrink:0 }}>{att}%</div>
+                  </div>
+                );
+              }).concat(reportBatch.length > 6 ? [<div key="more" style={{ fontSize:11, color:C.ink3, marginTop:6, cursor:'pointer' }} onClick={() => go('report-batch')}>+{reportBatch.length - 6} more → View report</div>] : [])}
+        </div>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>🔽 Learner Funnel</div>
+          {totalEnrolled === 0
+            ? <div style={{ color:C.ink3, fontSize:12.5 }}>Enrol learners to see the funnel.</div>
+            : [
+                { label:'Enrolled', count:totalEnrolled, color:C.blue },
+                { label:'Completed', count:totalCompleted, color:C.teal },
+                { label:'Passed', count:totalPassed, color:C.green },
+                { label:'Placed', count:Math.min(placementCount, totalEnrolled), color:C.gold },
+              ].map(({ label, count, color }) => {
+                const pct = totalEnrolled > 0 ? Math.round((count / totalEnrolled) * 100) : 0;
+                return (
+                  <div key={label} style={{ marginBottom:8 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, fontWeight:500, marginBottom:3 }}>
+                      <span>{label}</span>
+                      <span style={{ color, fontWeight:700 }}>{count} <span style={{ color:C.ink3, fontWeight:400 }}>({pct}%)</span></span>
+                    </div>
+                    <div style={{ background:'#eef0f4', borderRadius:4, height:7, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:color, borderRadius:4 }} />
+                    </div>
+                  </div>
+                );
               })}
-        </Card>
-        <Card>
-          <CardTitle>📅 Upcoming This Week</CardTitle>
-          {upcoming.length === 0
-            ? <div style={{ color:C.ink3, fontSize:13, padding:'8px 0' }}>Nothing scheduled.</div>
-            : upcoming.map((item, i) => <TlItem key={i} dot={item.dot} title={item.title} meta={item.meta} />)}
-        </Card>
+        </div>
       </div>
+
+      {/* Row 4: Upcoming Week + Recent Activity */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>📅 Upcoming This Week</div>
+          {upcomingWeek.length === 0
+            ? <div style={{ color:C.ink3, fontSize:12.5 }}>Nothing in the next 7 days. <span onClick={() => go('session-schedule')} style={{ color:C.blue, cursor:'pointer', fontWeight:600 }}>Add →</span></div>
+            : upcomingWeek.map((item, i) => (
+                <div key={i} style={{ display:'flex', gap:8, alignItems:'center', padding:'6px 0', borderBottom: i < upcomingWeek.length-1 ? `1px solid ${C.border}` : 'none' }}>
+                  <span style={{ fontSize:14, flexShrink:0 }}>{item.icon}</span>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:600, fontSize:12.5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{item.title}</div>
+                    <div style={{ fontSize:11, color:C.ink3 }}>{formatDate(item.date)} · {item.sub}</div>
+                  </div>
+                </div>
+              ))}
+        </div>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontSize:12.5, fontWeight:700, color:C.navy, marginBottom:8, paddingBottom:6, borderBottom:`1px solid ${C.border}` }}>🕐 Recent Activity</div>
+          {activity.length === 0
+            ? <div style={{ color:C.ink3, fontSize:12.5 }}>No recent activity yet.</div>
+            : activity.map((a, i) => (
+                <div key={i} style={{ display:'flex', gap:8, alignItems:'center', padding:'6px 0', borderBottom: i < activity.length-1 ? `1px solid ${C.border}` : 'none' }}>
+                  <span style={{ fontSize:14, flexShrink:0 }}>{a.icon}</span>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:500, fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.title}</div>
+                    <div style={{ fontSize:11, color:C.ink3 }}>{formatDate(a.date)}</div>
+                  </div>
+                </div>
+              ))}
+        </div>
+      </div>
+
     </>;
   }
 
@@ -1116,6 +1405,11 @@ export default function TrainerPortal() {
   function PanelBatchCreate() {
     const bf = batchForm;
     const set = k => e => setBatchForm(f => ({ ...f, [k]: e.target.value }));
+    const sel = (k, opts, labelFn) => (
+      <select value={bf[k]} onChange={set(k)} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+        {opts.map(o => <option key={typeof o === 'object' ? o.id : o} value={typeof o === 'object' ? o.id : o}>{typeof o === 'object' ? labelFn(o) : o}</option>)}
+      </select>
+    );
     async function handleCreate() {
       if (!bf.name.trim()) { setBatchMsg('Batch name is required.'); return; }
       if (bf.batch_code && !/^[A-Za-z0-9][A-Za-z0-9\-_]{1,19}$/.test(bf.batch_code.trim())) {
@@ -1125,9 +1419,9 @@ export default function TrainerPortal() {
       if (capErr) { setBatchMsg(capErr); return; }
       setBatchSaving(true); setBatchMsg('');
       try {
-        await api.createBatch({ name: bf.name, batch_code: bf.batch_code, start_date: bf.start_date, end_date: bf.end_date, capacity: Number(bf.capacity)||30, status: bf.status, scheme_type: bf.scheme_type || 'None' });
+        await api.createBatch({ name: bf.name, batch_code: bf.batch_code, course_id: bf.course_id || null, start_date: bf.start_date, end_date: bf.end_date, capacity: Number(bf.capacity)||30, status: bf.status, scheme_type: bf.scheme_type || 'None', mode: bf.mode, venue: bf.venue });
         setBatchMsg('✅ Batch created!');
-        setBatchForm({ name:'', batch_code:'', start_date:'', end_date:'', capacity:30, status:'upcoming', scheme_type:'None' });
+        setBatchForm({ name:'', batch_code:'', course_id:'', start_date:'', end_date:'', capacity:30, status:'upcoming', scheme_type:'None', mode:'Classroom', venue:'' });
         refreshBatches();
       } catch(e) { setBatchMsg('❌ ' + e.message); }
       setBatchSaving(false);
@@ -1138,7 +1432,19 @@ export default function TrainerPortal() {
       {batchMsg && <Alert type={batchMsg.startsWith('✅') ? 'info' : 'red'}>{batchMsg}</Alert>}
       <Card>
         <G><Field label="Batch Name *">{inp('name', 'e.g. React.js Batch July 2026')}</Field><Field label="Batch Code">{inp('batch_code', 'e.g. IT-2026-B5')}</Field></G>
+        <Field label="Course (optional)">
+          <select value={bf.course_id} onChange={set('course_id')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+            <option value="">— No course linked —</option>
+            {courseOpts.map(c => <option key={c.id} value={c.id}>{c.title}{c.provider ? ` (${c.provider})` : ''}</option>)}
+          </select>
+        </Field>
         <G cols={3}><Field label="Start Date">{inp('start_date', '', 'date')}</Field><Field label="End Date">{inp('end_date', '', 'date')}</Field><Field label="Capacity">{inp('capacity', '30', 'number')}</Field></G>
+        <G>
+          <Field label="Venue / Location">{inp('venue', 'e.g. Lab 2 / Online')}</Field>
+          <Field label="Mode"><select value={bf.mode} onChange={set('mode')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+            {['Classroom','Online','Hybrid'].map(m=><option key={m}>{m}</option>)}
+          </select></Field>
+        </G>
         <G cols={2}>
           <Field label="Status"><select value={bf.status} onChange={set('status')} style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
             {['upcoming','active','completed'].map(s=><option key={s}>{s}</option>)}
@@ -1385,8 +1691,10 @@ export default function TrainerPortal() {
       <Card>
         {!allLearnersLoaded ? <div style={{ color:'#888', padding:16 }}>Loading…</div> :
          allLearners.length === 0 ? <div style={{ color:'#888', padding:16 }}>No learners enrolled in your batches yet.</div> :
-        <Table headers={['Name','Batch','Attendance','Score','Status']} rows={allLearners.map(l => <tr key={`${l.batch_id}-${l.candidate_id}`}>
+        <Table headers={['Name','Email','Phone','Batch','Attendance','Score','Status']} rows={allLearners.map(l => <tr key={`${l.batch_id}-${l.candidate_id}`}>
           <Td>{l.name}</Td>
+          <Td>{l.email||'—'}</Td>
+          <Td>{l.phone||'—'}</Td>
           <Td>{l.batchCode}</Td>
           <Td>{l.attendance_pct != null ? <Badge color={l.attendance_pct>=75?'green':l.attendance_pct>=60?'gold':'red'}>{Math.round(l.attendance_pct)}%</Badge> : '—'}</Td>
           <Td>{l.assessment_score != null ? l.assessment_score : '—'}</Td>
@@ -1449,8 +1757,12 @@ export default function TrainerPortal() {
       <SectionHead title="Placement Status 🏢" />
       <Card>
         {reportPlacement.length === 0 ? <div style={{ color:'#888', padding:8 }}>No placement records for your batches yet.</div> :
-        <Table headers={['Learner','Batch','Company','CTC','Date']} rows={reportPlacement.map((p,i) =>
-          <tr key={i}><Td>{p.name}</Td><Td>{p.batch_code||'—'}</Td><Td>{p.company_name||'—'}</Td><Td>{p.ctc||'—'}</Td><Td>{p.placed_date||'—'}</Td></tr>
+        <Table headers={['Learner','Batch','Company','Job Title','Location','CTC','Date']} rows={reportPlacement.map((p,i) =>
+          <tr key={i}>
+            <Td>{p.name}</Td><Td>{p.batch_code||'—'}</Td><Td>{p.company_name||'—'}</Td>
+            <Td>{p.job_title||'—'}</Td><Td>{p.location||p.job_location||'—'}</Td>
+            <Td>{p.ctc||'—'}</Td><Td>{p.placed_date||'—'}</Td>
+          </tr>
         )} />}
       </Card>
     </>;
@@ -1603,7 +1915,7 @@ export default function TrainerPortal() {
       api.addTrainerMockTest({ ...mockForm, batch_id: mockForm.batch_id||null })
         .then(r => {
           setMockList(p=>[...p, { ...r, batch_code: batch?.batch_code||'' }]);
-          setMockForm({ batch_id:'', subject:'', date:'', duration_min:'60', questions:'50' });
+          setMockForm({ batch_id:'', subject:'', date:'', duration_min:'60', questions:'50', total_marks:'100', passing_marks:'50', mode:'Online', time_slot:'' });
           setShowAddMock(false);
           showToast('Mock test created!');
         })
@@ -1628,6 +1940,25 @@ export default function TrainerPortal() {
             <Field label="Duration (min)"><Inp value={mockForm.duration_min} onChange={e=>setMockForm(f=>({...f,duration_min:e.target.value}))} /></Field>
             <Field label="Questions"><Inp value={mockForm.questions} onChange={e=>setMockForm(f=>({...f,questions:e.target.value}))} /></Field>
           </G>
+          <G cols={2}>
+            <Field label="Total Marks"><Inp type="number" value={mockForm.total_marks} onChange={e=>setMockForm(f=>({...f,total_marks:e.target.value}))} placeholder="100" /></Field>
+            <Field label="Passing Marks"><Inp type="number" value={mockForm.passing_marks} onChange={e=>setMockForm(f=>({...f,passing_marks:e.target.value}))} placeholder="50" /></Field>
+          </G>
+          <G>
+            <Field label="Mode">
+              <select value={mockForm.mode} onChange={e=>setMockForm(f=>({...f,mode:e.target.value}))}
+                style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+                {['Online','Offline','Hybrid'].map(m=><option key={m}>{m}</option>)}
+              </select>
+            </Field>
+            <Field label="Time Slot">
+              <select value={mockForm.time_slot} onChange={e=>setMockForm(f=>({...f,time_slot:e.target.value}))}
+                style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+                <option value="">— Select —</option>
+                {['9:00 AM – 12:00 PM','12:00 PM – 3:00 PM','2:00 PM – 5:00 PM','Evening (6:00 PM – 9:00 PM)'].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </Field>
+          </G>
           <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
             <Btn onClick={()=>setShowAddMock(false)}>Cancel</Btn>
             <Btn primary onClick={submitMock}>🧪 Create Mock Test</Btn>
@@ -1637,10 +1968,13 @@ export default function TrainerPortal() {
       <Card>
         <CardTitle>📋 Mock Tests</CardTitle>
         {mockList.length === 0 ? <div style={{ color:'#888', padding:8 }}>No mock tests created yet.</div> :
-        <Table headers={['Date','Batch','Subject','Duration','Questions','']} rows={mockList.map(m =>
+        <Table headers={['Date','Batch','Subject','Duration','Questions','Marks','Pass','Mode','Time Slot','']} rows={mockList.map(m =>
           <tr key={m.id}>
             <Td>{m.date}</Td><Td>{m.batch_code||'—'}</Td><Td>{m.subject}</Td>
             <Td>{m.duration_min} min</Td><Td>{m.questions} Qs</Td>
+            <Td>{m.total_marks||'—'}</Td><Td>{m.passing_marks||'—'}</Td>
+            <Td><Badge color={m.mode==='Online'?'teal':m.mode==='Hybrid'?'gold':'blue'}>{m.mode||'—'}</Badge></Td>
+            <Td>{m.time_slot||'—'}</Td>
             <Td><Btn sm onClick={()=>api.deleteTrainerMockTest(m.id).then(()=>setMockList(p=>p.filter(x=>x.id!==m.id)))} style={{ background:C.red }}>Delete</Btn></Td>
           </tr>
         )} />}
@@ -1679,7 +2013,10 @@ export default function TrainerPortal() {
         </G>
         <Field label="Title *"><Inp value={contentForm.title} onChange={e=>setContentForm(f=>({...f,title:e.target.value}))} placeholder="e.g. React Hooks — Week 4 Notes" /></Field>
         <Field label="Description"><textarea value={contentForm.description} onChange={e=>setContentForm(f=>({...f,description:e.target.value}))} rows={2} placeholder="Brief description…" maxLength={500} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit' }} /></Field>
-        <Field label="File Name"><Inp value={contentForm.file_name} onChange={e=>setContentForm(f=>({...f,file_name:e.target.value}))} placeholder="e.g. react-hooks-notes.pdf" /></Field>
+        {contentForm.type === 'Resource Link'
+          ? <Field label="Resource URL *"><Inp value={contentForm.url} onChange={e=>setContentForm(f=>({...f,url:e.target.value}))} placeholder="https://..." /></Field>
+          : <Field label="File Name"><Inp value={contentForm.file_name} onChange={e=>setContentForm(f=>({...f,file_name:e.target.value}))} placeholder="e.g. react-hooks-notes.pdf" /></Field>
+        }
         <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
           <Btn onClick={()=>setShowAddContent(false)}>Cancel</Btn>
           <Btn primary onClick={submitContent}>📤 Upload</Btn>
@@ -1767,7 +2104,12 @@ export default function TrainerPortal() {
             <Td>{l.assessment_score!=null?l.assessment_score:'—'}</Td>
             <Td>{l.att_pct!=null?`${l.att_pct}%`:'—'}</Td>
             <Td><Badge color={eligible?'green':'red'}>{eligible?'Yes':'No'}</Badge></Td>
-            <Td>{eligible ? <Btn sm primary onClick={()=>showToast(`Certificate initiated for ${l.name}!`)}>Issue</Btn> : '—'}</Td>
+            <Td>{eligible ? <Btn sm primary onClick={() => {
+              api.trainerCertIssue({ email: l.email, batch_code: l.batch_code })
+                .then(r => { showToast(`Certificate issued: ${r.cert_no}`); return api.trainerCertIssued(); })
+                .then(r => setCertIssued(Array.isArray(r) ? r : []))
+                .catch(e => showToast(e.message || 'Already issued or error', 'error'));
+            }}>Issue</Btn> : '—'}</Td>
           </tr>;
         })} />}
       </Card>
@@ -1775,15 +2117,18 @@ export default function TrainerPortal() {
   }
 
   function PanelCertIssued() {
-    const issued = allLearners.filter(l => l.passed && l.status === 'completed');
     return <>
       <SectionHead title="Issued Certificates 📜" />
       <Card>
-        {issued.length === 0 ? <div style={{ color:'#888', padding:8 }}>No completed learners yet.</div> :
-        <Table headers={['Learner','Batch','Score','Status']} rows={issued.map((l,i) =>
-          <tr key={i}><Td>{l.name}</Td><Td>{l.batchCode||'—'}</Td>
-          <Td>{l.assessment_score!=null?l.assessment_score:'—'}</Td>
-          <Td><Badge color="green">Completed</Badge></Td></tr>
+        {certIssuedLoading ? <div style={{ color:'#888', padding:8 }}>Loading…</div> :
+         certIssued.length === 0 ? <div style={{ color:'#888', padding:8 }}>No certificates issued yet. Issue certificates from the "Issue Certificates" panel.</div> :
+        <Table headers={['Cert No','Learner','Email','Batch','Issued On','Status']} rows={certIssued.map((c,i) =>
+          <tr key={i}>
+            <Td><span style={{ fontFamily:'monospace', fontSize:11.5 }}>{c.cert_no}</span></Td>
+            <Td>{c.name}</Td><Td>{c.email}</Td><Td>{c.batch_code||'—'}</Td>
+            <Td>{c.issued_at ? new Date(c.issued_at).toLocaleDateString('en-IN') : '—'}</Td>
+            <Td><Badge color="green">{c.status||'issued'}</Badge></Td>
+          </tr>
         )} />}
       </Card>
     </>;
@@ -1883,8 +2228,12 @@ export default function TrainerPortal() {
       </div>
       <Card>
         {reportPlacement.length === 0 ? <div style={{ color:'#888', padding:8 }}>No placement data for your batches yet.</div> :
-        <Table headers={['Learner','Batch','Company','CTC','Date']} rows={reportPlacement.map((p,i) =>
-          <tr key={i}><Td>{p.name}</Td><Td>{p.batch_code||'—'}</Td><Td>{p.company_name||'—'}</Td><Td>{p.ctc||'—'}</Td><Td>{p.placed_date||'—'}</Td></tr>
+        <Table headers={['Learner','Batch','Company','Job Title','Location','CTC','Date']} rows={reportPlacement.map((p,i) =>
+          <tr key={i}>
+            <Td>{p.name}</Td><Td>{p.batch_code||'—'}</Td><Td>{p.company_name||'—'}</Td>
+            <Td>{p.job_title||'—'}</Td><Td>{p.location||p.job_location||'—'}</Td>
+            <Td>{p.ctc||'—'}</Td><Td>{p.placed_date||'—'}</Td>
+          </tr>
         )} />}
       </Card>
     </>;
@@ -2074,6 +2423,360 @@ export default function TrainerPortal() {
     </>;
   }
 
+  // ── ANNOUNCEMENTS ────────────────────────────────────────────────
+  function PanelAnnounceSend() {
+    if (!batchesLoaded) loadBatches();
+    const form = announceForm;
+    const setForm = setAnnounceForm;
+    const sent = announceSent;
+    const setSent = setAnnounceSent;
+    const saving = announceSaving;
+    const setSaving = setAnnounceSaving;
+    function submit() {
+      if (!form.title.trim() || !form.message.trim()) { showToast('Title and message are required.', 'warn'); return; }
+      setSaving(true);
+      const batch = myBatches.find(b => String(b.id) === String(form.batch_id));
+      api.addTrainerAnnouncement({ ...form, batch_id: form.batch_id || null })
+        .then(r => {
+          setSent(p => [{ ...r, batch_name: batch ? `${batch.batch_code} · ${batch.name}` : 'All Batches' }, ...p]);
+          setForm({ batch_id:'', title:'', message:'', priority:'Normal' });
+          showToast('Announcement sent to learners!');
+        })
+        .catch(e => showToast(e.message || 'Failed to send announcement.', 'error'))
+        .finally(() => setSaving(false));
+    }
+    return <>
+      <SectionHead title="Send Announcement 📢" />
+      <Card>
+        <CardTitle>New Announcement</CardTitle>
+        <G>
+          <Field label="Target Batch">
+            <select value={form.batch_id} onChange={e=>setForm(f=>({...f,batch_id:e.target.value}))}
+              style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              <option value="">— All My Batches —</option>
+              {myBatches.map(b=><option key={b.id} value={b.id}>{b.batch_code} · {b.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Priority">
+            <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}
+              style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['Normal','Important','Urgent'].map(p=><option key={p}>{p}</option>)}
+            </select>
+          </Field>
+        </G>
+        <Field label="Title *"><Inp value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Assessment rescheduled to next Friday" /></Field>
+        <Field label="Message *">
+          <textarea value={form.message} onChange={e=>setForm(f=>({...f,message:e.target.value}))} rows={4}
+            placeholder="Write your announcement here…" maxLength={1000}
+            style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }} />
+        </Field>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <Btn primary onClick={submit} disabled={saving}>📢 Send Announcement</Btn>
+        </div>
+      </Card>
+      {sent.length > 0 && (
+        <Card>
+          <CardTitle>📋 Sent This Session</CardTitle>
+          <Table headers={['Title','Batch','Priority','Sent At']} rows={sent.map(s=>(
+            <tr key={s.id}>
+              <Td>{s.title}</Td><Td>{s.batch_name}</Td>
+              <Td><Badge color={s.priority==='Urgent'?'red':s.priority==='Important'?'gold':'blue'}>{s.priority}</Badge></Td>
+              <Td>{s.sent_at?.slice(0,10)}</Td>
+            </tr>
+          ))} />
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelAnnounceHistory() {
+    const rows = announceHistory;
+    const setRows = setAnnounceHistory;
+    const loading = announceHistoryLoading;
+    function del(id) {
+      api.deleteTrainerAnnouncement(id)
+        .then(() => { setRows(p => p.filter(x => x.id !== id)); showToast('Deleted.'); })
+        .catch(e => showToast(e.message || 'Delete failed.', 'error'));
+    }
+    return <>
+      <SectionHead title="Announcement History 📋" />
+      <Alert type="info">Announcements are delivered to learners via SMS and in-app notification. History is retained for 90 days.</Alert>
+      <Card>
+        {loading ? <div style={{ color:C.ink3, padding:8 }}>Loading…</div> :
+         rows.length === 0 ? <div style={{ color:C.ink3, padding:8 }}>No past announcements found. Use "Send Announcement" to notify your learners.</div> :
+        <Table headers={['Title','Batch','Priority','Sent At','']} rows={rows.map(s => (
+          <tr key={s.id}>
+            <Td style={{ fontWeight:600 }}>{s.title}</Td>
+            <Td>{s.batch_name || (s.batch_id ? `Batch #${s.batch_id}` : 'All Batches')}</Td>
+            <Td><Badge color={s.priority==='Urgent'?'red':s.priority==='Important'?'gold':'blue'}>{s.priority||'Normal'}</Badge></Td>
+            <Td>{s.sent_at?.slice(0,10)}</Td>
+            <Td><Btn onClick={() => del(s.id)} style={{ padding:'3px 10px', fontSize:12, color:'red' }}>Delete</Btn></Td>
+          </tr>
+        ))} />}
+      </Card>
+    </>;
+  }
+
+  // ── FEEDBACK & RATINGS ───────────────────────────────────────────
+  function PanelFeedbackSession() {
+    const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+    return <>
+      <SectionHead title="Session Feedback ⭐" />
+      <Alert type="info">Learner ratings and comments submitted after your sessions appear here.</Alert>
+      {feedbackLoading ? <Card><div style={{ color:C.ink3, padding:8 }}>Loading…</div></Card> :
+       feedbackList.length === 0 ? (
+        <Card>
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.ink3 }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>⭐</div>
+            <div style={{ fontWeight:600, marginBottom:6 }}>No feedback received yet</div>
+            <div style={{ fontSize:13 }}>Learners can rate each session after it's marked complete.</div>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <Table headers={['Learner','Batch','Session','Rating','Comment','Date']} rows={feedbackList.map((f,i) => (
+            <tr key={i}>
+              <Td>{f.candidate_name||f.candidate_email||'—'}</Td>
+              <Td>{f.batch_code||'—'}</Td>
+              <Td>{f.session_topic||'—'}</Td>
+              <Td><span style={{ color:C.gold, fontWeight:700, letterSpacing:1 }}>{stars(f.rating||0)}</span> <span style={{ fontSize:12, color:C.ink3 }}>({f.rating}/5)</span></Td>
+              <Td style={{ maxWidth:200 }}>{f.comment||'—'}</Td>
+              <Td style={{ whiteSpace:'nowrap' }}>{f.submitted_at ? new Date(f.submitted_at).toLocaleDateString('en-IN') : '—'}</Td>
+            </tr>
+          ))} />
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelFeedbackOverall() {
+    const s = ratingSummary;
+    const avg = s && s.avg_rating ? parseFloat(s.avg_rating) : null;
+    const total = s ? parseInt(s.total_reviews||0) : 0;
+    const bars = [
+      { label:'5 ★', count: parseInt(s?.five_star||0), color:C.green },
+      { label:'4 ★', count: parseInt(s?.four_star||0), color:C.teal },
+      { label:'3 ★', count: parseInt(s?.three_star||0), color:C.gold },
+      { label:'2 ★', count: parseInt(s?.two_star||0), color:C.orange||'#f97316' },
+      { label:'1 ★', count: parseInt(s?.one_star||0), color:C.red },
+    ];
+    return <>
+      <SectionHead title="My Trainer Rating 📊" />
+      {total === 0 ? (
+        <Card>
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.ink3 }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>📊</div>
+            <div style={{ fontWeight:600, marginBottom:6 }}>No ratings yet</div>
+            <div style={{ fontSize:13 }}>Your aggregate score will appear once learners submit feedback.</div>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div style={{ display:'flex', gap:32, alignItems:'center', marginBottom:24, flexWrap:'wrap' }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontSize:56, fontWeight:800, color:C.navy, lineHeight:1 }}>{avg?.toFixed(1)}</div>
+              <div style={{ fontSize:22, color:C.gold, margin:'4px 0' }}>{'★'.repeat(Math.round(avg||0))}{'☆'.repeat(5-Math.round(avg||0))}</div>
+              <div style={{ fontSize:13, color:C.ink3 }}>{total} review{total!==1?'s':''}</div>
+            </div>
+            <div style={{ flex:1, minWidth:180 }}>
+              {bars.map(b => (
+                <div key={b.label} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                  <div style={{ width:32, fontSize:12, color:C.ink2 }}>{b.label}</div>
+                  <div style={{ flex:1, background:'#E5E7EB', borderRadius:4, height:10 }}>
+                    <div style={{ width:`${total ? Math.round(b.count/total*100) : 0}%`, background:b.color, height:10, borderRadius:4, transition:'width .4s' }} />
+                  </div>
+                  <div style={{ width:24, fontSize:12, color:C.ink3, textAlign:'right' }}>{b.count}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      )}
+    </>;
+  }
+
+  // ── EARNINGS & PAYMENTS ──────────────────────────────────────────
+  function PanelEarningsHistory() {
+    const total = paymentHistory.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+    return <>
+      <SectionHead title="Payment History 💰" />
+      {paymentsLoading ? <Card><div style={{ color:C.ink3, padding:8 }}>Loading…</div></Card> :
+       paymentHistory.length === 0 ? (
+        <Card>
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.ink3 }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>💰</div>
+            <div style={{ fontWeight:600, marginBottom:6 }}>No payment records yet</div>
+            <div style={{ fontSize:13 }}>Payments recorded by your organisation will appear here.</div>
+          </div>
+        </Card>
+      ) : <>
+        <div style={{ display:'flex', gap:16, marginBottom:16, flexWrap:'wrap' }}>
+          <KpiCard icon="💰" value={`₹${total.toLocaleString('en-IN')}`} label="Total Received" sub={`${paymentHistory.length} transactions`} accent={C.green} />
+          <KpiCard icon="📅" value={paymentHistory[0]?.payment_date ? new Date(paymentHistory[0].payment_date).toLocaleDateString('en-IN') : '—'} label="Last Payment" sub={paymentHistory[0]?.description||''} accent={C.blue} />
+        </div>
+        <Card>
+          <Table headers={['Date','Batch','Amount','Mode','Reference','Description','Status']} rows={paymentHistory.map((p,i) => (
+            <tr key={i}>
+              <Td style={{ whiteSpace:'nowrap' }}>{p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-IN') : '—'}</Td>
+              <Td>{p.batch_code||'—'}</Td>
+              <Td style={{ fontWeight:600, color:C.green }}>₹{parseFloat(p.amount).toLocaleString('en-IN')}</Td>
+              <Td>{p.payment_mode||'—'}</Td>
+              <Td><span style={{ fontFamily:'monospace', fontSize:11.5 }}>{p.reference_no||'—'}</span></Td>
+              <Td>{p.description||'—'}</Td>
+              <Td><Badge color={p.status==='paid'?'green':'gold'}>{p.status||'paid'}</Badge></Td>
+            </tr>
+          ))} />
+        </Card>
+      </>}
+    </>;
+  }
+
+  function PanelEarningsPending() {
+    return <>
+      <SectionHead title="Pending Dues ⏳" />
+      <Alert type="info">Batches that have enrolled learners but no payment recorded yet are listed here. Contact your organisation to initiate disbursement.</Alert>
+      {paymentsLoading ? <Card><div style={{ color:C.ink3, padding:8 }}>Loading…</div></Card> :
+       paymentPending.length === 0 ? (
+        <Card>
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.ink3 }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>✅</div>
+            <div style={{ fontWeight:600, marginBottom:6 }}>No pending dues</div>
+            <div style={{ fontSize:13 }}>All active/completed batches have payments recorded.</div>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <Table headers={['Batch Code','Batch Name','End Date','Learners','Action']} rows={paymentPending.map((b,i) => (
+            <tr key={i}>
+              <Td><span style={{ fontFamily:'monospace', fontWeight:600 }}>{b.batch_code}</span></Td>
+              <Td>{b.name}</Td>
+              <Td>{b.end_date ? new Date(b.end_date).toLocaleDateString('en-IN') : '—'}</Td>
+              <Td>{b.learner_count}</Td>
+              <Td><Btn sm onClick={() => showToast('Contact your organisation admin to process payment for this batch.','warn')}>Request Payment</Btn></Td>
+            </tr>
+          ))} />
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelEarningsBank() {
+    const saving = bankSaving;
+    const setSaving = setBankSaving;
+    const saved = bankSaved;
+    const setSaved = setBankSaved;
+    function save() {
+      setSaving(true); setSaved(false);
+      api.saveTrainerBankDetails(bankForm)
+        .then(() => { setSaved(true); showToast('Bank details saved!'); })
+        .catch(e => showToast(e.message || 'Save failed.', 'error'))
+        .finally(() => setSaving(false));
+    }
+    return <>
+      <SectionHead title="Bank Details 🏦" />
+      <Alert type="info">Your bank details are used for payment disbursement. Ensure they match your KYC documents.</Alert>
+      <Card>
+        <G>
+          <Field label="Account Holder Name"><Inp value={bankForm.account_name} onChange={e=>setBankForm(f=>({...f,account_name:e.target.value}))} placeholder="As per bank records" /></Field>
+          <Field label="Account Number"><Inp value={bankForm.account_no} onChange={e=>setBankForm(f=>({...f,account_no:e.target.value}))} placeholder="XXXXXXXXXXXX" /></Field>
+        </G>
+        <G>
+          <Field label="IFSC Code"><Inp value={bankForm.ifsc} onChange={e=>setBankForm(f=>({...f,ifsc:e.target.value.toUpperCase()}))} placeholder="e.g. SBIN0001234" /></Field>
+          <Field label="Bank Name"><Inp value={bankForm.bank_name} onChange={e=>setBankForm(f=>({...f,bank_name:e.target.value}))} placeholder="e.g. State Bank of India" /></Field>
+        </G>
+        <G>
+          <Field label="Branch"><Inp value={bankForm.branch} onChange={e=>setBankForm(f=>({...f,branch:e.target.value}))} placeholder="e.g. Koramangala, Bengaluru" /></Field>
+          <Field label="UPI ID (optional)"><Inp value={bankForm.upi_id} onChange={e=>setBankForm(f=>({...f,upi_id:e.target.value}))} placeholder="name@upi" /></Field>
+        </G>
+        {saved && <Alert type="success">✅ Bank details saved successfully.</Alert>}
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <Btn primary onClick={save} disabled={saving}>💾 {saving ? 'Saving…' : 'Save Bank Details'}</Btn>
+        </div>
+      </Card>
+    </>;
+  }
+
+  // ── JOB BOARD ────────────────────────────────────────────────────
+  function PanelJobsBrowse() {
+    const jobs = jobsList;
+    const loading = jobsLoading;
+    function sendReferral(job) {
+      if (!referEmail.trim()) { showToast('Enter learner email', 'warn'); return; }
+      setReferSending(true);
+      api.addTrainerReferral({ candidate_email: referEmail.trim(), job_id: job.id, job_title: job.title, company: job.company_name||job.employer||'', note: referNote.trim() })
+        .then(r => {
+          showToast(`Referral sent to ${referEmail} for "${job.title}"`);
+          setReferModal(null); setReferEmail(''); setReferNote('');
+          return api.trainerReferrals();
+        })
+        .then(r => setReferrals(Array.isArray(r) ? r : []))
+        .catch(e => showToast(e.message || 'Failed to send referral', 'error'))
+        .finally(() => setReferSending(false));
+    }
+    return <>
+      <SectionHead title="Browse Jobs 💼" />
+      <Alert type="info">Refer suitable job openings to your learners directly from here. They'll receive an email notification with the job details.</Alert>
+      <Card>
+        {loading ? <div style={{ color:C.ink3, padding:8 }}>Loading jobs…</div> :
+         jobs.length === 0 ? <div style={{ color:C.ink3, padding:8 }}>No job listings available at the moment.</div> :
+        <Table headers={['Title','Company','Location','Salary','Skills','Action']} rows={jobs.slice(0,10).map((j,i)=>(
+          <tr key={j.id||i}>
+            <Td style={{ fontWeight:600 }}>{j.title}</Td>
+            <Td>{j.company_name||j.employer||'—'}</Td>
+            <Td>{j.location||'—'}</Td>
+            <Td>{j.salary_range||j.salary||'—'}</Td>
+            <Td>{(j.skills||[]).slice(0,2).join(', ')||'—'}</Td>
+            <Td><Btn sm primary onClick={()=>setReferModal(j)}>Refer Learner</Btn></Td>
+          </tr>
+        ))} />}
+      </Card>
+      {referModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10000 }}>
+          <div style={{ background:'#fff', borderRadius:12, padding:28, width:380 }}>
+            <div style={{ fontWeight:700, fontSize:15, marginBottom:12 }}>Refer Learner — {referModal.title}</div>
+            <Field label="Learner Email"><Inp value={referEmail} onChange={e=>setReferEmail(e.target.value)} placeholder="learner@example.com" /></Field>
+            <Field label="Note (optional)"><Inp value={referNote} onChange={e=>setReferNote(e.target.value)} placeholder="Why this job suits them…" /></Field>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:8 }}>
+              <Btn onClick={()=>{setReferModal(null);setReferEmail('');setReferNote('');}}>Cancel</Btn>
+              <Btn primary disabled={referSending} onClick={()=>sendReferral(referModal)}>📤 {referSending?'Sending…':'Send Referral'}</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </>;
+  }
+
+  function PanelJobsReferrals() {
+    const statusColor = { sent:'blue', viewed:'teal', applied:'green', rejected:'red' };
+    return <>
+      <SectionHead title="My Referrals 🔗" />
+      {referralsLoading ? <Card><div style={{ color:C.ink3, padding:8 }}>Loading…</div></Card> :
+       referrals.length === 0 ? (
+        <Card>
+          <div style={{ textAlign:'center', padding:'40px 0', color:C.ink3 }}>
+            <div style={{ fontSize:40, marginBottom:10 }}>🔗</div>
+            <div style={{ fontWeight:600, marginBottom:6 }}>No referrals sent yet</div>
+            <div style={{ fontSize:13 }}>Browse Jobs and click "Refer Learner" to send a referral.</div>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <Table headers={['Learner Email','Candidate','Job Title','Company','Note','Date','Status']} rows={referrals.map((r,i) => (
+            <tr key={i}>
+              <Td>{r.candidate_email}</Td>
+              <Td>{r.candidate_name||'—'}</Td>
+              <Td style={{ fontWeight:600 }}>{r.job_title}</Td>
+              <Td>{r.company||'—'}</Td>
+              <Td style={{ maxWidth:160 }}>{r.note||'—'}</Td>
+              <Td style={{ whiteSpace:'nowrap' }}>{r.referred_at ? new Date(r.referred_at).toLocaleDateString('en-IN') : '—'}</Td>
+              <Td><Badge color={statusColor[r.status]||'blue'}>{r.status||'sent'}</Badge></Td>
+            </tr>
+          ))} />
+        </Card>
+      )}
+    </>;
+  }
+
   function PanelFAQ() {
     return <>
       <SectionHead title="FAQ ❓" />
@@ -2094,6 +2797,232 @@ export default function TrainerPortal() {
 
   function PanelSettings() {
     return <AccountPreferences onLogout={handleLogout} />;
+  }
+
+  // ── AI TOOLS ─────────────────────────────────────────────────────
+
+  function PanelAISession() {
+    function generate() {
+      if (!sessionPlan.topic.trim()) { showToast('Enter a session topic.', 'warn'); return; }
+      setSessionPlanLoading(true); setSessionPlanResult('');
+      const batch = myBatches.find(b => String(b.id) === String(sessionPlan.batch_id));
+      const prompt = `Create a detailed ${sessionPlan.duration}-minute session plan for a trainer on the topic "${sessionPlan.topic}".
+Batch: ${batch ? `${batch.batch_code} – ${batch.name}` : 'General training batch'}
+Learners: ${sessionPlan.learner_count || 'Not specified'}
+Prior knowledge: ${sessionPlan.prior_knowledge || 'None specified'}
+Learning objectives: ${sessionPlan.objectives || 'General understanding'}
+Include: Learning objectives, agenda with time breakdown, teaching methods, activities, assessment ideas, and materials needed.`;
+      api.chatbot(prompt, [])
+        .then(r => setSessionPlanResult(r.reply))
+        .catch(e => setSessionPlanResult('⚠️ ' + (e.message || 'Could not generate plan.')))
+        .finally(() => setSessionPlanLoading(false));
+    }
+    return <>
+      <SectionHead title="AI Session Planner 📋" />
+      <Alert type="info">Describe your session and let AI generate a structured lesson plan with agenda, activities, and materials.</Alert>
+      <Card>
+        <CardTitle>Session Details</CardTitle>
+        <G>
+          <Field label="Topic *"><Inp value={sessionPlan.topic} onChange={e => setSessionPlan(f=>({...f,topic:e.target.value}))} placeholder="e.g. Introduction to Python Variables" /></Field>
+          <Field label="Duration (minutes)">
+            <select value={sessionPlan.duration} onChange={e=>setSessionPlan(f=>({...f,duration:e.target.value}))} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['30','45','60','90','120'].map(d=><option key={d}>{d}</option>)}
+            </select>
+          </Field>
+        </G>
+        <G>
+          <Field label="Batch (optional)">
+            <select value={sessionPlan.batch_id} onChange={e=>setSessionPlan(f=>({...f,batch_id:e.target.value}))} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              <option value="">— Select batch —</option>
+              {myBatches.map(b=><option key={b.id} value={b.id}>{b.batch_code} · {b.name}</option>)}
+            </select>
+          </Field>
+          <Field label="No. of Learners"><Inp value={sessionPlan.learner_count} onChange={e=>setSessionPlan(f=>({...f,learner_count:e.target.value}))} placeholder="e.g. 25" type="number" /></Field>
+        </G>
+        <Field label="Learning Objectives"><Inp value={sessionPlan.objectives} onChange={e=>setSessionPlan(f=>({...f,objectives:e.target.value}))} placeholder="e.g. Understand data types, write basic programs" /></Field>
+        <Field label="Learners' Prior Knowledge"><Inp value={sessionPlan.prior_knowledge} onChange={e=>setSessionPlan(f=>({...f,prior_knowledge:e.target.value}))} placeholder="e.g. No prior coding experience" /></Field>
+        <div style={{ textAlign:'right' }}>
+          <Btn primary onClick={generate} disabled={sessionPlanLoading}>🤖 {sessionPlanLoading ? 'Generating…' : 'Generate Session Plan'}</Btn>
+        </div>
+      </Card>
+      {sessionPlanResult && (
+        <Card>
+          <CardTitle>📄 Generated Session Plan</CardTitle>
+          <pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.65, color:C.ink, fontFamily:'inherit', margin:0 }}>{sessionPlanResult}</pre>
+          <div style={{ marginTop:12, display:'flex', gap:10 }}>
+            <Btn onClick={() => { navigator.clipboard?.writeText(sessionPlanResult); showToast('Copied to clipboard!'); }}>📋 Copy</Btn>
+            <Btn onClick={() => setSessionPlanResult('')}>Clear</Btn>
+          </div>
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelAIAssessment() {
+    function generate() {
+      if (!assessBuilder.topic.trim()) { showToast('Enter a topic.', 'warn'); return; }
+      setAssessBuilderLoading(true); setAssessBuilderResult('');
+      const prompt = `Generate ${assessBuilder.count} ${assessBuilder.type} questions on the topic "${assessBuilder.topic}" for a vocational training assessment.
+Difficulty: ${assessBuilder.difficulty}
+Format each question clearly with answer options (if MCQ) and the correct answer marked.
+Include a brief explanation for each answer.`;
+      api.chatbot(prompt, [])
+        .then(r => setAssessBuilderResult(r.reply))
+        .catch(e => setAssessBuilderResult('⚠️ ' + (e.message || 'Could not generate questions.')))
+        .finally(() => setAssessBuilderLoading(false));
+    }
+    return <>
+      <SectionHead title="AI Assessment Builder 📝" />
+      <Alert type="info">Auto-generate assessment questions for any topic. Review and edit before use in your assessments.</Alert>
+      <Card>
+        <G>
+          <Field label="Topic *"><Inp value={assessBuilder.topic} onChange={e=>setAssessBuilder(f=>({...f,topic:e.target.value}))} placeholder="e.g. Safety at Construction Sites" /></Field>
+          <Field label="Question Type">
+            <select value={assessBuilder.type} onChange={e=>setAssessBuilder(f=>({...f,type:e.target.value}))} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['MCQ','True/False','Short Answer','Mixed'].map(t=><option key={t}>{t}</option>)}
+            </select>
+          </Field>
+        </G>
+        <G>
+          <Field label="Number of Questions">
+            <select value={assessBuilder.count} onChange={e=>setAssessBuilder(f=>({...f,count:e.target.value}))} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['5','10','15','20','25'].map(n=><option key={n}>{n}</option>)}
+            </select>
+          </Field>
+          <Field label="Difficulty">
+            <select value={assessBuilder.difficulty} onChange={e=>setAssessBuilder(f=>({...f,difficulty:e.target.value}))} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              {['Easy','Medium','Hard','Mixed'].map(d=><option key={d}>{d}</option>)}
+            </select>
+          </Field>
+        </G>
+        <div style={{ textAlign:'right' }}>
+          <Btn primary onClick={generate} disabled={assessBuilderLoading}>🤖 {assessBuilderLoading ? 'Generating…' : 'Generate Questions'}</Btn>
+        </div>
+      </Card>
+      {assessBuilderResult && (
+        <Card>
+          <CardTitle>📋 Generated Questions</CardTitle>
+          <pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.7, color:C.ink, fontFamily:'inherit', margin:0 }}>{assessBuilderResult}</pre>
+          <div style={{ marginTop:12, display:'flex', gap:10 }}>
+            <Btn onClick={() => { navigator.clipboard?.writeText(assessBuilderResult); showToast('Copied to clipboard!'); }}>📋 Copy</Btn>
+            <Btn onClick={() => setAssessBuilderResult('')}>Clear</Btn>
+          </div>
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelAIInsights() {
+    function loadInsights() {
+      if (!batchInsightsBatch) { showToast('Select a batch first.', 'warn'); return; }
+      setBatchInsightsLoading(true); setBatchInsights(null);
+      const batch = myBatches.find(b => String(b.id) === String(batchInsightsBatch));
+      const metrics = {
+        batch_code: batch?.batch_code,
+        batch_name: batch?.name,
+        enrolled: batch?.enrolled || 0,
+        avg_attendance: batch?.avg_attendance ? Math.round(batch.avg_attendance) + '%' : 'N/A',
+        learner_count: batch?.learner_count || 0,
+        status: batch?.status,
+      };
+      api.aiInsights(metrics, `batch "${batch?.name || batchInsightsBatch}"`)
+        .then(r => setBatchInsights(r.insights))
+        .catch(e => setBatchInsights('⚠️ ' + (e.message || 'Could not generate insights.')))
+        .finally(() => setBatchInsightsLoading(false));
+    }
+    return <>
+      <SectionHead title="AI Batch Insights 📊" />
+      <Alert type="info">Get AI-powered analysis of any batch — what's working well, concerns, and specific recommendations.</Alert>
+      <Card>
+        <G>
+          <Field label="Select Batch">
+            <select value={batchInsightsBatch} onChange={e=>setBatchInsightsBatch(e.target.value)} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              <option value="">— Choose a batch —</option>
+              {myBatches.map(b=><option key={b.id} value={b.id}>{b.batch_code} · {b.name} ({b.status})</option>)}
+            </select>
+          </Field>
+          <Field label=" "><Btn primary onClick={loadInsights} disabled={batchInsightsLoading} style={{ marginTop:22 }}>🤖 {batchInsightsLoading ? 'Analysing…' : 'Get AI Insights'}</Btn></Field>
+        </G>
+        {batchInsightsBatch && (() => {
+          const b = myBatches.find(x => String(x.id) === String(batchInsightsBatch));
+          return b ? (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginTop:8 }}>
+              <KpiCard icon="👥" value={b.enrolled||0} label="Enrolled" accent={C.blue} />
+              <KpiCard icon="✅" value={b.avg_attendance ? Math.round(b.avg_attendance)+'%' : '—'} label="Avg Attendance" accent={C.green} />
+              <KpiCard icon="📚" value={b.learner_count||0} label="Active Learners" accent={C.teal} />
+              <KpiCard icon="📋" value={b.status} label="Status" accent={C.gold} />
+            </div>
+          ) : null;
+        })()}
+      </Card>
+      {batchInsights && (
+        <Card>
+          <CardTitle>🤖 AI Insights</CardTitle>
+          <pre style={{ whiteSpace:'pre-wrap', fontSize:13.5, lineHeight:1.7, color:C.ink, fontFamily:'inherit', margin:0 }}>{batchInsights}</pre>
+        </Card>
+      )}
+    </>;
+  }
+
+  function PanelAIDropout() {
+    function loadDropout() {
+      if (!dropoutBatch) { showToast('Select a batch.', 'warn'); return; }
+      setDropoutLoading(true); setDropoutData(null);
+      api.dropoutRiskBatch(dropoutBatch)
+        .then(r => setDropoutData(r))
+        .catch(e => { showToast(e.message || 'Failed to load risk data.', 'error'); setDropoutLoading(false); })
+        .finally(() => setDropoutLoading(false));
+    }
+    const riskColor = level => level === 'High' ? C.red : level === 'Medium' ? C.gold : C.green;
+    return <>
+      <SectionHead title="AI Dropout Risk Predictor ⚠️" />
+      <Alert type="warn">Identifies learners at risk of dropping out based on attendance, assessment scores, and engagement patterns.</Alert>
+      <Card>
+        <G>
+          <Field label="Select Batch">
+            <select value={dropoutBatch} onChange={e=>setDropoutBatch(e.target.value)} style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13.5, fontFamily:'inherit' }}>
+              <option value="">— Choose a batch —</option>
+              {myBatches.filter(b=>b.status==='active').map(b=><option key={b.id} value={b.id}>{b.batch_code} · {b.name}</option>)}
+            </select>
+          </Field>
+          <Field label=" "><Btn primary onClick={loadDropout} disabled={dropoutLoading} style={{ marginTop:22 }}>🤖 {dropoutLoading ? 'Analysing…' : 'Predict Risk'}</Btn></Field>
+        </G>
+      </Card>
+      {dropoutData && (() => {
+        const learners = dropoutData.learners || [];
+        const high = learners.filter(l=>l.risk_level==='High').length;
+        const med = learners.filter(l=>l.risk_level==='Medium').length;
+        return <>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:16 }}>
+            <KpiCard icon="👥" value={learners.length} label="Total Learners" accent={C.blue} />
+            <KpiCard icon="🔴" value={high} label="High Risk" accent={C.red} />
+            <KpiCard icon="🟡" value={med} label="Medium Risk" accent={C.gold} />
+            <KpiCard icon="🟢" value={learners.length - high - med} label="Low Risk" accent={C.green} />
+          </div>
+          <Card>
+            <CardTitle>👤 Learner Risk Breakdown</CardTitle>
+            {learners.length === 0
+              ? <div style={{ color:C.ink3, padding:8 }}>No learner data available for this batch.</div>
+              : <Table headers={['Learner','Attendance','Score','Risk Level','Risk Factors']} rows={learners.map((l,i) => (
+                  <tr key={i}>
+                    <Td style={{ fontWeight:600 }}>{l.name || l.candidate_name || `Learner ${i+1}`}</Td>
+                    <Td>{l.attendance_pct != null ? Math.round(l.attendance_pct)+'%' : '—'}</Td>
+                    <Td>{l.assessment_score != null ? l.assessment_score : '—'}</Td>
+                    <Td><Badge color={l.risk_level==='High'?'red':l.risk_level==='Medium'?'gold':'green'}>{l.risk_level||'Low'}</Badge></Td>
+                    <Td style={{ fontSize:12, color:C.ink3 }}>{(l.risk_factors||[]).join(', ') || '—'}</Td>
+                  </tr>
+                ))} />
+            }
+          </Card>
+          {dropoutData.summary && (
+            <Card>
+              <CardTitle>📊 AI Summary</CardTitle>
+              <div style={{ fontSize:13.5, lineHeight:1.65, color:C.ink }}>{dropoutData.summary}</div>
+            </Card>
+          )}
+        </>;
+      })()}
+    </>;
   }
 
   function renderPanel() {
@@ -2141,6 +3070,19 @@ export default function TrainerPortal() {
       case 'scheme-rpl':            return PanelSchemeRPL();
       case 'scheme-naps':           return PanelSchemeNAPS();
       case 'scheme-ddu':            return PanelSchemeDDU();
+      case 'announce-send':         return PanelAnnounceSend();
+      case 'announce-history':      return PanelAnnounceHistory();
+      case 'feedback-session':      return PanelFeedbackSession();
+      case 'feedback-overall':      return PanelFeedbackOverall();
+      case 'earnings-history':      return PanelEarningsHistory();
+      case 'earnings-pending':      return PanelEarningsPending();
+      case 'earnings-bank':         return PanelEarningsBank();
+      case 'jobs-browse':           return PanelJobsBrowse();
+      case 'jobs-referrals':        return PanelJobsReferrals();
+      case 'ai-session':            return PanelAISession();
+      case 'ai-assessment':         return PanelAIAssessment();
+      case 'ai-insights':           return PanelAIInsights();
+      case 'ai-dropout':            return PanelAIDropout();
       case 'helpdesk':              return PanelHelpdesk();
       case 'grievance':             return PanelGrievance();
       case 'faq':                   return PanelFAQ();
@@ -2153,9 +3095,86 @@ export default function TrainerPortal() {
     <div style={{ minHeight:'100vh', background:C.surface }}>
       {Sidebar()}
       {Topbar()}
-      <div style={{ marginLeft:SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)`, overflowX:'hidden', boxSizing:'border-box' }}>
+      <div style={{ marginLeft: isMobile ? 0 : SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)`, overflowX:'hidden', boxSizing:'border-box' }}>
         {renderPanel()}
       </div>
+      {/* SkillBot floating widget */}
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:9998, display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+        {chatOpen && (
+          <div style={{ width:340, marginBottom:12, background:'#fff', borderRadius:16, boxShadow:'0 8px 40px rgba(0,0,0,0.18)', border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            {/* Header */}
+            <div style={{ background:C.navy, padding:'12px 16px', display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:20 }}>🤖</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700, fontSize:13.5, color:'#fff' }}>SkillBot</div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.7)' }}>AI Assistant</div>
+              </div>
+              {chatHistory.length > 0 && (
+                <button onClick={() => setChatHistory([])} style={{ background:'rgba(255,255,255,0.15)', border:'none', color:'#fff', borderRadius:6, padding:'3px 8px', fontSize:11, cursor:'pointer' }}>Clear</button>
+              )}
+              <button onClick={() => setChatOpen(false)} style={{ background:'none', border:'none', color:'#fff', fontSize:18, cursor:'pointer', lineHeight:1, padding:'0 2px' }}>✕</button>
+            </div>
+            {/* Messages */}
+            <div style={{ height:280, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {chatHistory.length === 0 && (
+                <div style={{ color:C.ink3, fontSize:12.5, textAlign:'center', paddingTop:16 }}>
+                  <div style={{ marginBottom:10 }}>Pick a suggestion or ask anything:</div>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, justifyContent:'center' }}>
+                    {chatSuggestions.slice(0,4).map(s => (
+                      <span key={s} onClick={() => setChatInput(s)}
+                        style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:'4px 11px', fontSize:11.5, cursor:'pointer', color:C.ink2 }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatHistory.map((m, i) => (
+                <div key={i} style={{ display:'flex', justifyContent: m.role==='user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth:'82%', padding:'8px 12px', borderRadius: m.role==='user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
+                    background: m.role==='user' ? C.blue : C.surface, color: m.role==='user' ? '#fff' : C.ink,
+                    fontSize:12.5, lineHeight:1.55, whiteSpace:'pre-wrap' }}>
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display:'flex', justifyContent:'flex-start' }}>
+                  <div style={{ background:C.surface, borderRadius:'14px 14px 14px 3px', padding:'8px 14px', fontSize:12.5, color:C.ink3 }}>SkillBot is thinking…</div>
+                </div>
+              )}
+            </div>
+            {/* Input */}
+            <div style={{ padding:'10px 12px', borderTop:`1px solid ${C.border}`, display:'flex', gap:8 }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) {
+                  const msg = chatInput.trim(); if (!msg) return;
+                  const newHistory = [...chatHistory, { role:'user', content: msg }];
+                  setChatHistory(newHistory); setChatInput(''); setChatLoading(true);
+                  api.chatbot(msg, newHistory)
+                    .then(r => setChatHistory(h => [...h, { role:'assistant', content: r.reply }]))
+                    .catch(e => setChatHistory(h => [...h, { role:'assistant', content: '⚠️ ' + (e.message||'Error') }]))
+                    .finally(() => setChatLoading(false));
+                }}}
+                placeholder="Ask SkillBot…"
+                style={{ flex:1, padding:'8px 11px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:13, outline:'none', fontFamily:'inherit' }} />
+              <button disabled={chatLoading || !chatInput.trim()} onClick={() => {
+                const msg = chatInput.trim(); if (!msg) return;
+                const newHistory = [...chatHistory, { role:'user', content: msg }];
+                setChatHistory(newHistory); setChatInput(''); setChatLoading(true);
+                api.chatbot(msg, newHistory)
+                  .then(r => setChatHistory(h => [...h, { role:'assistant', content: r.reply }]))
+                  .catch(e => setChatHistory(h => [...h, { role:'assistant', content: '⚠️ ' + (e.message||'Error') }]))
+                  .finally(() => setChatLoading(false));
+              }} style={{ background:C.blue, color:'#fff', border:'none', borderRadius:8, padding:'8px 14px', fontSize:13, fontWeight:600, cursor:'pointer', opacity: (chatLoading || !chatInput.trim()) ? 0.5 : 1 }}>Send</button>
+            </div>
+          </div>
+        )}
+        {/* Toggle button */}
+        <button onClick={() => setChatOpen(o => !o)}
+          style={{ width:56, height:56, borderRadius:'50%', background:C.blue, border:'none', cursor:'pointer', boxShadow:'0 4px 20px rgba(0,0,0,0.22)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, transition:'transform .15s' }}>
+          {chatOpen ? '✕' : '🤖'}
+        </button>
+      </div>
+
       {toast && (
         <div style={{ position:'fixed', bottom:28, right:28, background: toast.type==='error'?C.red : toast.type==='warn'?C.gold : C.teal, color:'#fff', padding:'12px 22px', borderRadius:10, fontSize:14, fontWeight:600, boxShadow:'0 4px 18px rgba(0,0,0,0.18)', zIndex:9999, animation:'fadeIn .2s' }}>
           {toast.type==='error'?'❌ ':toast.type==='warn'?'⚠️ ':'✅ '}{toast.msg}

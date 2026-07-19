@@ -401,7 +401,7 @@ export default function LandingPage() {
         {sub(t('portals_sub'))}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18 }}>
           {PORTALS.map(p => (
-            <div key={p.title} onClick={() => navigate('/login' + (p.loginRole ? '?role='+p.loginRole : ''))}
+            <div key={p.tKey} onClick={() => navigate('/login' + (p.loginRole ? '?role='+p.loginRole : ''))}
               style={{ border:`1px solid #e8eef7`, borderTop:`3px solid ${p.border}`, borderRadius:16, padding:'24px 20px', cursor:'pointer', background:'#fff', transition:'all .22s', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}
               onMouseEnter={e => { e.currentTarget.style.transform='translateY(-5px)'; e.currentTarget.style.boxShadow='0 16px 40px rgba(0,32,96,.11)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform='none'; e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.04)'; }}>

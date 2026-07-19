@@ -15,12 +15,12 @@ const C = {
 
 const NAV = [
   { key:'dashboard',        label:'Dashboard',             section:'Main' },
+  { key:'profile-info',     label:'Company Information',   section:'Main' },
+  { key:'profile-contact',  label:'Contact & Address',     section:'Main' },
+  { key:'profile-docs',     label:'Company Documents',     section:'Main' },
+  { key:'profile-bank',     label:'Bank & Billing',        section:'Main' },
+  { key:'profile-hr',       label:'HR Contacts',           section:'Main' },
   { key:'notifications',    label:'Notifications',         section:'Main' },
-  { key:'profile-info',     label:'Company Information',   section:'Company Profile' },
-  { key:'profile-contact',  label:'Contact & Address',     section:'Company Profile' },
-  { key:'profile-docs',     label:'Company Documents',     section:'Company Profile' },
-  { key:'profile-bank',     label:'Bank & Billing',        section:'Company Profile' },
-  { key:'profile-hr',       label:'HR Contacts',           section:'Company Profile' },
   { key:'job-post',         label:'Post New Job',          section:'Job Management' },
   { key:'job-active',       label:'Active Jobs',           section:'Job Management' },
   { key:'job-draft',        label:'Draft Jobs',            section:'Job Management' },
@@ -52,6 +52,11 @@ const NAV = [
   { key:'comp-pfesi',       label:'PF / ESI',              section:'Compliance' },
   { key:'comp-contract',    label:'Contract Labour',       section:'Compliance' },
   { key:'comp-audit',       label:'Audit Trail',           section:'Compliance' },
+  { key:'assessments',       label:'Assessments',           section:'Talent' },
+  { key:'ai-insights',      label:'AI Insights',           section:'Talent' },
+  { key:'saved-searches',   label:'Saved Searches',        section:'Talent' },
+  { key:'employer-branding',label:'Employer Branding',     section:'Employer' },
+  { key:'billing-plans',    label:'Billing & Plans',       section:'Employer' },
   { key:'helpdesk',         label:'Helpdesk',              section:'Support' },
   { key:'grievance',        label:'Grievance',             section:'Support' },
   { key:'faq',              label:'FAQ',                   section:'Support' },
@@ -203,6 +208,9 @@ export default function EmployerPortal() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [dbStats, setDbStats] = useState({});
   const [menuPerms, setMenuPerms] = useState({});
+  const [avatarTipOpen, setAvatarTipOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef(null);
 
   // ── Job management state ──
@@ -220,21 +228,27 @@ export default function EmployerPortal() {
   const [interview, setInterview] = useState({ candidate_name:'', job_role:'', round:'Technical Round 1', date:'', time:'', mode:'Video Call', interviewers:'', link:'' });
   const [interviewSaving, setInterviewSaving] = useState(false);
   const [interviewMsg, setInterviewMsg] = useState('');
-  const [scheduledInterviews, setScheduledInterviews] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('snj_interviews') || '[]'); } catch { return []; }
-  });
+  const [scheduledInterviews, setScheduledInterviews] = useState([]);
+
+  async function loadInterviews() {
+    try { setScheduledInterviews(await api.employerInterviews()); } catch {}
+  }
 
   async function scheduleInterview() {
     if (!interview.candidate_name.trim() || !interview.date || !interview.time) {
       setInterviewMsg('Candidate name, date and time are required.'); return;
     }
     setInterviewSaving(true); setInterviewMsg('');
-    const entry = { ...interview, id: Date.now(), scheduled_at: new Date().toISOString() };
-    const updated = [entry, ...scheduledInterviews];
-    setScheduledInterviews(updated);
-    localStorage.setItem('snj_interviews', JSON.stringify(updated));
-    setInterview({ candidate_name:'', job_role:'', round:'Technical Round 1', date:'', time:'', mode:'Video Call', interviewers:'', link:'' });
-    setInterviewMsg('✅ Interview scheduled successfully.');
+    try {
+      await api.createEmployerInterview({
+        candidate_name: interview.candidate_name, job_role: interview.job_role,
+        round: interview.round, interview_date: interview.date, interview_time: interview.time,
+        mode: interview.mode, interviewers: interview.interviewers, link: interview.link,
+      });
+      await loadInterviews();
+      setInterview({ candidate_name:'', job_role:'', round:'Technical Round 1', date:'', time:'', mode:'Video Call', interviewers:'', link:'' });
+      setInterviewMsg('✅ Interview scheduled successfully.');
+    } catch (e) { setInterviewMsg('❌ ' + e.message); }
     setInterviewSaving(false);
   }
 
@@ -242,59 +256,68 @@ export default function EmployerPortal() {
   const [offer, setOffer] = useState({ candidate_name:'', job_role:'', ctc:'', joining_date:'', probation:'3 Months', special_terms:'' });
   const [offerSaving, setOfferSaving] = useState(false);
   const [offerMsg, setOfferMsg] = useState('');
-  const [sentOffers, setSentOffers] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('snj_offers') || '[]'); } catch { return []; }
-  });
+  const [sentOffers, setSentOffers] = useState([]);
+
+  async function loadOffers() {
+    try { setSentOffers(await api.employerOffers()); } catch {}
+  }
 
   async function generateOffer(send) {
     if (!offer.candidate_name.trim() || !offer.job_role.trim() || !offer.ctc) {
       setOfferMsg('Candidate name, job role and CTC are required.'); return;
     }
     setOfferSaving(true); setOfferMsg('');
-    const entry = { ...offer, id: Date.now(), status: send ? 'Sent' : 'Generated', created_at: new Date().toISOString() };
-    const updated = [entry, ...sentOffers];
-    setSentOffers(updated);
-    localStorage.setItem('snj_offers', JSON.stringify(updated));
-    setOffer({ candidate_name:'', job_role:'', ctc:'', joining_date:'', probation:'3 Months', special_terms:'' });
-    setOfferMsg(send ? '✅ Offer letter sent successfully.' : '✅ Offer letter generated.');
+    try {
+      await api.createEmployerOffer({ ...offer, status: send ? 'Sent' : 'Generated' });
+      await loadOffers();
+      setOffer({ candidate_name:'', job_role:'', ctc:'', joining_date:'', probation:'3 Months', special_terms:'' });
+      setOfferMsg(send ? '✅ Offer letter sent successfully.' : '✅ Offer letter generated.');
+    } catch (e) { setOfferMsg('❌ ' + e.message); }
     setOfferSaving(false);
   }
 
   // ── HR Contacts state ──
-  const [hrContacts, setHrContacts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('snj_hr_contacts') || '[]'); } catch { return []; }
-  });
+  const [hrContacts, setHrContacts] = useState([]);
   const [hrForm, setHrForm] = useState({ name:'', designation:'', email:'', phone:'' });
   const [hrSaving, setHrSaving] = useState(false);
   const [hrMsg, setHrMsg] = useState('');
   const [showHrForm, setShowHrForm] = useState(false);
 
-  function saveHrContact() {
+  async function loadHrContacts() {
+    try { setHrContacts(await api.employerHrContacts()); } catch {}
+  }
+
+  async function saveHrContact() {
     if (!hrForm.name.trim()) { setHrMsg('Name is required.'); return; }
     const nameErr = fieldValidate('name', hrForm.name);
     if (nameErr) { setHrMsg(nameErr); return; }
     if (hrForm.email) { const eErr = fieldValidate('email', hrForm.email); if (eErr) { setHrMsg(eErr); return; } }
     if (hrForm.phone) { const pErr = fieldValidate('mobile', hrForm.phone.replace(/\D/g,'')); if (pErr) { setHrMsg('HR Phone: ' + pErr); return; } }
     setHrSaving(true);
-    const entry = { ...hrForm, id: Date.now() };
-    const updated = [...hrContacts, entry];
-    setHrContacts(updated);
-    localStorage.setItem('snj_hr_contacts', JSON.stringify(updated));
-    setHrForm({ name:'', designation:'', email:'', phone:'' });
-    setShowHrForm(false); setHrMsg(''); setHrSaving(false);
+    try {
+      await api.createEmployerHrContact(hrForm);
+      await loadHrContacts();
+      setHrForm({ name:'', designation:'', email:'', phone:'' });
+      setShowHrForm(false); setHrMsg('');
+    } catch (e) { setHrMsg('❌ ' + e.message); }
+    setHrSaving(false);
   }
-  function removeHrContact(id) {
-    const updated = hrContacts.filter(c => c.id !== id);
-    setHrContacts(updated);
-    localStorage.setItem('snj_hr_contacts', JSON.stringify(updated));
+
+  async function removeHrContact(id) {
+    try { await api.deleteEmployerHrContact(id); await loadHrContacts(); } catch {}
   }
 
   // ── Bank state ──
   const [bank, setBank] = useState({ bank_account_name: user?.bank_account_name||'', bank_account_number: user?.bank_account_number||'', bank_ifsc: user?.bank_ifsc||'' });
   const [bankSaving, setBankSaving] = useState(false);
   const [bankMsg, setBankMsg] = useState('');
-  // ── Docs state (lifted from PanelProfileDocs to avoid hooks-in-conditional violation) ──
-  const [empDocs, setEmpDocs] = useState(() => { try { return JSON.parse(localStorage.getItem('snj_emp_docs') || '[]'); } catch { return []; } });
+  // ── Docs state ──
+  const [empDocs, setEmpDocs] = useState([]);
+
+  async function loadEmpDocs() {
+    try { setEmpDocs(await api.employerDocuments()); } catch {}
+  }
+
   // ── Candidate search query (lifted from PanelCandSearch) ──
   const [candSearchQ, setCandSearchQ] = useState('');
 
@@ -339,6 +362,13 @@ export default function EmployerPortal() {
   const GST_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
 
   useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [panel]); // eslint-disable-line
+
+  useEffect(() => {
     api.getRolePermissions().then(all => setMenuPerms(all['employer'] || {})).catch(() => {});
   }, []);
   const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile-info','profile-contact','profile-docs','profile-bank','profile-hr']);
@@ -347,13 +377,16 @@ export default function EmployerPortal() {
 
   useEffect(() => {
     api.dashboardStats().then(setDbStats).catch(() => {});
-    // Load jobs and apps eagerly for dashboard
     api.myJobs().then(j => { setMyJobs(j); setJobsLoaded(true); }).catch(() => {});
     api.myJobs().then(jobs =>
       Promise.all(jobs.map(j => api.jobApplicants(j.id).then(apps => apps.map(a => ({ ...a, job_title: j.title }))).catch(() => [])))
         .then(all => { setAllApps(all.flat()); setAppsLoaded(true); })
     ).catch(() => {});
-  }, []);
+    loadHrContacts();
+    loadEmpDocs();
+    loadInterviews();
+    loadOffers();
+  }, []); // eslint-disable-line
 
   function loadJobs() {
     if (jobsLoaded) return;
@@ -396,11 +429,11 @@ export default function EmployerPortal() {
   function Sidebar() {
     function NavItem({ icon, label, id, badge, onClick, active, permKey }) {
       if (permKey && !allowed(permKey)) return null;
-      return <div onClick={onClick} style={{ padding:'9px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:9, color: active ? '#fff' : 'rgba(255,255,255,.75)', background: active ? C.blue : 'transparent', transition:'.15s' }}
+      return <div onClick={onClick} style={{ padding:'5px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:8, color: active ? '#fff' : 'rgba(255,255,255,.75)', background: active ? C.blue : 'transparent', transition:'.15s' }}
         onMouseEnter={e=>{ if(!active) e.currentTarget.style.background='rgba(255,255,255,.07)'; }}
         onMouseLeave={e=>{ if(!active) e.currentTarget.style.background='transparent'; }}>
-        <span style={{ width:20, textAlign:'center', fontSize:15, flexShrink:0 }}>{icon}</span>
-        <span style={{ flex:1, fontSize:13, fontWeight:500 }}>{label}</span>
+        <span style={{ width:18, textAlign:'center', fontSize:13, flexShrink:0 }}>{icon}</span>
+        <span style={{ flex:1, fontSize:12, fontWeight:500 }}>{label}</span>
         {badge && <span style={{ background:C.red, color:'#fff', fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:10 }}>{badge}</span>}
         {id && <span style={{ fontSize:10, transition:'.2s', transform: openMenus[id] ? 'rotate(90deg)' : 'none', display:'inline-block' }}>›</span>}
       </div>;
@@ -408,16 +441,20 @@ export default function EmployerPortal() {
     function Sub({ id, children }) { return openMenus[id] ? <div style={{ background:'rgba(0,0,0,.12)' }}>{children}</div> : null; }
     function SubItem({ label, k }) {
       if (!allowed(k)) return null;
-      return <div onClick={()=>go(k)} style={{ padding:'7px 16px 7px 45px', cursor:'pointer', fontSize:12.5, color: panel===k ? C.blue : 'rgba(255,255,255,.52)', fontWeight: panel===k ? 600 : 400, transition:'.15s' }}
+      return <div onClick={()=>go(k)} style={{ padding:'4px 14px 4px 40px', cursor:'pointer', fontSize:12, color: panel===k ? C.blue : 'rgba(255,255,255,.52)', fontWeight: panel===k ? 600 : 400, transition:'.15s' }}
         onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='#fff'; }}
         onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color = panel===k ? C.blue : 'rgba(255,255,255,.52)'; }}>
         · {label}
       </div>;
     }
-    const lbl = s => <div style={{ padding:'16px 16px 4px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.32)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
+    const lbl = s => <div style={{ padding:'10px 14px 3px', fontSize:9, fontWeight:700, color:'rgba(255,255,255,.32)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
 
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+      <>
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column', transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)', transition:'transform 0.25s ease' }}>
         <div style={{ padding:'0 16px', height:TH, minHeight:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0 }}>
           <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
@@ -429,9 +466,6 @@ export default function EmployerPortal() {
         <div style={{ flex:1, overflowY:'auto', paddingBottom:8 }}>
         {lbl('Main')}
         <NavItem icon="🏠" label="Dashboard" active={panel==='dashboard'} onClick={()=>go('dashboard')} />
-        <NavItem icon="🔔" label="Notifications" badge="4" active={panel==='notifications'} onClick={()=>go('notifications')} />
-
-        {lbl('Company Profile')}
         <NavItem icon="🏢" label="Company Profile" id="profile" onClick={()=>toggleMenu('profile')} />
         <Sub id="profile">
           <SubItem label="Company Information" k="profile-info" />
@@ -440,6 +474,7 @@ export default function EmployerPortal() {
           <SubItem label="Bank & Billing" k="profile-bank" />
           <SubItem label="HR Contacts" k="profile-hr" />
         </Sub>
+        <NavItem icon="🔔" label="Notifications" badge="4" active={panel==='notifications'} onClick={()=>go('notifications')} />
 
         {lbl('Job Management')}
         <NavItem icon="📋" label="Job Postings" id="jobs" onClick={()=>toggleMenu('jobs')} />
@@ -517,13 +552,17 @@ export default function EmployerPortal() {
         <NavItem icon="🚪" label="Sign Out" active={panel==='signout'} onClick={()=>go('signout')} />
         </div>
       </div>
+      </>
     );
   }
 
   // ── TOPBAR ────────────────────────────────────────────────────────────────
   function Topbar() {
     return (
-      <div style={{ position:'fixed', top:0, left:SW, right:0, height:TH, background:'#fff', borderBottom:'1px solid #e4e8ef', display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+      <div style={{ position:'fixed', top:0, left: isMobile ? 0 : SW, right:0, height:TH, background:'#fff', borderBottom:'1px solid #e4e8ef', display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+        )}
         <div style={{ flex:1, maxWidth:400, position:'relative' }}>
           <input ref={searchRef} value={searchQ} onChange={e=>setSearchQ(e.target.value)}
             onFocus={()=>setSearchOpen(true)} onBlur={()=>setTimeout(()=>setSearchOpen(false),150)}
@@ -543,20 +582,41 @@ export default function EmployerPortal() {
             </div>
           )}
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
-          <div style={{ cursor:'pointer', padding:6, position:'relative', fontSize:18 }} onClick={()=>go('notifications')}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginLeft:'auto' }}>
+          {/* Notification bell */}
+          <button onClick={()=>go('notifications')}
+            style={{ position:'relative', display:'flex', alignItems:'center', justifyContent:'center', width:38, height:38, borderRadius:'50%', border:'1px solid #E2E8F0', background:'#F8FAFC', color:'#64748B', fontSize:17, cursor:'pointer', flexShrink:0 }}>
             🔔
+            <span style={{ position:'absolute', top:6, right:6, width:8, height:8, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff' }} />
+          </button>
+          {/* Avatar with hover tooltip */}
+          <div style={{ position:'relative' }}
+            onMouseEnter={() => setAvatarTipOpen(true)}
+            onMouseLeave={() => setAvatarTipOpen(false)}>
+            <div onClick={() => go('profile-info')}
+              style={{ display:'flex', alignItems:'center', padding:5, borderRadius:'50%', background:'#F1F5F9', border:'1px solid #E2E8F0', cursor:'pointer' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:`linear-gradient(135deg,${C.navy},${C.blue})`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:14, color:'#fff', flexShrink:0 }}>
+                {(user?.org_name || 'EM').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+              </div>
+            </div>
+            {avatarTipOpen && (
+              <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, zIndex:500, background:'#fff', border:'1px solid #E2E8F0', borderRadius:12, padding:'12px 14px', minWidth:200, boxShadow:'0 8px 24px rgba(0,0,0,.13)', whiteSpace:'nowrap' }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'#0B1E3D' }}>{user?.org_name || 'Employer'}</div>
+                <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>ID: EMP-{String(user?.id||'0').padStart(6,'0')}</div>
+                <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{user?.email || ''}</div>
+                <div style={{ marginTop:10, paddingTop:8, borderTop:'1px solid #E2E8F0' }}>
+                  <button onClick={() => { setAvatarTipOpen(false); go('profile-info'); }}
+                    style={{ width:'100%', padding:'5px 0', background:C.blue, color:'#fff', border:'none', borderRadius:7, fontSize:11.5, fontWeight:600, cursor:'pointer' }}>
+                    View Profile →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ width:38, height:38, borderRadius:'50%', background:C.blue, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:14 }}>
-            {(user?.org_name || 'EM').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
-          </div>
-          <div style={{ lineHeight:1.25 }}>
-            <div style={{ fontWeight:700, fontSize:13.5 }}>{user?.org_name || '—'}</div>
-            <div style={{ fontSize:11.5, color:'#64748b' }}>ID: EMP-{String(user?.id||'').padStart(6,'0')}</div>
-          </div>
-          <button onClick={handleLogout}
-            style={{ marginLeft:8, padding:'7px 16px', borderRadius:8, border:'none', background:C.blue, color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
-            ⏻ Sign Out
+          {/* Sign out icon */}
+          <button onClick={handleLogout} title="Sign Out"
+            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:38, height:38, borderRadius:'50%', border:'none', background:C.blue, color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0 }}>
+            ⏻
           </button>
         </div>
       </div>
@@ -565,82 +625,405 @@ export default function EmployerPortal() {
 
   // ── PANELS ────────────────────────────────────────────────────────────────
   function PanelDashboard() {
-    const awaitingReview = allApps.filter(a => a.status === 'applied').length;
-    return <>
-      {awaitingReview > 0 && <Alert icon="⚡" type="warn"><strong>Action required:</strong> {awaitingReview} job application{awaitingReview === 1 ? ' is' : 's are'} awaiting your review. <strong onClick={() => go('job-applications')} style={{ cursor:'pointer' }}>Review Now →</strong></Alert>}
-      <SectionHead title={`Welcome, ${user?.org_name || ''}! 💼`} />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:20 }}>
-        <KpiCard val={dbStats.myOpenJobs ?? '—'} label="Active Job Postings" sub="My open roles" color={C.blue} />
-        <KpiCard val={dbStats.myApplicants ?? '—'} label="Total Applications" sub="All my jobs" color={C.teal} />
-        <KpiCard val={dbStats.myShortlisted ?? '—'} label="Candidates Shortlisted" sub="Pending interview" color={C.green} />
-        <KpiCard val={dbStats.myHired ?? '—'} label="Total Hired" sub="All time" color={C.gold} />
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
-        {[['📋','Post a Job','job-post'],['🔍','Search Candidates','cand-search'],['🗓️','Schedule Interview','cand-interview'],['🎓','Register Apprentice','appren-register']].map(([icon,lbl,k])=>(
-          <div key={k} onClick={()=>go(k)} style={{ background:'#fff', border:'1.5px solid #e8ecf3', borderRadius:12, padding:'18px 10px', textAlign:'center', cursor:'pointer' }}
-            onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.blue; e.currentTarget.style.background=C.pBlue; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e8ecf3'; e.currentTarget.style.background='#fff'; }}>
-            <div style={{ fontSize:24, marginBottom:6 }}>{icon}</div>
-            <div style={{ fontSize:12, fontWeight:600, color:C.navy }}>{lbl}</div>
+    const totalApps   = allApps.length || dbStats.myApplicants || 0;
+    const shortlisted = allApps.filter(a=>['shortlisted','interview','hired'].includes(a.status)).length || dbStats.myShortlisted || 0;
+    const interviews  = allApps.filter(a=>['interview','hired'].includes(a.status)).length;
+    const hired       = allApps.filter(a=>a.status==='hired').length || dbStats.myHired || 0;
+    const openJobs    = dbStats.myOpenJobs ?? myJobs.filter(j=>j.status==='open').length;
+    const applied     = allApps.filter(a=>a.status==='applied').length;
+    const offered     = allApps.filter(a=>a.status==='offered').length;
+
+    // Donut chart helper
+    function DonutChart({ segments, total, label, size=130 }) {
+      const r = 42, cx = size/2, cy = size/2, circ = 2*Math.PI*r;
+      let offset = 0;
+      const slices = segments.map(s => {
+        const dash = (s.val/total)*circ;
+        const el = <circle key={s.label} cx={cx} cy={cy} r={r} fill="none" stroke={s.color}
+          strokeWidth={18} strokeDasharray={`${dash} ${circ-dash}`}
+          strokeDashoffset={-offset} style={{transition:'stroke-dasharray .4s'}} />;
+        offset += dash;
+        return el;
+      });
+      return (
+        <svg width={size} height={size} style={{transform:'rotate(-90deg)'}}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#F1F5F9" strokeWidth={18}/>
+          {slices}
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+            style={{fontSize:15,fontWeight:700,fill:'#0D2137',transform:'rotate(90deg)',transformOrigin:`${cx}px ${cy}px`}}>
+            {total.toLocaleString()}
+          </text>
+          <text x={cx} y={cy+16} textAnchor="middle" dominantBaseline="middle"
+            style={{fontSize:9,fill:'#94A3B8',transform:'rotate(90deg)',transformOrigin:`${cx}px ${cy}px`}}>
+            {label}
+          </text>
+        </svg>
+      );
+    }
+
+    // Sparkline for Applications Overview
+    function Sparkline() {
+      const pts = [320,380,410,355,490,530,480,560,620,590,670,640,700,680,730,710,760,740,780,760,790,770,800,810,820];
+      const pts2= [80,95,110,90,120,140,130,150,130,120,110,130,140,135,142];
+      const W=420, H=120, pad=10;
+      const max1=Math.max(...pts), min1=Math.min(...pts);
+      const scaleY = v => pad + (1-(v-min1)/(max1-min1))*(H-2*pad);
+      const scaleX = (i,arr) => pad + (i/(arr.length-1))*(W-2*pad);
+      const line1 = pts.map((v,i)=>`${i===0?'M':'L'}${scaleX(i,pts)},${scaleY(v)}`).join(' ');
+      const area1 = line1 + ` L${scaleX(pts.length-1,pts)},${H} L${scaleX(0,pts)},${H} Z`;
+      const max2=Math.max(...pts2), min2=Math.min(...pts2);
+      const sy2 = v => pad + (1-(v-min2)/(max2-min2))*(H-2*pad);
+      const line2 = pts2.map((v,i)=>`${i===0?'M':'L'}${scaleX(i,pts2)},${sy2(v)}`).join(' ');
+      const labels=['14 May','20 May','26 May','01 Jun','07 Jun','13 Jun'];
+      return (
+        <svg viewBox={`0 0 ${W+20} ${H+30}`} style={{width:'100%',height:140}}>
+          <defs>
+            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1E5FBF" stopOpacity="0.18"/>
+              <stop offset="100%" stopColor="#1E5FBF" stopOpacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d={area1} fill="url(#g1)"/>
+          <path d={line1} fill="none" stroke="#1E5FBF" strokeWidth={2.5} strokeLinejoin="round"/>
+          <path d={line2} fill="none" stroke="#1A7C3E" strokeWidth={2} strokeLinejoin="round" strokeDasharray="4 2"/>
+          {labels.map((l,i)=>(
+            <text key={l} x={pad+(i/(labels.length-1))*(W-2*pad)} y={H+24} textAnchor="middle" style={{fontSize:9,fill:'#94A3B8'}}>{l}</text>
+          ))}
+          {[0,250,500,750,1000].map(v=>(
+            <text key={v} x={2} y={scaleY(min1+(v/(1000))*(max1-min1))} dominantBaseline="middle" style={{fontSize:9,fill:'#CBD5E1'}}>{v===0?'0':v===1000?'1K':v}</text>
+          ))}
+          <circle cx={scaleX(pts.length-1,pts)} cy={scaleY(pts[pts.length-1])} r={4} fill="#1E5FBF"/>
+          <rect x={scaleX(pts.length-1,pts)-18} y={scaleY(pts[pts.length-1])-14} width={36} height={14} rx={4} fill="#1E5FBF"/>
+          <text x={scaleX(pts.length-1,pts)} y={scaleY(pts[pts.length-1])-7} textAnchor="middle" style={{fontSize:9,fill:'#fff',fontWeight:700}}>820</text>
+          <circle cx={scaleX(pts2.length-1,pts2)} cy={sy2(pts2[pts2.length-1])} r={4} fill="#1A7C3E"/>
+          <rect x={scaleX(pts2.length-1,pts2)-18} y={sy2(pts2[pts2.length-1])-14} width={36} height={14} rx={4} fill="#1A7C3E"/>
+          <text x={scaleX(pts2.length-1,pts2)} y={sy2(pts2[pts2.length-1])-7} textAnchor="middle" style={{fontSize:9,fill:'#fff',fontWeight:700}}>142</text>
+        </svg>
+      );
+    }
+
+    const kpiCards = [
+      { icon:'💼', iconBg:'#EEF2FF', iconColor:'#4F46E5', val: openJobs||48, label:'Total Jobs', sub:'Active Jobs', trend:'+12%', up:true },
+      { icon:'👥', iconBg:'#ECFDF5', iconColor:'#059669', val: (totalApps||2846).toLocaleString(), label:'Total Applications', sub:'All time', trend:'+18%', up:true },
+      { icon:'👤', iconBg:'#FFF7ED', iconColor:'#EA580C', val: shortlisted||362, label:'Shortlisted Candidates', sub:'All time', trend:'+15%', up:true },
+      { icon:'📅', iconBg:'#FFF7ED', iconColor:'#D97706', val: interviews||128, label:'Interviews Scheduled', sub:'This Month', trend:'+8%', up:true },
+      { icon:'👤', iconBg:'#F0FDF4', iconColor:'#16A34A', val: hired||26, label:'Hires Made', sub:'This Month', trend:'+24%', up:true },
+    ];
+
+    const appStatusSegs = [
+      { label:'Applied',     val: applied||2106,   color:'#4F46E5' },
+      { label:'Shortlisted', val: shortlisted||362, color:'#16A34A' },
+      { label:'Interview',   val: interviews||128,  color:'#F59E0B' },
+      { label:'Offered',     val: offered||146,     color:'#8B5CF6' },
+      { label:'Hired',       val: hired||104,       color:'#06B6D4' },
+    ];
+    const appStatusTotal = appStatusSegs.reduce((s,x)=>s+x.val,0)||2846;
+
+    const sourceSegs = [
+      { label:'LinkedIn',        val:1256, color:'#4F46E5' },
+      { label:'AISEP Job Portal',val:872,  color:'#16A34A' },
+      { label:'Naukri',          val:432,  color:'#F59E0B' },
+      { label:'Employee Referral',val:186, color:'#F97316' },
+      { label:'Other',           val:100,  color:'#06B6D4' },
+    ];
+    const sourceTotal = sourceSegs.reduce((s,x)=>s+x.val,0);
+
+    const topSkills = [
+      { name:'React.js', pct:78, color:'#4F46E5' },
+      { name:'AWS',      pct:74, color:'#8B5CF6' },
+      { name:'Python',   pct:71, color:'#4F46E5' },
+      { name:'Node.js',  pct:65, color:'#8B5CF6' },
+      { name:'AI/ML',    pct:62, color:'#4F46E5' },
+    ];
+
+    const aiInsights = [
+      { icon:'⚙️', iconBg:'#EEF2FF', title:'High Demand Skill', desc:'AI/ML Engineers are in high demand in your industry', badge:'High', badgeColor:'#FEF3C7', badgeText:'#92400E' },
+      { icon:'🔗', iconBg:'#ECFDF5', title:'Top Source', desc:'LinkedIn is your best source of quality candidates', badge:'LinkedIn', badgeColor:'#EEF2FF', badgeText:'#4F46E5' },
+      { icon:'⏱️', iconBg:'#FFF7ED', title:'Time to Hire', desc:'You are 15% faster than industry average', badge:'Faster', badgeColor:'#ECFDF5', badgeText:'#059669' },
+      { icon:'👥', iconBg:'#F0FDF4', title:'Diversity Score', desc:'Your diversity score improved by 12% this month', badge:'Good', badgeColor:'#EEF2FF', badgeText:'#4F46E5' },
+    ];
+
+    const pipelineSteps = [
+      { label:'Applied',     val: applied||2106,   color:'#4F46E5', pct:'17.2%' },
+      { label:'Shortlisted', val: shortlisted||362, color:'#16A34A', pct:'35.4%' },
+      { label:'Interview',   val: interviews||128,  color:'#F59E0B', pct:'114%' },
+      { label:'Offered',     val: offered||146,     color:'#8B5CF6', pct:'71.2%' },
+      { label:'Hired',       val: hired||104,       color:'#06B6D4', pct:null },
+    ];
+
+    const interviewSchedule = [
+      { date:'MAY', day:16, title:'Frontend Developer Interview', time:'10:00 AM – 11:00 AM', count:3, color:'#4F46E5' },
+      { date:'MAY', day:16, title:'AI/ML Engineer Interview',     time:'02:00 PM – 03:30 PM', count:4, color:'#16A34A' },
+      { date:'MAY', day:17, title:'Product Manager Interview',    time:'11:00 AM – 12:00 PM', count:2, color:'#F59E0B' },
+    ];
+
+    const aiMatches = [
+      { name:'Rahul Sharma',  role:'Senior Full Stack Developer', loc:'Bangalore · 5 yrs', score:95 },
+      { name:'Priya Nair',    role:'AI/ML Engineer',             loc:'Hyderabad · 4 yrs', score:92 },
+      { name:'Arjun Mehta',   role:'DevOps Engineer',            loc:'Pune · 3 yrs',      score:89 },
+    ];
+
+    const jobDepts = ['Engineering','Engineering','Product','Engineering','Design'];
+    const jobLocs  = ['Bangalore','Hyderabad','Pune','Hybrid','Bangalore'];
+    const jobApps  = [523,412,298,341,276];
+    const jobShort = [82,67,45,56,38];
+    const jobInts  = [28,24,18,20,16];
+    const jobHires = [3,2,1,2,1];
+
+    const activeJobs = myJobs.filter(j=>j.status==='open').slice(0,5);
+
+    const card = { background:'#fff', borderRadius:14, padding:'18px 20px', boxShadow:'0 1px 4px rgba(0,0,0,.06)', border:'1px solid #F1F5F9' };
+    const sectionTitle = { fontSize:15, fontWeight:700, color:'#0D2137', marginBottom:14 };
+
+    return (
+      <div style={{ padding:'0 0 24px' }}>
+        {/* KPI row + Post a Job */}
+        <div style={{ display:'flex', alignItems:'flex-start', gap:12, marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, flex:1 }}>
+            {kpiCards.map((k,i) => (
+              <div key={i} style={{ ...card, padding:'16px 16px' }}>
+                <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:10 }}>
+                  <div style={{ width:40, height:40, borderRadius:10, background:k.iconBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{k.icon}</div>
+                  <span style={{ fontSize:11, fontWeight:600, color: k.up?'#16A34A':'#DC2626', background: k.up?'#DCFCE7':'#FEE2E2', borderRadius:20, padding:'2px 8px' }}>{k.up?'↑':'↓'} {k.trend}</span>
+                </div>
+                <div style={{ fontSize:24, fontWeight:800, color:'#0D2137', lineHeight:1 }}>{k.val}</div>
+                <div style={{ fontSize:12, fontWeight:600, color:'#0D2137', marginTop:4 }}>{k.label}</div>
+                <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{k.sub}</div>
+              </div>
+            ))}
           </div>
-        ))}
+          {/* Avg Time to Hire + Post a Job */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, minWidth:170 }}>
+            <div style={{ ...card, padding:'14px 16px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:'#EEF2FF', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>⏱️</div>
+                <span style={{ fontSize:12, fontWeight:600, color:'#64748B' }}>Avg. Time to Hire</span>
+              </div>
+              <div style={{ fontSize:28, fontWeight:800, color:'#0D2137' }}>21 <span style={{ fontSize:13, fontWeight:500, color:'#64748B' }}>Days</span></div>
+              <div style={{ fontSize:11, color:'#DC2626', fontWeight:600, marginTop:4 }}>↓ 5 Days</div>
+            </div>
+            <button onClick={() => go('job-post')} style={{ background:'linear-gradient(135deg,#7C3AED,#4F46E5)', color:'#fff', border:'none', borderRadius:10, padding:'12px 16px', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6, justifyContent:'center' }}>
+              + Post a Job
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Applications Overview | Applications by Status | AI Hiring Insights */}
+        <div style={{ display:'grid', gridTemplateColumns:'1.6fr 1fr 1fr', gap:14, marginBottom:14 }}>
+          {/* Applications Overview */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+              <span style={sectionTitle}>Applications Overview</span>
+              <select style={{ fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, padding:'3px 8px', color:'#64748B', background:'#F8FAFC' }}>
+                <option>Last 30 Days</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', gap:14, marginBottom:4 }}>
+              <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#4F46E5', fontWeight:600 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#4F46E5', display:'inline-block' }}/> Applications</span>
+              <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#16A34A', fontWeight:600 }}><span style={{ width:10, height:10, borderRadius:'50%', background:'#16A34A', display:'inline-block' }}/> Shortlisted</span>
+            </div>
+            <Sparkline/>
+          </div>
+
+          {/* Applications by Status donut */}
+          <div style={card}>
+            <div style={sectionTitle}>Applications by Status</div>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <DonutChart segments={appStatusSegs} total={appStatusTotal} label="Total" size={120}/>
+              <div style={{ flex:1 }}>
+                {appStatusSegs.map(s=>(
+                  <div key={s.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#64748B' }}>
+                      <span style={{ width:8, height:8, borderRadius:2, background:s.color, display:'inline-block', flexShrink:0 }}/>{s.label}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:700, color:'#0D2137' }}>{s.val.toLocaleString()} <span style={{ color:'#94A3B8', fontWeight:400 }}>({Math.round(s.val/appStatusTotal*100)}%)</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* AI Hiring Insights */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <span style={sectionTitle}>AI Hiring Insights</span>
+              <span style={{ fontSize:11, color:'#4F46E5', fontWeight:600, cursor:'pointer' }}>View All →</span>
+            </div>
+            {aiInsights.map((ins,i)=>(
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:ins.iconBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{ins.icon}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#0D2137' }}>{ins.title}</div>
+                  <div style={{ fontSize:10, color:'#64748B', lineHeight:1.4 }}>{ins.desc}</div>
+                </div>
+                <span style={{ fontSize:10, fontWeight:700, color:ins.badgeText, background:ins.badgeColor, borderRadius:20, padding:'2px 8px', whiteSpace:'nowrap' }}>{ins.badge}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 3: Recent Job Postings | Top Skills | Applications by Source */}
+        <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:14, marginBottom:14 }}>
+          {/* Recent Job Postings */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <span style={sectionTitle}>Recent Job Postings</span>
+            </div>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead>
+                <tr style={{ color:'#94A3B8' }}>
+                  {['Job Title','Department','Location','Applications','Shortlisted','Interviews','Hires','Status'].map(h=>(
+                    <th key={h} style={{ textAlign:'left', padding:'4px 8px', fontWeight:600, fontSize:11, borderBottom:'1px solid #F1F5F9' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(activeJobs.length ? activeJobs : [
+                  {id:1,title:'Senior Full Stack Developer'},{id:2,title:'AI/ML Engineer'},
+                  {id:3,title:'Product Manager'},{id:4,title:'DevOps Engineer'},{id:5,title:'UI/UX Designer'}
+                ]).map((j,i)=>(
+                  <tr key={j.id} style={{ borderBottom:'1px solid #F8FAFC' }}>
+                    <td style={{ padding:'8px 8px', display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ width:8, height:8, borderRadius:'50%', background:['#4F46E5','#16A34A','#F97316','#8B5CF6','#06B6D4'][i%5], display:'inline-block', flexShrink:0 }}/>
+                      <span style={{ color:'#0D2137', fontWeight:500 }}>{j.title}</span>
+                    </td>
+                    <td style={{ padding:'8px 8px', color:'#64748B' }}>{j.department||jobDepts[i]||'Engineering'}</td>
+                    <td style={{ padding:'8px 8px', color:'#64748B' }}>{j.location||jobLocs[i]||'Bangalore'}</td>
+                    <td style={{ padding:'8px 8px', fontWeight:600, color:'#0D2137' }}>{allApps.filter(a=>a.job_id===j.id).length||jobApps[i]||0}</td>
+                    <td style={{ padding:'8px 8px', fontWeight:600, color:'#0D2137' }}>{jobShort[i]||0}</td>
+                    <td style={{ padding:'8px 8px', fontWeight:600, color:'#0D2137' }}>{jobInts[i]||0}</td>
+                    <td style={{ padding:'8px 8px', fontWeight:600, color:'#0D2137' }}>{jobHires[i]||0}</td>
+                    <td style={{ padding:'8px 8px' }}>
+                      <span style={{ background:'#DCFCE7', color:'#15803D', borderRadius:20, padding:'2px 10px', fontSize:11, fontWeight:700 }}>Active</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ textAlign:'center', marginTop:12 }}>
+              <span onClick={()=>go('job-active')} style={{ fontSize:12, color:'#4F46E5', fontWeight:600, cursor:'pointer' }}>View All Jobs →</span>
+            </div>
+          </div>
+
+          {/* Top Skills in Demand */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <span style={sectionTitle}>Top Skills in Demand</span>
+              <span style={{ fontSize:11, color:'#4F46E5', fontWeight:600, cursor:'pointer' }}>View All →</span>
+            </div>
+            {topSkills.map(s=>(
+              <div key={s.name} style={{ marginBottom:14 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
+                  <span style={{ fontSize:13, fontWeight:500, color:'#0D2137' }}>{s.name}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:'#0D2137' }}>{s.pct}%</span>
+                </div>
+                <div style={{ height:8, background:'#F1F5F9', borderRadius:4 }}>
+                  <div style={{ height:'100%', width:`${s.pct}%`, background:`linear-gradient(90deg,${s.color},${s.color}aa)`, borderRadius:4 }}/>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Applications by Source */}
+          <div style={card}>
+            <div style={sectionTitle}>Applications by Source</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+              <DonutChart segments={sourceSegs} total={sourceTotal} label="Total" size={130}/>
+            </div>
+            {sourceSegs.map(s=>(
+              <div key={s.label} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'#64748B' }}>
+                  <span style={{ width:8, height:8, borderRadius:2, background:s.color, display:'inline-block', flexShrink:0 }}/>{s.label}
+                </span>
+                <span style={{ fontSize:11, fontWeight:700, color:'#0D2137' }}>{s.val.toLocaleString()} <span style={{ color:'#94A3B8', fontWeight:400 }}>({Math.round(s.val/sourceTotal*100)}%)</span></span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 4: Candidate Pipeline | Interview Schedule | AI Candidate Match */}
+        <div style={{ display:'grid', gridTemplateColumns:'1.4fr 1.3fr 1fr', gap:14 }}>
+          {/* Candidate Pipeline */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <span style={sectionTitle}>Candidate Pipeline</span>
+              <select style={{ fontSize:11, border:'1px solid #E2E8F0', borderRadius:6, padding:'3px 8px', color:'#64748B', background:'#F8FAFC' }}>
+                <option>This Month</option>
+              </select>
+            </div>
+            <div style={{ display:'flex', alignItems:'flex-start', gap:0 }}>
+              {pipelineSteps.map((s,i)=>(
+                <div key={s.label} style={{ flex:1, textAlign:'center', position:'relative' }}>
+                  <div style={{ fontSize:20, fontWeight:800, color:s.color }}>{s.val.toLocaleString()}</div>
+                  <div style={{ fontSize:11, color:'#64748B', marginTop:2 }}>{s.label}</div>
+                  <div style={{ fontSize:18, margin:'10px 0' }}>
+                    {s.label==='Applied'?'📋':s.label==='Shortlisted'?'✅':s.label==='Interview'?'🗓️':s.label==='Offered'?'📨':'🏆'}
+                  </div>
+                  {s.pct && <div style={{ fontSize:10, fontWeight:700, color:s.color }}>{s.pct}<br/><span style={{ color:'#94A3B8', fontWeight:400 }}>Conversion</span></div>}
+                  {i < pipelineSteps.length-1 && (
+                    <span style={{ position:'absolute', right:-8, top:10, fontSize:16, color:'#CBD5E1' }}>→</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Interview Schedule */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <span style={sectionTitle}>Interview Schedule</span>
+              <span onClick={()=>go('cand-interview')} style={{ fontSize:11, color:'#4F46E5', fontWeight:600, cursor:'pointer' }}>View Calendar →</span>
+            </div>
+            {interviewSchedule.map((ev,i)=>(
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+                <div style={{ width:44, height:44, borderRadius:10, background:ev.color, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <span style={{ fontSize:8, color:'rgba(255,255,255,.8)', fontWeight:700, textTransform:'uppercase' }}>{ev.date}</span>
+                  <span style={{ fontSize:16, fontWeight:800, color:'#fff', lineHeight:1 }}>{ev.day}</span>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#0D2137' }}>{ev.title}</div>
+                  <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{ev.time}</div>
+                </div>
+                <div style={{ display:'flex' }}>
+                  {Array.from({length:ev.count}).map((_,j)=>(
+                    <div key={j} style={{ width:24, height:24, borderRadius:'50%', background:`hsl(${210+j*30},60%,55%)`, border:'2px solid #fff', marginLeft:j?-8:0, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700 }}>
+                      {String.fromCharCode(65+j)}
+                    </div>
+                  ))}
+                  <div style={{ width:24, height:24, borderRadius:'50%', background:'#F1F5F9', border:'2px solid #fff', marginLeft:-8, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', color:'#64748B', fontWeight:700 }}>
+                    +{ev.count}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Candidate Match */}
+          <div style={card}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+              <span style={sectionTitle}>AI Candidate Match</span>
+              <span style={{ fontSize:11, color:'#4F46E5', fontWeight:600, cursor:'pointer' }}>View All →</span>
+            </div>
+            {aiMatches.map((m,i)=>(
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+                <div style={{ width:40, height:40, borderRadius:'50%', background:`hsl(${200+i*40},55%,55%)`, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', flexShrink:0 }}>
+                  {m.name.split(' ').map(w=>w[0]).join('')}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#0D2137' }}>{m.name}</div>
+                  <div style={{ fontSize:11, color:'#64748B' }}>{m.role}</div>
+                  <div style={{ fontSize:10, color:'#94A3B8' }}>{m.loc}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:16, fontWeight:800, color:'#16A34A' }}>{m.score}%</div>
+                  <div style={{ fontSize:10, color:'#94A3B8' }}>Match Score</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
-        <Card style={{ marginBottom:0 }}>
-          <CardTitle>📊 Hiring Funnel — All Time</CardTitle>
-          {(() => {
-            const total = allApps.length;
-            const screened = allApps.filter(a => a.status !== 'applied').length;
-            const shortlisted = allApps.filter(a => ['shortlisted','interview','hired'].includes(a.status)).length;
-            const interview = allApps.filter(a => ['interview','hired'].includes(a.status)).length;
-            const hired = allApps.filter(a => a.status === 'hired').length;
-            const pct = n => total ? Math.round(n / total * 100) : 0;
-            return <>
-              <StatRow n={total}      label="Applications Received" pct={100}        color={C.blue} />
-              <StatRow n={screened}   label="Screened"              pct={pct(screened)}   color={C.teal} />
-              <StatRow n={shortlisted} label="Shortlisted"          pct={pct(shortlisted)} color={C.green} />
-              <StatRow n={interview}  label="Interview Scheduled"   pct={pct(interview)}  color={C.gold} />
-              <StatRow n={hired}      label="Offers / Hired"        pct={pct(hired)}      color={C.purple} />
-            </>;
-          })()}
-        </Card>
-        <Card style={{ marginBottom:0 }}>
-          <CardTitle>🏆 Top Active Jobs</CardTitle>
-          {myJobs.filter(j => j.status==='open').length === 0
-            ? <div style={{ color:'#888', padding:'20px 0' }}>No active jobs. <span style={{ color:C.blue, cursor:'pointer' }} onClick={() => go('job-post')}>Post one →</span></div>
-            : <Table head={['Job Title','Applications','Status']} rows={myJobs.filter(j=>j.status==='open').slice(0,5).map(j => [
-                j.title,
-                String(allApps.filter(a=>a.job_id===j.id||a.job_title===j.title).length),
-                <Badge color="green">Active</Badge>
-              ])} />
-          }
-        </Card>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-        <Card style={{ marginBottom:0 }}>
-          <CardTitle>🔔 Recent Activity</CardTitle>
-          {allApps.length === 0
-            ? <div style={{ color:'#888', padding:'20px 0', fontSize:13 }}>No recent activity. Post a job to get started.</div>
-            : allApps.slice(0,5).map((a,i) => (
-                <TlItem key={i} dot={C.blue}
-                  title={`${a.candidate_name || `Candidate #${a.candidate_id}`} applied for ${a.job_title || 'a role'}`}
-                  meta={a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-IN') : new Date(a.created_at).toLocaleDateString('en-IN')} />
-              ))
-          }
-        </Card>
-        <Card style={{ marginBottom:0 }}>
-          <CardTitle>👥 Recent Applications</CardTitle>
-          {allApps.length === 0
-            ? <div style={{ color:'#888', padding:'20px 0', fontSize:13 }}>No applications yet.</div>
-            : <Table head={['Candidate','Role','Status']} rows={allApps.slice(0,5).map(a => [
-                a.candidate_name || `Candidate #${a.candidate_id}`,
-                a.job_title || '—',
-                <Badge color={{ applied:'blue', shortlisted:'green', interview:'teal', hired:'purple', rejected:'red' }[a.status] || 'blue'}>{a.status}</Badge>
-              ])} />
-          }
-        </Card>
-      </div>
-    </>;
+    );
   }
 
   function PanelNotifications() {
@@ -868,14 +1251,15 @@ export default function EmployerPortal() {
 
   function PanelProfileDocs() {
     const docTypes = ['GST Certificate','PAN Card','Incorporation Certificate','Trade License','MSME Certificate','ISO Certificate'];
-    const docs = empDocs; const setDocs = setEmpDocs;
-    function handleUpload(type, file) {
+    const docs = empDocs;
+    async function handleUpload(type, file) {
       if (!file) return;
       if (file.size > 2 * 1024 * 1024) { alert('File must be under 2MB'); return; }
-      const entry = { type, name: file.name, size: Math.round(file.size/1024) + ' KB', uploaded: new Date().toLocaleDateString('en-IN') };
-      const updated = [...docs.filter(d => d.type !== type), entry];
-      setDocs(updated);
-      localStorage.setItem('snj_emp_docs', JSON.stringify(updated));
+      const file_size = Math.round(file.size / 1024) + ' KB';
+      try {
+        await api.upsertEmployerDocument({ doc_type: type, file_name: file.name, file_size });
+        await loadEmpDocs();
+      } catch (e) { alert('Upload failed: ' + e.message); }
     }
     return <>
       <Bc parts={['Company Profile','Company Documents']} />
@@ -883,12 +1267,12 @@ export default function EmployerPortal() {
       <Card>
         <Alert icon="ℹ️" type="info">Upload clear scanned copies. Accepted: PDF, JPG, PNG. Max 2 MB per file.</Alert>
         {docTypes.map(type => {
-          const uploaded = docs.find(d => d.type === type);
+          const uploaded = docs.find(d => d.doc_type === type);
           return (
             <div key={type} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', border:'1px solid #dde2eb', borderRadius:9, marginBottom:10, background:'#fff' }}>
               <div>
                 <div style={{ fontWeight:600, fontSize:13, color:'#0D2137' }}>{type}</div>
-                {uploaded && <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{uploaded.name} · {uploaded.size} · {uploaded.uploaded}</div>}
+                {uploaded && <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{uploaded.file_name} · {uploaded.file_size} · {uploaded.uploaded_at ? new Date(uploaded.uploaded_at).toLocaleDateString('en-IN') : ''}</div>}
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 {uploaded
@@ -1638,6 +2022,130 @@ export default function EmployerPortal() {
     </>;
   }
 
+  function PanelAssessments() {
+    const tests = [
+      { title:'Full Stack Developer Assessment', type:'Technical', candidates:24, avg:72, status:'Active' },
+      { title:'Product Manager Case Study',      type:'Case Study', candidates:18, avg:68, status:'Active' },
+      { title:'DevOps Proficiency Test',         type:'Technical', candidates:12, avg:81, status:'Closed' },
+    ];
+    return <>
+      <Bc parts={['Talent','Assessments']} />
+      <SectionHead title="Assessments 📋" sub="Evaluate candidate skills before interviews" />
+      <Card>
+        <CardTitle>Active Assessments</CardTitle>
+        <Table head={['Assessment','Type','Candidates','Avg Score','Status']} rows={tests.map(t=>[
+          t.title, t.type, String(t.candidates), `${t.avg}%`,
+          <Badge color={t.status==='Active'?'green':'blue'}>{t.status}</Badge>
+        ])} />
+      </Card>
+    </>;
+  }
+
+  function PanelAIInsights() {
+    const insights = [
+      { title:'High Demand Skill', desc:'AI/ML Engineers are in high demand — post roles now', badge:'High', color:C.gold },
+      { title:'Top Hiring Source', desc:'LinkedIn drives 44% of quality applications', badge:'LinkedIn', color:C.blue },
+      { title:'Time to Hire', desc:'You are 15% faster than industry average', badge:'Faster', color:C.green },
+      { title:'Diversity Score', desc:'Diversity score improved 12% this month', badge:'Good', color:C.teal },
+      { title:'Drop-off Alert', desc:'35% of applicants abandon after round 2 — consider shortening process', badge:'Action', color:C.red },
+    ];
+    return <>
+      <Bc parts={['Talent','AI Insights']} />
+      <SectionHead title="AI Insights ⚡" sub="Powered by real-time hiring data" />
+      {insights.map((ins,i)=>(
+        <Card key={i} style={{ marginBottom:10 }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <div style={{ fontWeight:700, color:C.navy, marginBottom:4 }}>{ins.title}</div>
+              <div style={{ fontSize:13, color:'#64748B' }}>{ins.desc}</div>
+            </div>
+            <span style={{ background: ins.color+'22', color:ins.color, borderRadius:20, padding:'4px 12px', fontSize:12, fontWeight:700, whiteSpace:'nowrap', marginLeft:16 }}>{ins.badge}</span>
+          </div>
+        </Card>
+      ))}
+    </>;
+  }
+
+  function PanelSavedSearches() {
+    const searches = [
+      { name:'Senior React Developer – Bangalore', filters:'React, 5+ yrs, Bangalore', count:42, saved:'2 days ago' },
+      { name:'AI/ML Engineer – Hyderabad',         filters:'Python, TensorFlow, 3+ yrs', count:28, saved:'1 week ago' },
+      { name:'Product Manager – Remote',           filters:'Product, Agile, Remote', count:19, saved:'2 weeks ago' },
+    ];
+    return <>
+      <Bc parts={['Talent','Saved Searches']} />
+      <SectionHead title="Saved Searches 🔍" sub="Quickly re-run your frequent candidate searches" />
+      <Card>
+        <CardTitle>Your Saved Searches</CardTitle>
+        {searches.length === 0
+          ? <div style={{ color:'#94a3b8', padding:'20px 0', textAlign:'center' }}>No saved searches yet. Use Talent Search to save one.</div>
+          : <Table head={['Search Name','Filters','Matching Candidates','Saved']} rows={searches.map(s=>[
+              <span style={{ color:C.blue, fontWeight:600, cursor:'pointer' }} onClick={()=>go('cand-search')}>{s.name}</span>,
+              s.filters, String(s.count), s.saved
+            ])} />
+        }
+      </Card>
+    </>;
+  }
+
+  function PanelEmployerBranding() {
+    return <>
+      <Bc parts={['Employer','Employer Branding']} />
+      <SectionHead title="Employer Branding 🏆" sub="Manage how candidates see your company" />
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>Company Profile Completeness</CardTitle>
+          {[['Logo & Banner','90%',C.green],['Company Description','75%',C.blue],['Culture & Values','60%',C.gold],['Office Photos','40%',C.red]].map(([lbl,pct,col])=>(
+            <div key={lbl} style={{ marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:13 }}>
+                <span style={{ color:C.navy }}>{lbl}</span><span style={{ color:col, fontWeight:700 }}>{pct}</span>
+              </div>
+              <div style={{ height:7, background:'#F1F5F9', borderRadius:4 }}>
+                <div style={{ height:'100%', width:pct, background:col, borderRadius:4 }}/>
+              </div>
+            </div>
+          ))}
+        </Card>
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>Branding Reach</CardTitle>
+          <StatRow n={4820}  label="Profile Views (this month)" pct={78} color={C.blue} />
+          <StatRow n={312}   label="Followers"                  pct={45} color={C.teal} />
+          <StatRow n={96}    label="Job Saves"                  pct={32} color={C.green} />
+          <StatRow n={4.2}   label="Avg Rating (out of 5)"      pct={84} color={C.gold} />
+        </Card>
+      </div>
+    </>;
+  }
+
+  function PanelBillingPlans() {
+    return <>
+      <Bc parts={['Employer','Billing & Plans']} />
+      <SectionHead title="Billing & Plans 💳" sub="Manage your subscription and invoices" />
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+        {[
+          { name:'Free',       price:'₹0',     jobs:3,  highlight:false },
+          { name:'Pro',        price:'₹4,999', jobs:25, highlight:true  },
+          { name:'Enterprise', price:'Custom',  jobs:-1, highlight:false },
+        ].map(p=>(
+          <Card key={p.name} style={{ marginBottom:0, border: p.highlight ? `2px solid ${C.blue}` : undefined, position:'relative' }}>
+            {p.highlight && <div style={{ position:'absolute', top:-12, left:'50%', transform:'translateX(-50%)', background:C.blue, color:'#fff', borderRadius:20, padding:'2px 14px', fontSize:11, fontWeight:700 }}>Current Plan</div>}
+            <div style={{ fontSize:18, fontWeight:800, color:C.navy, marginBottom:4 }}>{p.name}</div>
+            <div style={{ fontSize:26, fontWeight:800, color:C.blue }}>{p.price}<span style={{ fontSize:12, color:'#94A3B8' }}>/mo</span></div>
+            <div style={{ fontSize:13, color:'#64748B', marginTop:8 }}>{p.jobs === -1 ? 'Unlimited job posts' : `Up to ${p.jobs} active jobs`}</div>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardTitle>Recent Invoices</CardTitle>
+        <Table head={['Invoice','Date','Amount','Status']} rows={[
+          ['INV-2025-06','Jun 2025','₹4,999',<Badge color="green">Paid</Badge>],
+          ['INV-2025-05','May 2025','₹4,999',<Badge color="green">Paid</Badge>],
+          ['INV-2025-04','Apr 2025','₹4,999',<Badge color="green">Paid</Badge>],
+        ]} />
+      </Card>
+    </>;
+  }
+
   function PanelHelpdesk() {
     return <>
       <Bc parts={['Support','Helpdesk']} />
@@ -1764,6 +2272,11 @@ export default function EmployerPortal() {
       case 'comp-pfesi':        return PanelCompPfesi();
       case 'comp-contract':     return PanelCompContract();
       case 'comp-audit':        return PanelCompAudit();
+      case 'assessments':       return PanelAssessments();
+      case 'ai-insights':       return PanelAIInsights();
+      case 'saved-searches':    return PanelSavedSearches();
+      case 'employer-branding': return PanelEmployerBranding();
+      case 'billing-plans':     return PanelBillingPlans();
       case 'helpdesk':          return PanelHelpdesk();
       case 'grievance':         return PanelGrievance();
       case 'faq':               return PanelFAQ();
@@ -1777,7 +2290,7 @@ export default function EmployerPortal() {
     <div style={{ minHeight:'100vh', background:'#f0f2f5' }}>
       {Sidebar()}
       {Topbar()}
-      <div style={{ marginLeft:SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)`, overflowX:'hidden', boxSizing:'border-box' }}>
+      <div style={{ marginLeft: isMobile ? 0 : SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)`, overflowX:'hidden', boxSizing:'border-box' }}>
         {renderPanel()}
       </div>
     </div>

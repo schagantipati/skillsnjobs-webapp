@@ -36,7 +36,7 @@ const ASSESSMENT_AGENCIES = ['Wheebox','NSDC Assessment','Ernst & Young','MERIT-
 const S = {
   shell: { display:'flex', height:'100vh', overflow:'hidden', background:'#F1F5F9' },
   // sidebar
-  sidebar: { width:180, flexShrink:0, background:'#010E3C', display:'flex', flexDirection:'column', overflow:'hidden' },
+  sidebar: { width:210, flexShrink:0, background:'#010E3C', display:'flex', flexDirection:'column', overflow:'hidden' },
   sbLogo: { padding:'0 10px', height:46, borderBottom:'1px solid rgba(255,255,255,.15)', display:'flex', alignItems:'center', gap:7, flexShrink:0 },
   sbMark: { width:26, height:26, background:'rgba(255,255,255,.18)', borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, flexShrink:0 },
   sbScroll: { flex:1, overflowY:'auto', padding:'4px 0' },
@@ -3333,13 +3333,6 @@ const NAV = [
   { key:'certifications', icon:'🛡️', label:'Certifications' },
   { key:'placements-tv', icon:'💼', label:'Placements' },
 
-  { section: 'Insights' },
-  { key:'analytics', icon:'📈', label:'Analytics' },
-  { key:'ai-insights', icon:'🤖', label:'AI Insights' },
-  { key:'revenue', icon:'💰', label:'Revenue' },
-  { key:'marketing', icon:'📣', label:'Marketing' },
-  { key:'reviews', icon:'⭐', label:'Reviews & Feedback' },
-
   { section: 'Collaboration' },
   { icon:'🤝', label:'Collaboration', children:[
     { key:'collab-consortium', label:'Consortium Builder' },
@@ -3347,6 +3340,13 @@ const NAV = [
     { key:'collab-resources', label:'Resource Sharing' },
     { key:'collab-invitations', label:'Invitations' },
   ]},
+
+  { section: 'Insights' },
+  { key:'analytics', icon:'📈', label:'Analytics' },
+  { key:'ai-insights', icon:'🤖', label:'AI Insights' },
+  { key:'revenue', icon:'💰', label:'Revenue' },
+  { key:'marketing', icon:'📣', label:'Marketing' },
+  { key:'reviews', icon:'⭐', label:'Reviews & Feedback' },
 
   { section: 'Compliance' },
   { key:'reports', icon:'📊', label:'Reports & MIS' },
@@ -3372,12 +3372,21 @@ export default function TrainingVendorPortal() {
   const routerNavigate = useNavigate();
   const [activeKey, setActiveKey] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [menuPerms, setMenuPerms] = useState({});
   const [avatarTipOpen, setAvatarTipOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const navigate = (key) => { setActiveKey(key); setSearchQuery(''); setSearchFocused(false); };
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [activeKey]); // eslint-disable-line
 
   useEffect(() => {
     api.getRolePermissions().then(all => setMenuPerms(all['training_vendor'] || {})).catch(() => {});
@@ -3437,7 +3446,10 @@ export default function TrainingVendorPortal() {
   return (
     <div style={S.shell}>
       {/* SIDEBAR */}
-      <nav style={S.sidebar}>
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+      )}
+      <nav style={{ ...S.sidebar, ...(isMobile ? { position:'fixed', top:0, left:0, height:'100vh', zIndex:200, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition:'transform 0.25s ease' } : {}) }}>
         <div style={S.sbLogo}>
           <div style={{ width:32, height:32, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:24, height:24, objectFit:'contain' }} /></div>
           <div style={{ minWidth:0 }}>
@@ -3545,6 +3557,9 @@ export default function TrainingVendorPortal() {
       {/* MAIN */}
       <div style={S.main}>
         <div style={{ ...S.topbar, position:'relative' }}>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+          )}
           <span style={{ fontSize:12, color:'#94A3B8' }}>{breadcrumb}</span>
           <div style={{ flex:1, maxWidth:380, margin:'0 16px', position:'relative' }}>
             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:14, color:'#94A3B8', pointerEvents:'none' }}>🔍</span>

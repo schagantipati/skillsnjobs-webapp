@@ -47,6 +47,11 @@ export const api = {
   getRolePermissions: () => request('/users/admin/role-permissions'),
   saveRolePermissions: (role, perms) => request(`/users/admin/role-permissions/${role}`, { method: 'PUT', body: perms }),
   allUsers: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request('/users/all' + (qs ? `?${qs}` : '')); },
+  bulkImport: (entity, file) => {
+    const fd = new FormData(); fd.append('file', file);
+    const token = localStorage.getItem('snj_token');
+    return fetch(`/api/users/bulk-import/${entity}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || d.detail || 'Upload failed'); return d; });
+  },
   setUserStatus: (id, is_active) => request(`/users/${id}/status`, { method: 'PUT', body: { is_active } }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
 
@@ -59,6 +64,26 @@ export const api = {
   createJob: (payload) => request('/jobs', { method: 'POST', body: payload }),
   updateJob: (id, payload) => request(`/jobs/${id}`, { method: 'PUT', body: payload }),
   deleteJob: (id) => request(`/jobs/${id}`, { method: 'DELETE' }),
+
+  // Employer — HR Contacts
+  employerHrContacts: () => request('/employer/hr-contacts'),
+  createEmployerHrContact: (b) => request('/employer/hr-contacts', { method: 'POST', body: b }),
+  deleteEmployerHrContact: (id) => request(`/employer/hr-contacts/${id}`, { method: 'DELETE' }),
+
+  // Employer — Documents
+  employerDocuments: () => request('/employer/documents'),
+  upsertEmployerDocument: (b) => request('/employer/documents', { method: 'POST', body: b }),
+  deleteEmployerDocument: (id) => request(`/employer/documents/${id}`, { method: 'DELETE' }),
+
+  // Employer — Interviews
+  employerInterviews: () => request('/employer/interviews'),
+  createEmployerInterview: (b) => request('/employer/interviews', { method: 'POST', body: b }),
+  deleteEmployerInterview: (id) => request(`/employer/interviews/${id}`, { method: 'DELETE' }),
+
+  // Employer — Offers
+  employerOffers: () => request('/employer/offers'),
+  createEmployerOffer: (b) => request('/employer/offers', { method: 'POST', body: b }),
+  updateEmployerOffer: (id, b) => request(`/employer/offers/${id}`, { method: 'PUT', body: b }),
 
   apply: (job_id) => request('/applications', { method: 'POST', body: { job_id } }),
   myApplications: () => request('/applications/mine'),
@@ -97,7 +122,7 @@ export const api = {
   renameAccreditation: (id, name) => request(`/accreditations/${id}`, { method: 'PATCH', body: { name } }),
   deleteAccreditation: (id) => request(`/accreditations/${id}`, { method: 'DELETE' }),
 
-  orgClassifications: () => request('/org-classifications'),
+  orgClassifications: () => request('/org-classifications', { auth: false }),
   addOrgClassification: (name) => request('/org-classifications', { method: 'POST', body: { name } }),
   setOrgClassificationStatus: (id, is_enabled) => request(`/org-classifications/${id}/status`, { method: 'PATCH', body: { is_enabled } }),
   renameOrgClassification: (id, name) => request(`/org-classifications/${id}`, { method: 'PATCH', body: { name } }),
@@ -169,6 +194,9 @@ export const api = {
   csrCreateTP: (b) => request('/csr/training-partners', { method: 'POST', body: b }),
   csrUpdateTP: (id, b) => request(`/csr/training-partners/${id}`, { method: 'PUT', body: b }),
   csrDeleteTP: (id) => request(`/csr/training-partners/${id}`, { method: 'DELETE' }),
+  csrUnspentFunds: () => request('/csr/unspent-funds'),
+  csrCreateUnspentFund: (b) => request('/csr/unspent-funds', { method: 'POST', body: b }),
+  csrUpdateUnspentFund: (id, b) => request(`/csr/unspent-funds/${id}`, { method: 'PUT', body: b }),
 
   // ── Batches (Trainer Portal) ──
   myBatches: () => request('/batches/mine'),
@@ -248,15 +276,30 @@ export const api = {
   trainerGrievances: () => request('/trainer/grievances'),
   addTrainerGrievance: (b) => request('/trainer/grievances', { method: 'POST', body: b }),
 
+  trainerAnnouncements: () => request('/trainer/announcements'),
+  addTrainerAnnouncement: (b) => request('/trainer/announcements', { method: 'POST', body: b }),
+  deleteTrainerAnnouncement: (id) => request(`/trainer/announcements/${id}`, { method: 'DELETE' }),
+
+  trainerBankDetails: () => request('/trainer/bank-details'),
+  saveTrainerBankDetails: (b) => request('/trainer/bank-details', { method: 'PUT', body: b }),
+
   trainerReportAttendance: () => request('/trainer/reports/attendance'),
   trainerReportBatch: () => request('/trainer/reports/batch'),
   trainerReportDropout: () => request('/trainer/reports/dropout'),
   trainerReportAssessment: () => request('/trainer/reports/assessment'),
   trainerReportPlacement: () => request('/trainer/reports/placement'),
   trainerCertEligible: () => request('/trainer/cert-eligible'),
+  trainerCertIssue: (b) => request('/trainer/cert-issue', { method: 'POST', body: b }),
+  trainerCertIssued: () => request('/trainer/cert-issued'),
   trainerNotifications: () => request('/trainer/notifications'),
   trainerVerifyCert: (cert_no) => request(`/trainer/cert-verify?cert_no=${encodeURIComponent(cert_no)}`),
   trainerReportScheme: () => request('/trainer/reports/scheme'),
+  trainerFeedbackSessions: () => request('/trainer/feedback/sessions'),
+  trainerRatingSummary: () => request('/trainer/feedback/rating-summary'),
+  trainerPaymentHistory: () => request('/trainer/payments/history'),
+  trainerPaymentPending: () => request('/trainer/payments/pending'),
+  trainerReferrals: () => request('/trainer/referrals'),
+  addTrainerReferral: (b) => request('/trainer/referrals', { method: 'POST', body: b }),
 
   // ── State Government Portal ──
   sgStats: () => request('/state-govt/stats'),

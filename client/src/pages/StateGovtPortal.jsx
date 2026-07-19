@@ -175,6 +175,8 @@ export default function StateGovtPortal() {
   const routerNavigate = useNavigate();
   const [activePanel, setActivePanel] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuPerms, setMenuPerms] = useState({});
   const [stats, setStats] = useState(null);
   const [modal, setModal] = useState(null);
@@ -208,6 +210,13 @@ export default function StateGovtPortal() {
     loadStats();
     api.allBatches().then(b => setAllBatches(Array.isArray(b) ? b : [])).catch(() => {});
   }, [loadStats]);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [activePanel]); // eslint-disable-line
+
   useEffect(() => {
     api.getRolePermissions().then(all => setMenuPerms(all['state_government'] || {})).catch(() => {});
   }, []);
@@ -1705,7 +1714,10 @@ export default function StateGovtPortal() {
       <div className="sg-shell">
 
         {/* SIDEBAR */}
-        <nav className="sg-sidebar">
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <nav className="sg-sidebar" style={isMobile ? { position:'fixed', top:0, left:0, height:'100vh', zIndex:200, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition:'transform 0.25s ease' } : {}}>
           <div className="sg-brand">
             <div className="sg-brand-top">
               <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
@@ -1774,6 +1786,9 @@ export default function StateGovtPortal() {
         {/* MAIN */}
         <div className="sg-main">
           <div className="sg-topbar">
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0, marginRight:8 }}>☰</button>
+            )}
             <div className="sg-tb-left">
               <span>State Portal</span><span>›</span>
               <span className="sg-tb-crumb">{CRUMBS[activePanel] || activePanel}</span>

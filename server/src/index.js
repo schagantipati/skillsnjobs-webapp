@@ -21,6 +21,7 @@ const placementRoutes = require('./routes/placements');
 const csrRoutes = require('./routes/csr');
 const trainerRoutes = require('./routes/trainer');
 const collaborationRoutes = require('./routes/collaboration');
+const employerRoutes = require('./routes/employer');
 
 const app = express();
 app.use(cors());
@@ -46,6 +47,7 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/placements', placementRoutes);
 app.use('/api/trainer', trainerRoutes);
 app.use('/api/collaboration', collaborationRoutes);
+app.use('/api/employer', employerRoutes);
 
 app.get('/api/stats/summary', authRequired, async (req, res) => {
   try {

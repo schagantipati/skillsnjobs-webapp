@@ -154,3 +154,69 @@ input,select,textarea{font-family:inherit; font-size:14px}
 }
 .snj-toggle input:checked + .snj-track { background: #28A745; }
 .snj-toggle input:checked + .snj-track::after { left: 23px; }
+
+/* ── PORTAL RESPONSIVE LAYOUT ── */
+
+/* Prevent horizontal overflow on all portal content wrappers */
+* { min-width: 0; }
+
+/* ── Grid breakpoints (override inline styles via attribute selectors + !important) ── */
+
+/* 5-6 col → 3 col below 1200px */
+@media (max-width: 1200px) {
+  [style*="repeat(5,1fr)"], [style*="repeat(5, 1fr)"],
+  [style*="repeat(6,1fr)"], [style*="repeat(6, 1fr)"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* 4+ col → 2 col below 960px */
+@media (max-width: 960px) {
+  [style*="repeat(4,1fr)"], [style*="repeat(4, 1fr)"],
+  [style*="repeat(5,1fr)"], [style*="repeat(5, 1fr)"],
+  [style*="repeat(6,1fr)"], [style*="repeat(6, 1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  [style*="repeat(3,1fr)"], [style*="repeat(3, 1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* all multi-col → 1 col below 540px */
+@media (max-width: 540px) {
+  [style*="repeat(2,1fr)"], [style*="repeat(2, 1fr)"],
+  [style*="repeat(3,1fr)"], [style*="repeat(3, 1fr)"],
+  [style*="repeat(4,1fr)"], [style*="repeat(4, 1fr)"],
+  [style*="repeat(5,1fr)"], [style*="repeat(5, 1fr)"],
+  [style*="repeat(6,1fr)"], [style*="repeat(6, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Asymmetric 2-col layouts (e.g. "1fr 1.5fr", "2fr 1fr") → stack */
+  [style*="1fr 1fr"], [style*="1fr 1.5fr"], [style*="1fr 1.6fr"],
+  [style*="1fr 2fr"], [style*="2fr 1fr"], [style*="1.5fr 1fr"],
+  [style*="1fr 1.4fr"], [style*="2.2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Tables should scroll horizontally rather than squish */
+table { min-width: 480px; }
+.card, [class*="card"], [style*="overflow"] { }
+[style*="overflowX:'auto'"], [style*='overflowX:"auto"'] { overflow-x: auto; }
+
+/* Ensure tables inside cards scroll instead of overflow */
+@media (max-width: 768px) {
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Portal topbar: wrap user info on small screens */
+@media (max-width: 600px) {
+  /* Shrink logo area text */
+  [style*="fontSize:14"][style*="fontWeight:800"] { font-size: 12px !important; }
+}
+
+/* Padding reduction on small screens */
+@media (max-width: 600px) {
+  [style*="padding:24"] { padding: 12px !important; }
+  [style*="padding:'24px'"] { padding: 12px !important; }
+}

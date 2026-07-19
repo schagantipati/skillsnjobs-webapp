@@ -7,37 +7,37 @@ import AccountPreferences from '../components/AccountPreferences.jsx';
 const CSS = `
   .sa-wrap *{box-sizing:border-box;margin:0;padding:0}
   .sa-wrap{font-family:'Inter',system-ui,sans-serif;background:#F4F6F9;color:#1A2B4A;display:flex;height:100vh;overflow:hidden;font-size:13px}
-  .sa-sidebar{width:220px;min-width:220px;background:#010E3C;display:flex;flex-direction:column;height:100vh;overflow:hidden;flex-shrink:0}
-  .sa-logo{padding:0 16px;height:58px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.12);cursor:pointer;flex-shrink:0}
-  .sa-logo .brand-name{color:#fff;font-weight:800;font-size:13px;line-height:1.1}
-  .sa-logo .brand-tag{color:rgba(255,255,255,.45);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
-  .sa-nav{flex:1;overflow-y:auto;padding:6px 0}
-  .sa-nav::-webkit-scrollbar{width:4px}
-  .sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:4px}
-  .sa-section{padding:10px 14px 3px;color:rgba(255,255,255,.4);font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;border-radius:4px;margin:0 4px;transition:background .12s}
-  .sa-section:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6)}
-  .sa-section .sa-sec-chev{font-size:9px;transition:transform .2s;opacity:.6}
+  .sa-sidebar{width:196px;min-width:196px;background:#010E3C;display:flex;flex-direction:column;height:100vh;overflow:hidden;flex-shrink:0}
+  .sa-logo{padding:0 12px;height:46px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.1);cursor:pointer;flex-shrink:0}
+  .sa-logo .brand-name{color:#fff;font-weight:800;font-size:12px;line-height:1.1}
+  .sa-logo .brand-tag{color:rgba(255,255,255,.4);font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+  .sa-nav{flex:1;overflow-y:auto;padding:4px 0}
+  .sa-nav::-webkit-scrollbar{width:3px}
+  .sa-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:3px}
+  .sa-section{padding:7px 12px 2px;color:rgba(255,255,255,.35);font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;border-radius:4px;margin:0 3px;transition:background .12s}
+  .sa-section:hover{background:rgba(255,255,255,.05);color:rgba(255,255,255,.55)}
+  .sa-section .sa-sec-chev{font-size:8px;transition:transform .2s;opacity:.55}
   .sa-sec-items{overflow:hidden;transition:max-height .25s ease}
-  .sa-item{display:flex;align-items:center;gap:9px;padding:7px 10px;margin:1px 6px;cursor:pointer;border-radius:6px;color:rgba(255,255,255,.82);font-size:12.5px;font-weight:500;transition:background .12s;user-select:none}
-  .sa-item:hover{background:rgba(255,255,255,.1)}
-  .sa-item.active{background:rgba(255,255,255,.22);color:#fff;font-weight:700}
-  .sa-item.parent-active{background:rgba(255,255,255,.12);color:#fff}
-  .sa-item .sa-icon{font-size:15px;flex-shrink:0;width:20px;text-align:center}
-  .sa-item .sa-lbl{flex:1}
-  .sa-item .sa-chev{font-size:10px;color:rgba(255,255,255,.45);transition:transform .18s;flex-shrink:0}
-  .sa-item .sa-badge{background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;flex-shrink:0}
-  .sa-item .sa-tag{display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;margin-left:4px}
+  .sa-item{display:flex;align-items:center;gap:7px;padding:5px 8px;margin:1px 4px;cursor:pointer;border-radius:5px;color:rgba(255,255,255,.8);font-size:11.5px;font-weight:500;transition:background .12s;user-select:none}
+  .sa-item:hover{background:rgba(255,255,255,.09)}
+  .sa-item.active{background:rgba(255,255,255,.2);color:#fff;font-weight:700}
+  .sa-item.parent-active{background:rgba(255,255,255,.1);color:#fff}
+  .sa-item .sa-icon{font-size:13px;flex-shrink:0;width:18px;text-align:center}
+  .sa-item .sa-lbl{flex:1;font-size:11.5px}
+  .sa-item .sa-chev{font-size:9px;color:rgba(255,255,255,.4);transition:transform .18s;flex-shrink:0}
+  .sa-item .sa-badge{background:#DC2626;color:#fff;font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:9px;flex-shrink:0}
+  .sa-item .sa-tag{display:inline-flex;align-items:center;padding:1px 5px;border-radius:4px;font-size:8px;font-weight:700;margin-left:3px}
   .sa-item .sa-tag.new{background:#D1FAE5;color:#065F46}
   .sa-item .sa-tag.soon{background:#FEF3C7;color:#92400E}
   .sa-children{overflow:hidden;max-height:0;transition:max-height .28s ease}
   .sa-children.open{max-height:600px}
-  .sa-child{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 37px;margin:1px 6px;cursor:pointer;border-radius:5px;color:rgba(255,255,255,.65);font-size:12px;transition:background .12s}
-  .sa-child:hover{background:rgba(255,255,255,.1);color:#fff}
-  .sa-child.active{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
-  .sa-footer{padding:10px 12px;border-top:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:9px;flex-shrink:0}
-  .sa-avatar{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0}
-  .sa-footer .sa-uname{color:rgba(255,255,255,.9);font-size:11px;font-weight:700}
-  .sa-footer .sa-urole{color:rgba(255,255,255,.42);font-size:9.5px;text-transform:capitalize}
+  .sa-child{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 32px;margin:0px 4px;cursor:pointer;border-radius:4px;color:rgba(255,255,255,.6);font-size:11px;transition:background .12s}
+  .sa-child:hover{background:rgba(255,255,255,.09);color:#fff}
+  .sa-child.active{background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+  .sa-footer{padding:8px 10px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .sa-avatar{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex-shrink:0}
+  .sa-footer .sa-uname{color:rgba(255,255,255,.9);font-size:10.5px;font-weight:700}
+  .sa-footer .sa-urole{color:rgba(255,255,255,.4);font-size:9px;text-transform:capitalize}
   .sa-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
   .sa-topbar{height:56px;background:#fff;border-bottom:1px solid #E0E6EF;display:flex;align-items:center;padding:0 22px;gap:14px;flex-shrink:0;box-shadow:0 1px 4px rgba(10,45,110,.05)}
   .sa-topbar .sa-breadcrumb{flex:1;display:flex;align-items:baseline;gap:6px}
@@ -95,7 +95,7 @@ const CSS = `
 const NAV = [
   { section: 'MAIN', items: [
     { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
-    { id: 'notifications', icon: '🔔', label: 'Notifications', badge: 5 },
+    { id: 'notifications', icon: '🔔', label: 'Notifications' },
     { id: 'analytics', icon: '📈', label: 'Live Analytics', tag: 'New', tagType: 'new' },
   ]},
   { section: 'USER MANAGEMENT', items: [
@@ -304,7 +304,7 @@ const ROLE_LABEL = {
 
 // ── Panels ─────────────────────────────────────────────────────
 
-function PanelDashboard({ stats }) {
+function PanelDashboard({ stats, onNavigate }) {
   const s = stats || {};
   const fmt = n => (n ?? 0).toLocaleString('en-IN');
   const certRate = s.candidates ? Math.round((s.totalCertificates || 0) / s.candidates * 100) : 0;
@@ -337,8 +337,8 @@ function PanelDashboard({ stats }) {
         <div className="card">
           <div className="card-title">⚡ Quick Actions</div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {[['➕ Add Training Partner','btn-primary'],['📥 Bulk Import Users','btn-teal'],['📊 Generate MIS Report','btn-outline'],['🔍 Verify Certificates','btn-outline']].map(([lbl,cls]) => (
-              <button key={lbl} className={`sa-btn ${cls}`} style={{textAlign:'left'}}>{lbl}</button>
+            {[['➕ Add Training Partner','btn-primary','tp-list'],['📥 Bulk Import Users','btn-teal','bulk-import'],['📊 Generate MIS Report','btn-outline','mis'],['🔍 Verify Certificates','btn-outline','tp-verify']].map(([lbl,cls,target]) => (
+              <button key={lbl} className={`sa-btn ${cls}`} style={{textAlign:'left'}} onClick={() => onNavigate && onNavigate(target)}>{lbl}</button>
             ))}
           </div>
         </div>
@@ -690,7 +690,7 @@ function PanelCandidates() {
 
 function PanelAssessScheduled() {
   const [data, loading] = useLoad(() => api.allAssessments());
-  const [tab, setTab] = React.useState('all');
+  const [tab, setTab] = useState('all');
   if (loading) return <Loading />;
   const d = data || {};
   const trainer = d.trainer || [];
@@ -795,7 +795,7 @@ function PanelAssessAgencies() {
 
 function PanelEnrolments() {
   const [data, loading] = useLoad(() => api.allEnrolments());
-  const [tab, setTab] = React.useState('all');
+  const [tab, setTab] = useState('all');
   if (loading) return <Loading />;
   const d = data || {};
   const totals = d.totals || {};
@@ -848,7 +848,7 @@ function PanelEnrolments() {
 }
 
 function PanelBatches() {
-  const [batches, loading] = useLoad(() => api.allBatches ? api.allBatches() : fetch('/api/batches', {headers:{Authorization:`Bearer ${localStorage.getItem('snj_token')}`}}).then(r=>r.json()));
+  const [batches, loading] = useLoad(() => api.allBatches());
   const list = Array.isArray(batches) ? batches : [];
 
   return (
@@ -924,7 +924,7 @@ function PanelJobs() {
 }
 
 function PanelPlacements() {
-  const [data, loading] = useLoad(() => api.allPlacements ? api.allPlacements() : fetch('/api/placements/mine', {headers:{Authorization:`Bearer ${localStorage.getItem('snj_token')}`}}).then(r=>r.json()));
+  const [data, loading] = useLoad(() => api.myPlacements());
   const list = Array.isArray(data) ? data : (data?.placements||[]);
 
   return (
@@ -1000,8 +1000,30 @@ function PanelAuditLogs() {
 }
 
 function PanelGeoStates() {
-  const [geo, loading] = useLoad(() => api.geographicCoverage());
-  const list = Array.isArray(geo) ? geo : [];
+  const [geo, loading, reload] = useLoad(() => api.geographicCoverage());
+  const [list, setList] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { setList(Array.isArray(geo) ? geo : []); }, [geo]);
+
+  async function addRegion() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try {
+      await api.addGeographicCoverage(newName.trim());
+      setNewName(''); setMsg('✅ Added'); reload();
+    } catch { setMsg('❌ Failed'); }
+    setSaving(false);
+  }
+  async function toggleRegion(id, enabled) {
+    try { await api.setGeographicCoverageStatus(id, !enabled); reload(); } catch {}
+  }
+  async function deleteRegion(id) {
+    if (!window.confirm('Delete this region?')) return;
+    try { await api.deleteGeographicCoverage(id); reload(); } catch {}
+  }
+
   return (
     <>
       <div className="ph"><h1>States & Districts</h1><p>Geographic coverage configuration</p></div>
@@ -1011,15 +1033,24 @@ function PanelGeoStates() {
         <div className="kpi" style={{'--c':'#DC2626'}}><div className="val">{list.filter(g=>!g.is_enabled).length}</div><div className="lbl">Disabled</div></div>
       </div>
       <div className="card">
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Add state / region…" style={{flex:1,padding:'7px 10px',borderRadius:6,border:'1.5px solid #E0E6EF',fontSize:12}} onKeyDown={e=>e.key==='Enter'&&addRegion()} />
+          <button className="sa-btn btn-primary" onClick={addRegion} disabled={saving}>{saving?'Saving…':'+ Add'}</button>
+        </div>
+        {msg && <div style={{fontSize:12,marginBottom:8,color:msg.startsWith('✅')?'#007B5E':'#DC2626'}}>{msg}</div>}
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="🗺️" msg="No geographic data configured." /> : (
           <table className="sa-table">
-            <thead><tr><th>Region / State</th><th>Status</th><th>Added</th></tr></thead>
+            <thead><tr><th>Region / State</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {list.map(g => (
                 <tr key={g.id}>
                   <td style={{fontWeight:600}}>{g.name}</td>
                   <td><Pill v={g.is_enabled?'Active':'Disabled'} map={{Active:'green',Disabled:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(g.created_at||'').slice(0,10)}</td>
+                  <td style={{display:'flex',gap:6}}>
+                    <button className={`sa-btn ${g.is_enabled?'btn-outline':'btn-teal'}`} style={{padding:'3px 10px',fontSize:11}} onClick={()=>toggleRegion(g.id,g.is_enabled)}>{g.is_enabled?'Disable':'Enable'}</button>
+                    <button className="sa-btn btn-danger" style={{padding:'3px 10px',fontSize:11}} onClick={()=>deleteRegion(g.id)}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1031,8 +1062,28 @@ function PanelGeoStates() {
 }
 
 function PanelAccreditations() {
-  const [data, loading] = useLoad(() => api.accreditations());
-  const list = Array.isArray(data) ? data : [];
+  const [data, loading, reload] = useLoad(() => api.accreditations());
+  const [list, setList] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { setList(Array.isArray(data) ? data : []); }, [data]);
+
+  async function addItem() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try { await api.addAccreditation(newName.trim()); setNewName(''); setMsg('✅ Added'); reload(); }
+    catch { setMsg('❌ Failed'); }
+    setSaving(false);
+  }
+  async function toggleItem(id, enabled) {
+    try { await api.setAccreditationStatus(id, !enabled); reload(); } catch {}
+  }
+  async function deleteItem(id) {
+    if (!window.confirm('Delete this accreditation type?')) return;
+    try { await api.deleteAccreditation(id); reload(); } catch {}
+  }
+
   return (
     <>
       <div className="ph"><h1>Accreditation Types</h1><p>Configured accreditation types for training partners</p></div>
@@ -1041,15 +1092,24 @@ function PanelAccreditations() {
         <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{list.filter(a=>a.is_enabled).length}</div><div className="lbl">Active</div></div>
       </div>
       <div className="card">
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Add accreditation type…" style={{flex:1,padding:'7px 10px',borderRadius:6,border:'1.5px solid #E0E6EF',fontSize:12}} onKeyDown={e=>e.key==='Enter'&&addItem()} />
+          <button className="sa-btn btn-primary" onClick={addItem} disabled={saving}>{saving?'Saving…':'+ Add'}</button>
+        </div>
+        {msg && <div style={{fontSize:12,marginBottom:8,color:msg.startsWith('✅')?'#007B5E':'#DC2626'}}>{msg}</div>}
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="🏅" msg="No accreditation types configured yet." /> : (
           <table className="sa-table">
-            <thead><tr><th>Accreditation Type</th><th>Status</th><th>Added</th></tr></thead>
+            <thead><tr><th>Accreditation Type</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {list.map(a => (
                 <tr key={a.id}>
                   <td style={{fontWeight:600}}>{a.name}</td>
                   <td><Pill v={a.is_enabled?'Active':'Disabled'} map={{Active:'green',Disabled:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(a.created_at||'').slice(0,10)}</td>
+                  <td style={{display:'flex',gap:6}}>
+                    <button className={`sa-btn ${a.is_enabled?'btn-outline':'btn-teal'}`} style={{padding:'3px 10px',fontSize:11}} onClick={()=>toggleItem(a.id,a.is_enabled)}>{a.is_enabled?'Disable':'Enable'}</button>
+                    <button className="sa-btn btn-danger" style={{padding:'3px 10px',fontSize:11}} onClick={()=>deleteItem(a.id)}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1061,21 +1121,50 @@ function PanelAccreditations() {
 }
 
 function PanelOrgClassifications() {
-  const [data, loading] = useLoad(() => api.orgClassifications());
-  const list = Array.isArray(data) ? data : [];
+  const [data, loading, reload] = useLoad(() => api.orgClassifications());
+  const [list, setList] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { setList(Array.isArray(data) ? data : []); }, [data]);
+
+  async function addItem() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try { await api.addOrgClassification(newName.trim()); setNewName(''); setMsg('✅ Added'); reload(); }
+    catch { setMsg('❌ Failed'); }
+    setSaving(false);
+  }
+  async function toggleItem(id, enabled) {
+    try { await api.setOrgClassificationStatus(id, !enabled); reload(); } catch {}
+  }
+  async function deleteItem(id) {
+    if (!window.confirm('Delete this classification?')) return;
+    try { await api.deleteOrgClassification(id); reload(); } catch {}
+  }
+
   return (
     <>
       <div className="ph"><h1>Organisation Classifications</h1><p>Organisation category types for the platform</p></div>
       <div className="card">
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Add classification…" style={{flex:1,padding:'7px 10px',borderRadius:6,border:'1.5px solid #E0E6EF',fontSize:12}} onKeyDown={e=>e.key==='Enter'&&addItem()} />
+          <button className="sa-btn btn-primary" onClick={addItem} disabled={saving}>{saving?'Saving…':'+ Add'}</button>
+        </div>
+        {msg && <div style={{fontSize:12,marginBottom:8,color:msg.startsWith('✅')?'#007B5E':'#DC2626'}}>{msg}</div>}
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="🏢" msg="No classifications configured yet." /> : (
           <table className="sa-table">
-            <thead><tr><th>Classification</th><th>Status</th><th>Added</th></tr></thead>
+            <thead><tr><th>Classification</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {list.map(o => (
                 <tr key={o.id}>
                   <td style={{fontWeight:600}}>{o.name}</td>
                   <td><Pill v={o.is_enabled?'Active':'Disabled'} map={{Active:'green',Disabled:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(o.created_at||'').slice(0,10)}</td>
+                  <td style={{display:'flex',gap:6}}>
+                    <button className={`sa-btn ${o.is_enabled?'btn-outline':'btn-teal'}`} style={{padding:'3px 10px',fontSize:11}} onClick={()=>toggleItem(o.id,o.is_enabled)}>{o.is_enabled?'Disable':'Enable'}</button>
+                    <button className="sa-btn btn-danger" style={{padding:'3px 10px',fontSize:11}} onClick={()=>deleteItem(o.id)}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1087,8 +1176,28 @@ function PanelOrgClassifications() {
 }
 
 function PanelTargetBeneficiaries() {
-  const [data, loading] = useLoad(() => api.targetBeneficiaries());
-  const list = Array.isArray(data) ? data : [];
+  const [data, loading, reload] = useLoad(() => api.targetBeneficiaries());
+  const [list, setList] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { setList(Array.isArray(data) ? data : []); }, [data]);
+
+  async function addItem() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    try { await api.addTargetBeneficiary(newName.trim()); setNewName(''); setMsg('✅ Added'); reload(); }
+    catch { setMsg('❌ Failed'); }
+    setSaving(false);
+  }
+  async function toggleItem(id, enabled) {
+    try { await api.setTargetBeneficiaryStatus(id, !enabled); reload(); } catch {}
+  }
+  async function deleteItem(id) {
+    if (!window.confirm('Delete this beneficiary category?')) return;
+    try { await api.deleteTargetBeneficiary(id); reload(); } catch {}
+  }
+
   return (
     <>
       <div className="ph"><h1>Target Beneficiaries</h1><p>Configured target beneficiary categories</p></div>
@@ -1097,15 +1206,24 @@ function PanelTargetBeneficiaries() {
         <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{list.filter(t=>t.is_enabled).length}</div><div className="lbl">Active</div></div>
       </div>
       <div className="card">
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Add beneficiary category…" style={{flex:1,padding:'7px 10px',borderRadius:6,border:'1.5px solid #E0E6EF',fontSize:12}} onKeyDown={e=>e.key==='Enter'&&addItem()} />
+          <button className="sa-btn btn-primary" onClick={addItem} disabled={saving}>{saving?'Saving…':'+ Add'}</button>
+        </div>
+        {msg && <div style={{fontSize:12,marginBottom:8,color:msg.startsWith('✅')?'#007B5E':'#DC2626'}}>{msg}</div>}
         {loading ? <Loading /> : list.length === 0 ? <Empty icon="🎯" msg="No beneficiary categories configured yet." /> : (
           <table className="sa-table">
-            <thead><tr><th>Category</th><th>Status</th><th>Added</th></tr></thead>
+            <thead><tr><th>Category</th><th>Status</th><th>Added</th><th>Actions</th></tr></thead>
             <tbody>
               {list.map(t => (
                 <tr key={t.id}>
                   <td style={{fontWeight:600}}>{t.name}</td>
                   <td><Pill v={t.is_enabled?'Active':'Disabled'} map={{Active:'green',Disabled:'red'}} /></td>
                   <td style={{fontSize:'10.5px',color:'#94A3B8'}}>{(t.created_at||'').slice(0,10)}</td>
+                  <td style={{display:'flex',gap:6}}>
+                    <button className={`sa-btn ${t.is_enabled?'btn-outline':'btn-teal'}`} style={{padding:'3px 10px',fontSize:11}} onClick={()=>toggleItem(t.id,t.is_enabled)}>{t.is_enabled?'Disable':'Enable'}</button>
+                    <button className="sa-btn btn-danger" style={{padding:'3px 10px',fontSize:11}} onClick={()=>deleteItem(t.id)}>Delete</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1166,19 +1284,35 @@ const ROLE_MENUS = {
     sections: [
       { name: 'Main', items: [
         { key: 'dashboard', label: 'Dashboard', locked: true },
-        { key: 'org-profile', label: 'Organisation Profile', locked: true },
+        { key: 'onboarding', label: 'Organisation Profile', locked: true },
       ]},
-      { name: 'Training', items: [
-        { key: 'centres', label: 'Training Centres' },
-        { key: 'trainers', label: 'Trainers & Faculty' },
-        { key: 'courses', label: 'Courses & Curriculum' },
-        { key: 'batches', label: 'Batch Management' },
+      { name: 'Training Centres', items: [
+        { key: 'centres', label: 'Centre List' },
+        { key: 'centres-add', label: 'Add Centre' },
+      ]},
+      { name: 'Trainers & Faculty', items: [
+        { key: 'trainers', label: 'Trainer List' },
+        { key: 'trainers-add', label: 'Add Trainer' },
+      ]},
+      { name: 'Courses', items: [
+        { key: 'courses', label: 'Course Catalogue' },
+        { key: 'courses-add', label: 'Add Course' },
+      ]},
+      { name: 'Batches', items: [
+        { key: 'batches', label: 'All Batches' },
+        { key: 'batches-add', label: 'Create Batch' },
       ]},
       { name: 'Candidates', items: [
-        { key: 'candidates', label: 'Candidate Management' },
+        { key: 'candidates', label: 'All Candidates' },
+        { key: 'candidates-add', label: 'Enrol Candidate' },
       ]},
       { name: 'Assessment', items: [
-        { key: 'assess', label: 'Assessments' },
+        { key: 'assess', label: 'All Assessments' },
+        { key: 'assess-add', label: 'Schedule Assessment' },
+      ]},
+      { name: 'Certifications & Placements', items: [
+        { key: 'certifications', label: 'Certifications' },
+        { key: 'placements-tv', label: 'Placements' },
       ]},
       { name: 'Collaboration', items: [
         { key: 'collab-consortium', label: 'Consortium Builder' },
@@ -1186,13 +1320,19 @@ const ROLE_MENUS = {
         { key: 'collab-resources', label: 'Resource Sharing' },
         { key: 'collab-invitations', label: 'Invitations' },
       ]},
+      { name: 'Analytics & Revenue', items: [
+        { key: 'analytics', label: 'Analytics' },
+        { key: 'ai-insights', label: 'AI Insights' },
+        { key: 'revenue', label: 'Revenue' },
+        { key: 'marketing', label: 'Marketing' },
+        { key: 'reviews', label: 'Reviews & Feedback' },
+      ]},
       { name: 'Compliance', items: [
         { key: 'reports', label: 'Reports & MIS' },
         { key: 'docs', label: 'Documents' },
         { key: 'grievance', label: 'Grievance & Support' },
       ]},
       { name: 'Account', items: [
-        { key: 'onboarding', label: 'Complete Profile' },
         { key: 'settings', label: 'Account Preferences' },
       ]},
     ],
@@ -1206,34 +1346,80 @@ const ROLE_MENUS = {
       ]},
       { name: 'My Profile', items: [
         { key: 'profile', label: 'My Profile' },
+        { key: 'profile-personal', label: 'Personal Information' },
+        { key: 'profile-qualifications', label: 'Educational Qualifications' },
+        { key: 'profile-experience', label: 'Work Experience' },
+        { key: 'profile-expertise', label: 'Domain & Skills' },
+        { key: 'profile-certifications', label: 'Certifications & Awards' },
+        { key: 'profile-docs', label: 'Documents & KYC' },
       ]},
-      { name: 'Training Management', items: [
+      { name: 'Batch Management', items: [
         { key: 'batch', label: 'Batch Management' },
+        { key: 'batch-active', label: 'Active Batches' },
+        { key: 'batch-upcoming', label: 'Upcoming Batches' },
+        { key: 'batch-completed', label: 'Completed Batches' },
+        { key: 'batch-create', label: 'Create New Batch' },
+      ]},
+      { name: 'Session Management', items: [
         { key: 'sessions', label: 'Session Management' },
+        { key: 'session-schedule', label: 'Schedule Sessions' },
+        { key: 'session-today', label: "Today's Sessions" },
+        { key: 'session-calendar', label: 'Training Calendar' },
+        { key: 'session-reschedule', label: 'Reschedule / Cancel' },
+      ]},
+      { name: 'Attendance', items: [
         { key: 'attendance', label: 'Attendance' },
+        { key: 'attendance-mark', label: 'Mark Attendance' },
+        { key: 'attendance-reports', label: 'Attendance Reports' },
+        { key: 'attendance-summary', label: 'Batch-wise Summary' },
       ]},
       { name: 'Learners', items: [
         { key: 'learners', label: 'My Learners' },
+        { key: 'learner-list', label: 'All Learners' },
+        { key: 'learner-progress', label: 'Learning Progress' },
+        { key: 'learner-dropout', label: 'Dropout / At-Risk' },
+        { key: 'learner-placement', label: 'Placement Status' },
       ]},
       { name: 'Assessments', items: [
         { key: 'assessments', label: 'Assessments' },
+        { key: 'assess-schedule', label: 'Assessment Schedule' },
+        { key: 'assess-results', label: 'Results & Scorecards' },
+        { key: 'assess-rpl', label: 'RPL Assessment' },
+        { key: 'assess-mock', label: 'Mock Tests' },
       ]},
-      { name: 'Content & Resources', items: [
+      { name: 'Course Content', items: [
         { key: 'content', label: 'Course Content' },
+        { key: 'content-materials', label: 'Study Materials' },
+        { key: 'content-videos', label: 'Video Lectures' },
+        { key: 'content-upload', label: 'Upload Content' },
+        { key: 'content-library', label: 'Resource Library' },
       ]},
       { name: 'Certificates', items: [
         { key: 'certificates', label: 'Certificates' },
+        { key: 'cert-issue', label: 'Issue Certificates' },
+        { key: 'cert-issued', label: 'Issued Certificates' },
+        { key: 'cert-verify', label: 'Verify Certificate' },
       ]},
-      { name: 'Reports & Analytics', items: [
+      { name: 'Reports', items: [
         { key: 'reports', label: 'Reports' },
+        { key: 'report-batch', label: 'Batch Performance' },
+        { key: 'report-attendance', label: 'Attendance Analytics' },
+        { key: 'report-assessment', label: 'Assessment Analytics' },
+        { key: 'report-placement', label: 'Placement Analytics' },
+        { key: 'report-trainer', label: 'My Performance' },
       ]},
-      { name: 'Schemes', items: [
+      { name: 'Govt Schemes', items: [
         { key: 'schemes', label: 'Govt Schemes' },
+        { key: 'scheme-pmkvy', label: 'PMKVY 4.0' },
+        { key: 'scheme-rpl', label: 'RPL — Prior Learning' },
+        { key: 'scheme-naps', label: 'NAPS / NATS' },
+        { key: 'scheme-ddu', label: 'DDU-GKY' },
       ]},
       { name: 'Support', items: [
         { key: 'helpdesk', label: 'Help & Support' },
         { key: 'grievance', label: 'Grievance' },
         { key: 'faq', label: 'FAQ' },
+        { key: 'settings', label: 'Settings & Preferences' },
       ]},
     ],
   },
@@ -1246,26 +1432,64 @@ const ROLE_MENUS = {
       ]},
       { name: 'My Profile', items: [
         { key: 'profile', label: 'My Profile' },
+        { key: 'profile-basic', label: 'Basic Information' },
+        { key: 'profile-edu', label: 'Education Details' },
+        { key: 'profile-exp', label: 'Work Experience' },
+        { key: 'profile-skills', label: 'Skills & Competencies' },
+        { key: 'profile-docs', label: 'Documents & ID Proof' },
+        { key: 'profile-pref', label: 'Job Preferences' },
         { key: 'skill-passport', label: 'Skill Passport' },
       ]},
       { name: 'Courses & Learning', items: [
         { key: 'courses', label: 'Courses' },
-        { key: 'assessments', label: 'Assessments' },
+        { key: 'browse-courses', label: 'Browse Courses' },
+        { key: 'my-courses', label: 'My Enrolled Courses' },
+        { key: 'course-progress', label: 'Learning Progress' },
+        { key: 'course-recommend', label: 'AI Recommendations' },
         { key: 'certificates', label: 'Certificates' },
+        { key: 'assessments', label: 'Assessments' },
+        { key: 'assess-upcoming', label: 'Upcoming Assessments' },
+        { key: 'assess-completed', label: 'Completed Assessments' },
+        { key: 'assess-results', label: 'Results & Scorecards' },
+        { key: 'rpl', label: 'RPL Assessment' },
+      ]},
+      { name: 'AI Tools', items: [
+        { key: 'ai-tools', label: 'AI Tools' },
+        { key: 'resume-builder-ai', label: 'Resume Builder (AI)' },
+        { key: 'ai-skill-gap', label: 'AI Skill Gap Analysis' },
       ]},
       { name: 'Jobs & Employment', items: [
         { key: 'jobs', label: 'Jobs' },
+        { key: 'browse-jobs', label: 'Browse Jobs' },
+        { key: 'my-applications', label: 'My Applications' },
+        { key: 'saved-jobs', label: 'Saved Jobs' },
+        { key: 'job-alerts', label: 'Job Alerts' },
+        { key: 'placement-status', label: 'Placement Status' },
         { key: 'apprenticeship', label: 'Apprenticeship' },
-        { key: 'career', label: 'Career Services' },
+        { key: 'apprentice-browse', label: 'Browse Opportunities' },
+        { key: 'apprentice-applied', label: 'Applied' },
+        { key: 'naps', label: 'NAPS Registration' },
+        { key: 'career-group', label: 'Career Services' },
+        { key: 'interviews', label: 'Interviews' },
+        { key: 'mock-interviews', label: 'Mock Interviews' },
+        { key: 'career-counselling', label: 'Career Counselling' },
+        { key: 'career-path', label: 'Career Pathways' },
+        { key: 'skills-endorsements', label: 'Skills & Endorsements' },
       ]},
       { name: 'Schemes & Benefits', items: [
         { key: 'schemes', label: 'Govt Schemes' },
+        { key: 'pmkvy', label: 'PMKVY 4.0' },
+        { key: 'naps-scheme', label: 'NAPS / NATS' },
+        { key: 'rpl-scheme', label: 'RPL — Prior Learning' },
+        { key: 'pmegp', label: 'PMEGP / Startup' },
+        { key: 'scholarship', label: 'Scholarships & Stipends' },
         { key: 'financial-aid', label: 'Financial Assistance' },
       ]},
       { name: 'Support', items: [
         { key: 'helpdesk', label: 'Help & Support' },
         { key: 'grievance', label: 'Grievance' },
         { key: 'faq', label: 'FAQ' },
+        { key: 'settings', label: 'Account Preferences' },
       ]},
     ],
   },
@@ -1297,6 +1521,11 @@ const ROLE_MENUS = {
         { key: 'cand-offer', label: 'Offers & Onboarding' },
         { key: 'cand-placed', label: 'Placement Records' },
       ]},
+      { name: 'Talent & Insights', items: [
+        { key: 'assessments', label: 'Assessments' },
+        { key: 'ai-insights', label: 'AI Insights' },
+        { key: 'saved-searches', label: 'Saved Searches' },
+      ]},
       { name: 'Apprenticeship', items: [
         { key: 'appren-register', label: 'Register Vacancy' },
         { key: 'appren-active', label: 'Active Apprentices' },
@@ -1320,6 +1549,7 @@ const ROLE_MENUS = {
         { key: 'rep-hiring', label: 'Hiring Reports' },
         { key: 'rep-placement', label: 'Placement Analytics' },
         { key: 'rep-workforce', label: 'Workforce Reports' },
+        { key: 'rep-sector', label: 'Sector-wise Reports' },
       ]},
       { name: 'Compliance', items: [
         { key: 'comp-labour', label: 'Labour Law' },
@@ -1327,7 +1557,10 @@ const ROLE_MENUS = {
         { key: 'comp-contract', label: 'Contract Labour' },
         { key: 'comp-audit', label: 'Audit Trail' },
       ]},
-      { name: 'Support', items: [
+      { name: 'Account', items: [
+        { key: 'employer-branding', label: 'Employer Branding' },
+        { key: 'billing-plans', label: 'Billing & Plans' },
+        { key: 'settings', label: 'Settings' },
         { key: 'helpdesk', label: 'Helpdesk' },
         { key: 'grievance', label: 'Grievance' },
         { key: 'faq', label: 'FAQ' },
@@ -1396,6 +1629,7 @@ const ROLE_MENUS = {
         { key: 'helpdesk', label: 'Helpdesk' },
         { key: 'grievance', label: 'Grievance' },
         { key: 'faq', label: 'FAQ' },
+        { key: 'settings', label: 'Account Preferences' },
       ]},
     ],
   },
@@ -1454,6 +1688,7 @@ const ROLE_MENUS = {
         { key: 'helpdesk', label: 'Helpdesk' },
         { key: 'grievance', label: 'Grievance' },
         { key: 'faq', label: 'FAQ' },
+        { key: 'settings', label: 'Account Preferences' },
       ]},
     ],
   },
@@ -1476,26 +1711,40 @@ const ROLE_MENUS = {
         { key: 'targets', label: 'Targets & Allocation' },
         { key: 'financial', label: 'Financial Management' },
       ]},
-      { name: 'Ecosystem', items: [
-        { key: 'training-partners', label: 'Training Partners' },
-        { key: 'training-centers', label: 'Training Centers' },
-        { key: 'trainers', label: 'Trainers & Assessors' },
-        { key: 'candidate-list', label: 'Candidates / Learners' },
+      { name: 'Training Partners', items: [
+        { key: 'tp-list', label: 'All Training Partners' },
+        { key: 'tp-onboard', label: 'Onboarding & Approval' },
+        { key: 'tp-verify', label: 'Accreditation & Verify' },
+      ]},
+      { name: 'Training Centers', items: [
+        { key: 'tc-list', label: 'All Centers' },
+        { key: 'tc-map', label: 'District Map View' },
+      ]},
+      { name: 'Trainers & Assessors', items: [
+        { key: 'trainer-list', label: 'Trainer Registry' },
+        { key: 'assessor-list', label: 'Assessor Registry' },
+      ]},
+      { name: 'Beneficiary Management', items: [
+        { key: 'candidate-list', label: 'All Beneficiaries' },
+        { key: 'enrolment', label: 'Enrolment Records' },
+        { key: 'placements', label: 'Placement Tracking' },
+        { key: 'dropouts', label: 'Dropout Analysis' },
         { key: 'cert-verify', label: 'Certificate Verification' },
         { key: 'grievances', label: 'Grievance Redressal' },
       ]},
-      { name: 'Reports & Analytics', items: [
+      { name: 'Sectors & Employment', items: [
         { key: 'sectors', label: 'Sector-wise Data' },
         { key: 'employers', label: 'Employer Partners' },
-        { key: 'mis-district', label: 'District-wise MIS' },
-        { key: 'mis-monthly', label: 'Monthly MIS Report' },
-        { key: 'mis-scheme', label: 'Scheme-wise Report' },
-        { key: 'mis-placement', label: 'Placement Analytics' },
+      ]},
+      { name: 'MIS & Reports', items: [
+        { key: 'mis-monthly', label: 'Monthly MIS' },
+        { key: 'mis-district', label: 'District Report' },
+        { key: 'mis-scheme', label: 'Scheme-wise MIS' },
+        { key: 'audit-logs', label: 'Audit Logs' },
       ]},
       { name: 'Administration', items: [
-        { key: 'audit-logs', label: 'Audit Logs' },
         { key: 'users', label: 'User Management' },
-        { key: 'settings', label: 'Settings' },
+        { key: 'settings', label: 'Settings', locked: true },
       ]},
     ],
   },
@@ -1707,18 +1956,35 @@ function PanelRoles({ stats }) {
 
 function PanelSchemeCSR() {
   const [data, loading] = useLoad(() => api.csrStats());
+  const [projects, projLoading] = useLoad(() => api.csrProjects ? api.csrProjects() : Promise.resolve([]));
   const stats = data || {};
+  const projList = Array.isArray(projects) ? projects : [];
   return (
     <>
       <div className="ph"><h1>CSR-Funded Programs</h1><p>Corporate Social Responsibility skill programs</p></div>
       <div className="kpi-grid">
-        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{stats.totalProjects||0}</div><div className="lbl">Total Projects</div></div>
-        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{stats.activeProjects||0}</div><div className="lbl">Active</div></div>
+        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{stats.totalProjects||projList.length||0}</div><div className="lbl">Total Projects</div></div>
+        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{stats.activeProjects||projList.filter(p=>p.status==='active').length||0}</div><div className="lbl">Active</div></div>
         <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{stats.totalBeneficiaries||0}</div><div className="lbl">Beneficiaries</div></div>
         <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">₹{((stats.totalFunds||0)/10000000).toFixed(1)} Cr</div><div className="lbl">Total Funds</div></div>
       </div>
       <div className="card">
-        {loading ? <Loading /> : <Empty icon="🤝" msg="CSR project details will appear here." />}
+        {projLoading ? <Loading /> : projList.length === 0 ? <Empty icon="🤝" msg="No CSR projects found." /> : (
+          <table className="sa-table">
+            <thead><tr><th>Project Title</th><th>Activity</th><th>Implementing Agency</th><th>Budget</th><th>Status</th></tr></thead>
+            <tbody>
+              {projList.map(p => (
+                <tr key={p.id}>
+                  <td style={{fontWeight:600}}>{p.title||'—'}</td>
+                  <td style={{fontSize:'11px'}}>{p.activity||p.schedule7||'—'}</td>
+                  <td style={{fontSize:'11px'}}>{p.implementing_agency||'—'}</td>
+                  <td style={{fontWeight:700,color:'#003366'}}>₹{((p.budget||0)/10000000).toFixed(2)} Cr</td>
+                  <td><Pill v={p.status||'draft'} map={{active:'green',completed:'blue',draft:'amber',pending:'purple',rejected:'red'}} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </>
   );
@@ -1830,6 +2096,176 @@ function PanelSessions({ subview }) {
   );
 }
 
+function PanelBulkImport() {
+  const ENTITIES = [
+    { key: 'candidates',         label: 'Candidates / Learners', icon: '👤', role: 'candidate',
+      cols: ['name','email','password','phone','gender','location','bio'],
+      sample: [['Rahul Kumar','rahul@example.com','Pass@1234','9876543210','M','Mumbai','Aspiring software developer']] },
+    { key: 'training_partners',  label: 'Training Partners',     icon: '🏫', role: 'training_vendor',
+      cols: ['name','email','password','org_name','location','phone'],
+      sample: [['Skill Academy','info@skillacademy.com','Pass@1234','Skill Academy Pvt Ltd','Hyderabad','9800000001']] },
+    { key: 'trainers',           label: 'Trainers',              icon: '👨‍🏫', role: 'trainer',
+      cols: ['name','email','password','org_name','location','phone'],
+      sample: [['Anita Sharma','anita@trainer.com','Pass@1234','Skill Academy Pvt Ltd','Pune','9800000002']] },
+    { key: 'employers',          label: 'Employers',             icon: '🏢', role: 'employer',
+      cols: ['name','email','password','org_name','location','phone'],
+      sample: [['Infosys Ltd','hr@infosys.com','Pass@1234','Infosys Ltd','Bengaluru','9800000003']] },
+    { key: 'csr_orgs',           label: 'CSR Organisations',     icon: '🤝', role: 'csr_org',
+      cols: ['name','email','password','org_name','location','phone'],
+      sample: [['Tata Trust','csr@tatatrust.com','Pass@1234','Tata Trusts','Mumbai','9800000004']] },
+    { key: 'placement_agencies', label: 'Placement Agencies',    icon: '🎯', role: 'placement_agency',
+      cols: ['name','email','password','org_name','location','phone'],
+      sample: [['JobBridge','info@jobbridge.com','Pass@1234','JobBridge Pvt Ltd','Delhi','9800000005']] },
+    { key: 'courses',            label: 'Courses',               icon: '📚', role: null,
+      cols: ['title','provider','skill_tags','duration_weeks','level','fee','nsqf_level','description'],
+      sample: [['Python for Data Science','SkillsNJobs','Python,Data Science,ML','12','Intermediate','0','4','Comprehensive Python DS course']] },
+    { key: 'jobs',               label: 'Jobs',                  icon: '💼', role: null,
+      cols: ['title','description','required_skills','location','job_type','salary_min','salary_max'],
+      sample: [['Software Engineer','Build scalable apps','Python,React,Node.js','Bengaluru','Full-time','600000','1200000']] },
+  ];
+
+  const [tab, setTab] = useState(ENTITIES[0].key);
+  const [file, setFile] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const entity = ENTITIES.find(e => e.key === tab);
+
+  function downloadTemplate(ent) {
+    const rows = [ent.cols, ...ent.sample];
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `template_${ent.key}.csv`;
+    a.click();
+  }
+
+  async function doImport() {
+    if (!file) return;
+    setLoading(true); setResult(null);
+    try {
+      const res = await api.bulkImport(entity.key, file);
+      setResult({ ok: true, ...res });
+    } catch (e) {
+      setResult({ ok: false, error: e.message });
+    }
+    setLoading(false);
+    setFile(null);
+  }
+
+  const card = { background:'#fff', borderRadius:10, border:'1.5px solid #E0E6EF', padding:20, marginBottom:16 };
+  const pill = { fontSize:10, padding:'2px 8px', borderRadius:10, fontWeight:700 };
+
+  return (
+    <>
+      <div className="ph"><h1>Bulk Import / Export</h1><p>Upload CSV files to add multiple records at once. Download templates below.</p></div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+        {ENTITIES.map(e => (
+          <button key={e.key} onClick={() => { setTab(e.key); setFile(null); setResult(null); }}
+            style={{padding:'6px 14px',borderRadius:20,border:'none',cursor:'pointer',fontWeight:600,fontSize:12,
+              background: tab===e.key ? '#0B1E3D' : '#F1F5F9', color: tab===e.key ? '#fff' : '#374151'}}>
+            {e.icon} {e.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+        {/* Upload card */}
+        <div style={card}>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:12,color:'#0B1E3D'}}>📤 Import {entity.label}</div>
+
+          {/* Required columns info */}
+          <div style={{background:'#F8FAFC',borderRadius:8,padding:12,marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#374151',marginBottom:6}}>Required CSV columns:</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+              {entity.cols.map((c,i) => (
+                <span key={c} style={{...pill, background: i<(entity.key.includes('course')||entity.key==='jobs'?1:3)?'#DBEAFE':'#F1F5F9',
+                  color: i<(entity.key.includes('course')||entity.key==='jobs'?1:3)?'#1D4ED8':'#374151'}}>{c}</span>
+              ))}
+            </div>
+            <div style={{fontSize:10,color:'#94A3B8',marginTop:6}}>Blue = required · Grey = optional</div>
+          </div>
+
+          {/* Drop zone */}
+          <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)}
+            onDrop={e=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f?.name.endsWith('.csv'))setFile(f);}}
+            style={{border:`2px dashed ${dragging?'#0B1E3D':'#CBD5E1'}`,borderRadius:8,padding:28,textAlign:'center',
+              background:dragging?'#EFF6FF':'#FAFBFC',cursor:'pointer',marginBottom:12,transition:'all .2s'}}
+            onClick={()=>document.getElementById('bulk-file-input').click()}>
+            <input id="bulk-file-input" type="file" accept=".csv" style={{display:'none'}}
+              onChange={e=>{setFile(e.target.files[0]);e.target.value='';}} />
+            <div style={{fontSize:28,marginBottom:6}}>{file ? '✅' : '📁'}</div>
+            <div style={{fontSize:12,fontWeight:600,color:'#374151'}}>
+              {file ? file.name : 'Drop CSV here or click to browse'}
+            </div>
+            {!file && <div style={{fontSize:11,color:'#94A3B8',marginTop:4}}>Only .csv files accepted</div>}
+          </div>
+
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={doImport} disabled={!file||loading}
+              style={{flex:1,padding:'10px',borderRadius:8,border:'none',background:file&&!loading?'#007B5E':'#CBD5E1',
+                color:'#fff',fontWeight:700,fontSize:13,cursor:file&&!loading?'pointer':'default'}}>
+              {loading ? 'Importing…' : `Import ${entity.label}`}
+            </button>
+            {file && <button onClick={()=>{setFile(null);setResult(null);}}
+              style={{padding:'10px 14px',borderRadius:8,border:'1.5px solid #E0E6EF',background:'#fff',cursor:'pointer',fontSize:12}}>
+              Clear
+            </button>}
+          </div>
+
+          {/* Result */}
+          {result && (
+            <div style={{marginTop:14,borderRadius:8,padding:12,background:result.ok&&result.inserted>0?'#F0FDF4':result.ok?'#FFFBEB':'#FEF2F2',
+              border:`1.5px solid ${result.ok&&result.inserted>0?'#86EFAC':result.ok?'#FDE68A':'#FECACA'}`}}>
+              {result.ok ? <>
+                <div style={{fontWeight:700,fontSize:13,color:result.inserted>0?'#15803D':'#92400E',marginBottom:6}}>
+                  {result.inserted > 0 ? `✅ ${result.inserted} of ${result.total_rows} records imported` : `⚠️ 0 records imported (${result.total_rows} rows checked)`}
+                </div>
+                {result.errors?.length > 0 && <>
+                  <div style={{fontSize:11,fontWeight:700,color:'#7F1D1D',marginBottom:4}}>{result.errors.length} row(s) had errors:</div>
+                  <div style={{maxHeight:140,overflowY:'auto'}}>
+                    {result.errors.map((e,i) => (
+                      <div key={i} style={{fontSize:10.5,color:'#7F1D1D',padding:'3px 0',borderBottom:'1px solid #FECACA'}}>
+                        Row {e.row}: {e.error}{e.email ? ` (${e.email})` : ''}
+                      </div>
+                    ))}
+                  </div>
+                </>}
+              </> : <div style={{fontSize:12,color:'#DC2626',fontWeight:600}}>❌ {result.error}</div>}
+            </div>
+          )}
+        </div>
+
+        {/* Template download card */}
+        <div style={card}>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:12,color:'#0B1E3D'}}>📥 Download Templates</div>
+          <div style={{fontSize:12,color:'#6B7FA3',marginBottom:14}}>
+            Download a sample CSV with the correct column headers and example data for each entity type.
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {ENTITIES.map(e => (
+              <button key={e.key} onClick={() => downloadTemplate(e)}
+                style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderRadius:8,
+                  border:'1.5px solid #E0E6EF',background: e.key===tab ? '#EFF6FF' : '#FAFBFC',
+                  cursor:'pointer',textAlign:'left',transition:'background .15s'}}>
+                <span style={{fontSize:18}}>{e.icon}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:12,color:'#0B1E3D'}}>{e.label}</div>
+                  <div style={{fontSize:10.5,color:'#94A3B8'}}>{e.cols.length} columns · 1 sample row</div>
+                </div>
+                <span style={{fontSize:11,color:'#3B82F6',fontWeight:700}}>⬇ CSV</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function PanelComingSoon({ title, desc, icon = '🚧' }) {
   return (
     <>
@@ -1849,8 +2285,17 @@ export default function SuperadminDashboard() {
   const navigate = useNavigate();
   const [activeId, setActiveId] = useState('dashboard');
   const [openGroups, setOpenGroups] = useState({});
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState({});
   const [stats, setStats] = useState({});
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [activeId]); // eslint-disable-line
 
   useEffect(() => {
     api.dashboardStats().then(setStats).catch(() => {});
@@ -1878,44 +2323,44 @@ export default function SuperadminDashboard() {
 
   function renderPanel() {
     switch (activeId) {
-      case 'dashboard': return <PanelDashboard stats={stats} />;
+      case 'dashboard': return <PanelDashboard stats={stats} onNavigate={setActiveId} />;
       case 'notifications': return <PanelNotifications stats={stats} />;
       case 'analytics': return <PanelAnalytics stats={stats} />;
 
       case 'users-all': return <PanelAllUsers />;
-      case 'users-candidates': return <PanelUsers role="candidate" title="Candidates / Learners" />;
-      case 'users-tp': return <PanelUsers role="training_vendor" title="Training Partners" />;
-      case 'users-trainers': return <PanelUsers role="trainer" title="Trainers & Assessors" />;
-      case 'users-employers': return <PanelUsers role="employer" title="Employers" />;
-      case 'users-csr': return <PanelUsers role="csr_org" title="CSR Organizations" />;
-      case 'users-placement': return <PanelUsers role="placement_agency" title="Placement Agencies" />;
-      case 'users-govt': return <PanelUsers role="state_government" title="Government Officials" />;
+      case 'users-candidates': return <PanelUsers key="candidate" role="candidate" title="Candidates / Learners" />;
+      case 'users-tp': return <PanelUsers key="training_vendor" role="training_vendor" title="Training Partners" />;
+      case 'users-trainers': return <PanelUsers key="trainer" role="trainer" title="Trainers & Assessors" />;
+      case 'users-employers': return <PanelUsers key="employer" role="employer" title="Employers" />;
+      case 'users-csr': return <PanelUsers key="csr_org" role="csr_org" title="CSR Organizations" />;
+      case 'users-placement': return <PanelUsers key="placement_agency" role="placement_agency" title="Placement Agencies" />;
+      case 'users-govt': return <PanelUsers key="state_government" role="state_government" title="Government Officials" />;
       case 'roles': return <PanelRoles stats={stats} />;
-      case 'bulk-import': return <PanelComingSoon title="Bulk Import / Export" desc="Upload users, courses or jobs in bulk via CSV." icon="📥" />;
+      case 'bulk-import': return <PanelBulkImport />;
 
       case 'tp-list':
       case 'tp-verify':
       case 'tp-accred':
-      case 'tp-perf': return <PanelTrainingPartners subview={activeId} />;
+      case 'tp-perf': return <PanelTrainingPartners key="tp" subview={activeId} />;
 
       case 'centers-list':
       case 'centers-audit':
-      case 'centers-geo': return <PanelCentres subview={activeId} />;
+      case 'centers-geo': return <PanelCentres key="centers" subview={activeId} />;
 
       case 'tr-list':
       case 'tr-assess':
-      case 'tr-certs': return <PanelTrainers subview={activeId} />;
+      case 'tr-certs': return <PanelTrainers key="trainers" subview={activeId} />;
 
       case 'sessions':
       case 'sessions-all':
       case 'sessions-schedule':
       case 'sessions-attendance':
-      case 'sessions-content': return <PanelSessions subview={activeId} />;
+      case 'sessions-content': return <PanelSessions key="sessions" subview={activeId} />;
 
       case 'course-catalogue':
       case 'course-nsqf':
       case 'course-approve':
-      case 'course-upload': return <PanelCourses subview={activeId} />;
+      case 'course-upload': return <PanelCourses key="courses" subview={activeId} />;
 
       case 'sectors': return <PanelComingSoon title="Sectors & Job Roles" desc="NSQF sector taxonomy and job role registry." icon="🏭" />;
 
@@ -1942,9 +2387,9 @@ export default function SuperadminDashboard() {
       case 'badges': return <PanelComingSoon title="Digital Badges" desc="Issue verifiable digital badges linked to certifications." icon="🎖️" />;
 
       case 'jobs': return <PanelJobs />;
-      case 'employers': return <PanelUsers role="employer" title="Employer Registry" />;
+      case 'employers': return <PanelUsers key="employer-registry" role="employer" title="Employer Registry" />;
       case 'placements': return <PanelPlacements />;
-      case 'place-partners': return <PanelUsers role="placement_agency" title="Placement Partners" />;
+      case 'place-partners': return <PanelUsers key="placement-partners" role="placement_agency" title="Placement Partners" />;
       case 'emp-verify': return <PanelComingSoon title="Employment Verification" desc="Verify candidate employment status post-placement." icon="✔️" />;
       case 'apprentice': return <PanelComingSoon title="Apprenticeship Portal" desc="NAPS/NATS apprenticeship registrations and tracking." icon="🔧" />;
 
@@ -1995,7 +2440,10 @@ export default function SuperadminDashboard() {
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="sa-wrap">
-        <aside className="sa-sidebar">
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <aside className="sa-sidebar" style={isMobile ? { position:'fixed', top:0, left:0, height:'100vh', zIndex:200, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition:'transform 0.25s ease' } : {}}>
           <div className="sa-logo" onClick={() => setActiveId('dashboard')}>
             <div style={{width:44,height:44,borderRadius:'50%',border:'2px solid #e0e8f4',background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0}}>
               <img src="/logo.png" alt="SkillsNJobs" style={{width:34,height:34,objectFit:'contain'}} />
@@ -2061,6 +2509,9 @@ export default function SuperadminDashboard() {
 
         <div className="sa-main">
           <div className="sa-topbar">
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+            )}
             <div className="sa-breadcrumb">
               <span className="sa-tb-section">{getSection(activeId)}</span>
               <span className="sa-tb-section">/</span>

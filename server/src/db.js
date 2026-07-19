@@ -425,6 +425,49 @@ async function initDb() {
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(role, menu_key)
     );
+    CREATE TABLE IF NOT EXISTS employer_hr_contacts (
+      id SERIAL PRIMARY KEY,
+      employer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      designation TEXT,
+      email TEXT,
+      phone TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS employer_documents (
+      id SERIAL PRIMARY KEY,
+      employer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      doc_type TEXT NOT NULL,
+      file_name TEXT,
+      file_size TEXT,
+      uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(employer_id, doc_type)
+    );
+    CREATE TABLE IF NOT EXISTS employer_interviews (
+      id SERIAL PRIMARY KEY,
+      employer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      candidate_name TEXT NOT NULL,
+      job_role TEXT,
+      round TEXT,
+      interview_date TEXT,
+      interview_time TEXT,
+      mode TEXT DEFAULT 'Video Call',
+      interviewers TEXT,
+      link TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS employer_offers (
+      id SERIAL PRIMARY KEY,
+      employer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      candidate_name TEXT NOT NULL,
+      job_role TEXT,
+      ctc TEXT,
+      joining_date TEXT,
+      probation TEXT,
+      special_terms TEXT,
+      status TEXT DEFAULT 'Draft',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Column migrations — safe to run repeatedly

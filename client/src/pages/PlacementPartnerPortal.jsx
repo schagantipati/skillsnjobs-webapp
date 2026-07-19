@@ -179,6 +179,8 @@ export default function PlacementPartnerPortal() {
   const navigate = useNavigate();
   const [panel, setPanel] = useState('dashboard');
   const [openMenus, setOpenMenus] = useState({});
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [dbStats, setDbStats] = useState({});
@@ -357,6 +359,23 @@ export default function PlacementPartnerPortal() {
   const [searchFilters, setSearchFilters] = useState({ sector:'All', nsqf:'All', location:'', qualification:'Any' });
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [shortlistCandidate, setShortlistCandidate] = useState(null); // { id, name }
+  const [shortlistForm, setShortlistForm] = useState({ job_title:'', company:'', location:'' });
+  const [shortlisting, setShortlisting] = useState(false);
+  const [shortlistMsg, setShortlistMsg] = useState('');
+
+  async function saveShortlist() {
+    if (!shortlistForm.job_title.trim()) { setShortlistMsg('❌ Job title is required.'); return; }
+    setShortlisting(true);
+    try {
+      await api.createPlacement({ candidate_id: shortlistCandidate.id, job_title: shortlistForm.job_title.trim(), company: shortlistForm.company.trim(), location: shortlistForm.location.trim(), status: 'shortlisted' });
+      setShortlistMsg('✅ Candidate shortlisted!');
+      setShortlistCandidate(null);
+      setShortlistForm({ job_title:'', company:'', location:'' });
+      refreshPlacements();
+    } catch { setShortlistMsg('❌ Failed to shortlist.'); }
+    setShortlisting(false);
+  }
 
   async function searchCandidates() {
     setSearching(true);
@@ -383,8 +402,8 @@ export default function PlacementPartnerPortal() {
         bank_account_name:   u.bank_account_name   || '',
         bank_account_number: u.bank_account_number || '',
         bank_ifsc:           u.bank_ifsc           || '',
-        bank_name:           '',
-        bank_branch:         '',
+        bank_name:           u.bank_name           || '',
+        bank_branch:         u.bank_branch         || '',
       });
       setBankLoaded(true);
     }).catch(() => {});
@@ -397,6 +416,8 @@ export default function PlacementPartnerPortal() {
         bank_account_name:   bank.bank_account_name.trim()   || null,
         bank_account_number: bank.bank_account_number.trim() || null,
         bank_ifsc:           bank.bank_ifsc.toUpperCase().trim() || null,
+        bank_name:           bank.bank_name.trim()           || null,
+        bank_branch:         bank.bank_branch.trim()         || null,
       });
       setBankMsg('Saved successfully');
     } catch { setBankMsg('Save failed. Please try again.'); }
@@ -447,6 +468,13 @@ export default function PlacementPartnerPortal() {
     } catch { setAgInfoMsg('Save failed. Please try again.'); }
     setAgInfoSaving(false);
   }
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [panel]); // eslint-disable-line
 
   useEffect(() => {
     api.getRolePermissions().then(all => setMenuPerms(all['placement_agency'] || {})).catch(() => {});
@@ -543,7 +571,11 @@ export default function PlacementPartnerPortal() {
     }
     const label = s => <div style={{ padding:'18px 18px 5px', fontSize:10, fontWeight:700, color:'rgba(255,255,255,.35)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
     return (
-      <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column' }}>
+      <>
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <div style={{ position:'fixed', top:0, left:0, width:SW, height:'100vh', background:C.sidebar, overflowY:'hidden', zIndex:200, display:'flex', flexDirection:'column', transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)', transition:'transform 0.25s ease' }}>
         <div style={{ padding:'0 16px', height:TH, display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,.1)', flexShrink:0, minHeight:TH }}>
           <div style={{ width:44, height:44, borderRadius:'50%', border:'2px solid #e0e8f4', background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}><img src="/logo.png" alt="Skills n Jobs" style={{ width:34, height:34, objectFit:'contain' }} /></div>
           <div>
@@ -631,13 +663,17 @@ export default function PlacementPartnerPortal() {
         <NavItem icon="⚙️" label="Account Preferences" active={panel==='settings'} onClick={()=>go('settings')} />
         </div>
       </div>
+      </>
     );
   }
 
   // ── TOPBAR ─────────────────────────────────────────────────────────────────
   function Topbar() {
     return (
-      <div style={{ position:'fixed', top:0, left:SW, right:0, height:TH, background:'#fff', borderBottom:'1px solid #e4e8ef', display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+      <div style={{ position:'fixed', top:0, left: isMobile ? 0 : SW, right:0, height:TH, background:'#fff', borderBottom:'1px solid #e4e8ef', display:'flex', alignItems:'center', padding:'0 20px', gap:12, zIndex:100, boxShadow:'0 1px 4px rgba(0,0,0,.06)' }}>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+        )}
         <div style={{ flex:1, maxWidth:400, position:'relative' }}>
           <input
             ref={searchRef}
@@ -1075,6 +1111,21 @@ export default function PlacementPartnerPortal() {
           <Btn style={{ background:C.blue, opacity: searching ? .7 : 1 }} onClick={searchCandidates}>{searching ? 'Searching…' : '🔍 Search'}</Btn>
         </div>
       </Card>
+      {shortlistCandidate && (
+        <Card style={{ border:`1.5px solid ${C.blue}` }}>
+          <CardTitle>Shortlist: {shortlistCandidate.name}</CardTitle>
+          <Grid>
+            <Field label="Job Title *"><Inp placeholder="e.g. Sales Executive" value={shortlistForm.job_title} onChange={e => setShortlistForm(f => ({ ...f, job_title: e.target.value }))} /></Field>
+            <Field label="Company"><Inp placeholder="Employer company name" value={shortlistForm.company} onChange={e => setShortlistForm(f => ({ ...f, company: e.target.value }))} /></Field>
+            <Field label="Location"><Inp placeholder="City" value={shortlistForm.location} onChange={e => setShortlistForm(f => ({ ...f, location: e.target.value }))} /></Field>
+          </Grid>
+          {shortlistMsg && <Alert type={shortlistMsg.startsWith('✅') ? 'info' : 'red'}>{shortlistMsg}</Alert>}
+          <div style={{ display:'flex', gap:8, marginTop:8 }}>
+            <Btn style={{ background:C.blue, opacity: shortlisting ? .7 : 1 }} onClick={saveShortlist}>{shortlisting ? 'Saving…' : '✅ Confirm Shortlist'}</Btn>
+            <Btn outline onClick={() => { setShortlistCandidate(null); setShortlistForm({ job_title:'', company:'', location:'' }); setShortlistMsg(''); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
       <Card>
         <CardTitle>Search Results {searchResults !== null ? `(${searchResults.length} candidates)` : ''}</CardTitle>
         {searchResults === null
@@ -1085,7 +1136,7 @@ export default function PlacementPartnerPortal() {
                 c.name || c.email || '—',
                 c.city || c.location || '—',
                 (c.skills || []).slice(0,3).join(', ') || '—',
-                <Btn sm style={{ background:C.blue }}>Shortlist</Btn>,
+                <Btn sm style={{ background:C.blue }} onClick={() => { setShortlistCandidate({ id: c.id, name: c.name || c.email || 'Candidate' }); setShortlistMsg(''); }}>Shortlist</Btn>,
               ])} />}
       </Card>
     </>;
@@ -1904,7 +1955,7 @@ export default function PlacementPartnerPortal() {
     <div style={{ minHeight:'100vh', background:'#f0f2f5' }}>
       {Sidebar()}
       {Topbar()}
-      <div style={{ marginLeft:SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)` }}>
+      <div style={{ marginLeft: isMobile ? 0 : SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)` }}>
         {renderPanel()}
       </div>
     </div>

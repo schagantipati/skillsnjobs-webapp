@@ -236,6 +236,8 @@ export default function CandidatePortal() {
 
   const [active,      setActive]    = useState('dashboard');
   const [openMenus,   setOpenMenus] = useState({});
+  const [isMobile,    setIsMobile]  = useState(window.innerWidth < 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuPerms,   setMenuPerms] = useState({});
   const [jobs,        setJobs]      = useState([]);
   const [courses,     setCourses]   = useState([]);
@@ -612,6 +614,13 @@ export default function CandidatePortal() {
   const initials = (u.name || 'CA').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
   useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  useEffect(() => { if (isMobile) setSidebarOpen(false); }, [active]); // eslint-disable-line
+
+  useEffect(() => {
     api.getRolePermissions().then(all => setMenuPerms(all['candidate'] || {})).catch(() => {});
   }, []);
   const PERM_LOCKED = new Set(['dashboard','notifications','settings','profile','profile-personal','skill-passport']);
@@ -803,8 +812,13 @@ export default function CandidatePortal() {
   /* ── Sidebar ──────────────────────────────────────────────────── */
   function Sidebar() {
     return (
-      <aside style={{ width:SW, background:C.sidebar, display:'flex', flexDirection:'column',
-        position:'fixed', top:0, left:0, bottom:0, zIndex:200, overflowY:'hidden' }}>
+      <>
+        {isMobile && sidebarOpen && (
+          <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:199 }} />
+        )}
+        <aside style={{ width:SW, background:C.sidebar, display:'flex', flexDirection:'column',
+          position:'fixed', top:0, left:0, bottom:0, zIndex:200, overflowY:'hidden',
+          transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)', transition:'transform 0.25s ease' }}>
 
         {/* Brand */}
         <div style={{ padding:'0 16px', height:58, borderBottom:'1px solid rgba(255,255,255,.08)',
@@ -904,16 +918,20 @@ export default function CandidatePortal() {
         </div>
 
       </aside>
+      </>
     );
   }
 
   /* ── Topbar ───────────────────────────────────────────────────── */
   function Topbar() {
     return (
-      <div style={{ position:'fixed', top:0, left:SW, right:0, height:TH,
+      <div style={{ position:'fixed', top:0, left: isMobile ? 0 : SW, right:0, height:TH,
         background:'#fff', borderBottom:`1px solid ${C.border}`, display:'flex',
         alignItems:'center', padding:'0 24px', zIndex:100, gap:14,
         boxShadow:'0 1px 4px rgba(0,51,102,.06)' }}>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ width:38, height:38, borderRadius:8, border:'none', background:'#f1f5f9', fontSize:20, cursor:'pointer', flexShrink:0 }}>☰</button>
+        )}
         <div style={{ flex:1, display:'flex', justifyContent:'center', position:'relative' }}>
           <div style={{ width:'100%', maxWidth:420, position:'relative' }}>
             <div style={{ display:'flex', alignItems:'center',
@@ -4840,7 +4858,7 @@ ${rbForm.education || 'Add your education details here.'}`;
   return (
     <div style={{ display:'flex', minHeight:'100vh' }}>
       {Sidebar()}
-      <div style={{ marginLeft:SW, flex:1, display:'flex', flexDirection:'column', background:C.surface }}>
+      <div style={{ marginLeft: isMobile ? 0 : SW, flex:1, display:'flex', flexDirection:'column', background:C.surface }}>
         {Topbar()}
         <div style={{ marginTop:TH, flex:1, padding:'24px 28px 60px' }}>
           {renderPanel()}
