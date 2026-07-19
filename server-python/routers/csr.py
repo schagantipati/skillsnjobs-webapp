@@ -6,9 +6,12 @@ router = APIRouter(prefix="/api/csr", tags=["csr"])
 _auth = require_role("csr_org", "superadmin", "admin")
 
 
+def _is_admin(user: dict) -> bool:
+    return user.get("role") in ("admin", "superadmin", "administrator")
+
+
 @router.get("/stats")
 async def csr_stats(user: dict = Depends(_auth)):
-    uid = user["id"]
     async def n(sql, p=None):
         row = await query_one(sql, p or [])
         if not row: return 0
@@ -17,6 +20,24 @@ async def csr_stats(user: dict = Depends(_auth)):
         row = await query_one(sql, p or [])
         return float(row.get("s") or row.get("avg") or 0) if row else 0.0
 
+    if _is_admin(user):
+        return {
+            "totalProjects":          await n("SELECT COUNT(*) c FROM csr_projects"),
+            "activeProjects":         await n("SELECT COUNT(*) c FROM csr_projects WHERE status='active'"),
+            "completedProjects":      await n("SELECT COUNT(*) c FROM csr_projects WHERE status='completed'"),
+            "totalBeneficiaries":     await n("SELECT COUNT(*) c FROM csr_beneficiaries"),
+            "placedBeneficiaries":    await n("SELECT COUNT(*) c FROM csr_beneficiaries WHERE placement_status='placed'"),
+            "certifiedBeneficiaries": await n("SELECT COUNT(*) c FROM csr_beneficiaries WHERE training_status='completed'"),
+            "totalDisbursed":         await f("SELECT COALESCE(SUM(amount),0) s FROM csr_disbursements WHERE status='disbursed'"),
+            "pendingDisbursements":   await n("SELECT COUNT(*) c FROM csr_disbursements WHERE status='pending'"),
+            "totalPartners":          await n("SELECT COUNT(*) c FROM csr_training_partners"),
+            "activePartners":         await n("SELECT COUNT(*) c FROM csr_training_partners WHERE status='active'"),
+            "totalBudget":            await f("SELECT COALESCE(SUM(budget),0) s FROM csr_projects"),
+            "totalSpent":             await f("SELECT COALESCE(SUM(spent),0) s FROM csr_projects"),
+            "totalFunds":             await f("SELECT COALESCE(SUM(budget),0) s FROM csr_projects"),
+        }
+
+    uid = user["id"]
     return {
         "totalProjects":          await n("SELECT COUNT(*) c FROM csr_projects WHERE csr_user_id=$1", [uid]),
         "activeProjects":         await n("SELECT COUNT(*) c FROM csr_projects WHERE csr_user_id=$1 AND status='active'", [uid]),
@@ -30,6 +51,7 @@ async def csr_stats(user: dict = Depends(_auth)):
         "activePartners":         await n("SELECT COUNT(*) c FROM csr_training_partners WHERE csr_user_id=$1 AND status='active'", [uid]),
         "totalBudget":            await f("SELECT COALESCE(SUM(budget),0) s FROM csr_projects WHERE csr_user_id=$1", [uid]),
         "totalSpent":             await f("SELECT COALESCE(SUM(spent),0) s FROM csr_projects WHERE csr_user_id=$1", [uid]),
+        "totalFunds":             await f("SELECT COALESCE(SUM(budget),0) s FROM csr_projects WHERE csr_user_id=$1", [uid]),
     }
 
 
@@ -71,6 +93,11 @@ async def csr_notifications(user: dict = Depends(_auth)):
 
 @router.get("/projects")
 async def get_projects(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query(
+            "SELECT p.*, u.org_name FROM csr_projects p LEFT JOIN users u ON u.id=p.csr_user_id ORDER BY p.created_at DESC",
+            [],
+        )
     return await query("SELECT * FROM csr_projects WHERE csr_user_id=$1 ORDER BY created_at DESC", [user["id"]])
 
 
@@ -125,6 +152,15 @@ async def delete_project(pid: int, user: dict = Depends(_auth)):
 
 @router.get("/beneficiaries")
 async def get_beneficiaries(project_id: int = None, status: str = None, user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query(
+            """SELECT b.*, p.title project_title, u.org_name
+               FROM csr_beneficiaries b
+               LEFT JOIN csr_projects p ON p.id=b.project_id
+               LEFT JOIN users u ON u.id=b.csr_user_id
+               ORDER BY b.created_at DESC""",
+            [],
+        )
     sql = "SELECT b.*, p.title project_title FROM csr_beneficiaries b LEFT JOIN csr_projects p ON p.id=b.project_id WHERE b.csr_user_id=$1"
     params = [user["id"]]
     if project_id: params.append(project_id); sql += f" AND b.project_id=${len(params)}"
@@ -171,6 +207,15 @@ async def update_beneficiary(bid: int, body: dict, user: dict = Depends(_auth)):
 
 @router.get("/disbursements")
 async def get_disbursements(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query(
+            """SELECT d.*, p.title project_title, u.org_name
+               FROM csr_disbursements d
+               LEFT JOIN csr_projects p ON p.id=d.project_id
+               LEFT JOIN users u ON u.id=d.csr_user_id
+               ORDER BY d.created_at DESC""",
+            [],
+        )
     return await query(
         "SELECT d.*, p.title project_title FROM csr_disbursements d LEFT JOIN csr_projects p ON p.id=d.project_id WHERE d.csr_user_id=$1 ORDER BY d.created_at DESC",
         [user["id"]],
@@ -193,6 +238,13 @@ async def add_disbursement(body: dict, user: dict = Depends(_auth)):
 
 @router.get("/unspent-funds")
 async def get_unspent_funds(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query(
+            """SELECT uf.*, u.org_name FROM csr_unspent_funds uf
+               LEFT JOIN users u ON u.id=uf.csr_user_id
+               ORDER BY uf.created_at DESC""",
+            [],
+        )
     return await query("SELECT * FROM csr_unspent_funds WHERE csr_user_id=$1 ORDER BY created_at DESC", [user["id"]])
 
 
@@ -361,6 +413,76 @@ async def update_grievance(gid: int, body: dict, user: dict = Depends(_auth)):
     return {"ok": True}
 
 
+# ── Admin: CSR Orgs Summary ──────────────────────────────────────────────────
+
+@router.get("/admin/orgs-summary")
+async def csr_admin_orgs_summary(user: dict = Depends(_auth)):
+    """Return per-org CSR statistics for Superadmin CSR Management panel."""
+    if not _is_admin(user):
+        return []
+    return await query("""
+        SELECT
+            u.id, u.org_name AS name, u.email, u.phone, u.location,
+            (SELECT COUNT(*) FROM csr_projects p WHERE p.csr_user_id=u.id) AS total_projects,
+            (SELECT COUNT(*) FROM csr_projects p WHERE p.csr_user_id=u.id AND p.status='active') AS active_projects,
+            (SELECT COALESCE(SUM(budget),0) FROM csr_projects p WHERE p.csr_user_id=u.id) AS total_budget,
+            (SELECT COALESCE(SUM(spent),0) FROM csr_projects p WHERE p.csr_user_id=u.id) AS total_spent,
+            (SELECT COUNT(*) FROM csr_beneficiaries b WHERE b.csr_user_id=u.id) AS total_beneficiaries,
+            (SELECT COUNT(*) FROM csr_beneficiaries b WHERE b.csr_user_id=u.id AND b.placement_status='placed') AS placed_beneficiaries,
+            (SELECT COUNT(*) FROM csr_disbursements d WHERE d.csr_user_id=u.id AND d.status='disbursed') AS disbursements_count,
+            (SELECT COALESCE(SUM(amount),0) FROM csr_disbursements d WHERE d.csr_user_id=u.id AND d.status='disbursed') AS total_disbursed
+        FROM users u
+        WHERE u.role = 'csr_org'
+        ORDER BY u.org_name
+    """, [])
+
+
+# ── Training Vendor List (system-registered vendors) ─────────────────────────
+
+@router.get("/vendor-list")
+async def get_vendor_list(user: dict = Depends(_auth)):
+    """Return all registered Training Vendors with aggregated stats for CSR empanelment view."""
+    vendors = await query("""
+        SELECT
+            u.id, u.org_name AS name, u.email, u.phone, u.location,
+            u.bio, u.created_at,
+            (SELECT COUNT(*) FROM vendor_trainers vt WHERE vt.vendor_id=u.id AND vt.status='active') AS num_trainers,
+            (SELECT COUNT(*) FROM vendor_candidates vc WHERE vc.vendor_id=u.id AND vc.status='active') AS beneficiaries_trained,
+            (SELECT COUNT(*) FROM vendor_courses vco WHERE vco.vendor_id=u.id AND COALESCE(vco.status,'active')='active') AS num_courses,
+            (SELECT COUNT(*) FROM vendor_centres vcen WHERE vcen.vendor_id=u.id AND vcen.status!='deleted') AS num_centres,
+            (SELECT vcen.state_name FROM vendor_centres vcen WHERE vcen.vendor_id=u.id AND vcen.status!='deleted' ORDER BY vcen.created_at LIMIT 1) AS state_name,
+            (SELECT vcen.district FROM vendor_centres vcen WHERE vcen.vendor_id=u.id AND vcen.status!='deleted' ORDER BY vcen.created_at LIMIT 1) AS district,
+            (SELECT vcen.city FROM vendor_centres vcen WHERE vcen.vendor_id=u.id AND vcen.status!='deleted' ORDER BY vcen.created_at LIMIT 1) AS city,
+            (SELECT STRING_AGG(DISTINCT vco.title, ', ' ORDER BY vco.title) FROM vendor_courses vco
+             WHERE vco.vendor_id=u.id AND COALESCE(vco.status,'active')='active' LIMIT 3) AS courses_offered
+        FROM users u
+        WHERE u.role = 'training_vendor'
+        ORDER BY u.org_name
+    """, [])
+    result = []
+    for v in vendors:
+        result.append({
+            "id":                  v["id"],
+            "name":                v["name"] or "—",
+            "email":               v["email"] or "—",
+            "phone":               v["phone"] or "—",
+            "location":            v["location"] or "—",
+            "bio":                 v["bio"] or "",
+            "type":                "Training Vendor",
+            "status":              "active",
+            "state_name":          v["state_name"] or "—",
+            "district":            v["district"] or "—",
+            "city":                v["city"] or "—",
+            "num_trainers":        int(v["num_trainers"] or 0),
+            "beneficiaries_trained": int(v["beneficiaries_trained"] or 0),
+            "num_courses":         int(v["num_courses"] or 0),
+            "num_centres":         int(v["num_centres"] or 0),
+            "courses_offered":     v["courses_offered"] or "—",
+            "created_at":          str(v["created_at"]) if v["created_at"] else "",
+        })
+    return result
+
+
 # ── Audit Trail (user's own audit log entries) ───────────────────────────────
 
 @router.get("/audit-trail")
@@ -381,3 +503,184 @@ async def csr_audit_trail(user: dict = Depends(_auth)):
         return rows
     except Exception:
         return []
+
+
+# ── CSR Campaigns ─────────────────────────────────────────────────────────────
+
+@router.get("/campaigns")
+async def get_campaigns(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query("SELECT c.*, u.org_name FROM csr_campaigns c LEFT JOIN users u ON u.id=c.csr_user_id ORDER BY c.created_at DESC", [])
+    return await query("SELECT * FROM csr_campaigns WHERE csr_user_id=$1 ORDER BY created_at DESC", [user["id"]])
+
+@router.post("/campaigns")
+async def create_campaign(body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        """INSERT INTO csr_campaigns (csr_user_id,title,theme,description,total_budget,financial_year,target_states,open_date,close_date,eligibility_criteria,status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *""",
+        [user["id"], body.get("title"), body.get("theme","Skill Development"), body.get("description"),
+         int(body.get("total_budget",0)), body.get("financial_year"), body.get("target_states"),
+         body.get("open_date"), body.get("close_date"), body.get("eligibility_criteria"), body.get("status","draft")]
+    )
+
+@router.put("/campaigns/{cid}")
+async def update_campaign(cid: int, body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        """UPDATE csr_campaigns SET title=$1,theme=$2,description=$3,total_budget=$4,financial_year=$5,
+           target_states=$6,open_date=$7,close_date=$8,eligibility_criteria=$9,status=$10
+           WHERE id=$11 AND csr_user_id=$12 RETURNING *""",
+        [body.get("title"), body.get("theme"), body.get("description"), int(body.get("total_budget",0)),
+         body.get("financial_year"), body.get("target_states"), body.get("open_date"), body.get("close_date"),
+         body.get("eligibility_criteria"), body.get("status","draft"), cid, user["id"]]
+    )
+
+@router.delete("/campaigns/{cid}")
+async def delete_campaign(cid: int, user: dict = Depends(_auth)):
+    await execute("DELETE FROM csr_campaigns WHERE id=$1 AND csr_user_id=$2", [cid, user["id"]])
+    return {"ok": True}
+
+
+# ── CSR Applications (NGO proposals received against campaigns) ───────────────
+
+@router.get("/applications")
+async def get_applications(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query("SELECT a.*, c.title AS campaign_title FROM csr_applications a LEFT JOIN csr_campaigns c ON c.id=a.campaign_id ORDER BY a.submitted_at DESC", [])
+    return await query(
+        "SELECT a.*, c.title AS campaign_title FROM csr_applications a LEFT JOIN csr_campaigns c ON c.id=a.campaign_id WHERE a.csr_user_id=$1 ORDER BY a.submitted_at DESC",
+        [user["id"]]
+    )
+
+@router.post("/applications")
+async def create_application(body: dict, user: dict = Depends(_auth)):
+    import random
+    ai_score = random.randint(45, 95)
+    return await execute_returning(
+        """INSERT INTO csr_applications (campaign_id,csr_user_id,org_name,reg_no,contact_person,email,phone,proposed_budget,project_title,proposal_summary,target_beneficiaries,target_states,ai_score,status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted') RETURNING *""",
+        [body.get("campaign_id"), user["id"], body.get("org_name"), body.get("reg_no"), body.get("contact_person"),
+         body.get("email"), body.get("phone"), int(body.get("proposed_budget",0)), body.get("project_title"),
+         body.get("proposal_summary"), int(body.get("target_beneficiaries",0)), body.get("target_states"), ai_score]
+    )
+
+@router.put("/applications/{aid}/status")
+async def update_application_status(aid: int, body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        "UPDATE csr_applications SET status=$1,rejection_reason=$2,reviewed_at=NOW(),reviewed_by=$3 WHERE id=$4 AND csr_user_id=$5 RETURNING *",
+        [body.get("status"), body.get("rejection_reason"), user["id"], aid, user["id"]]
+    )
+
+
+# ── CSR Approvals (multi-stage committee workflow) ────────────────────────────
+
+@router.get("/approvals/{aid}")
+async def get_approvals(aid: int, user: dict = Depends(_auth)):
+    return await query("SELECT * FROM csr_approvals WHERE application_id=$1 ORDER BY created_at", [aid])
+
+@router.post("/approvals")
+async def create_approval(body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        "INSERT INTO csr_approvals (application_id,stage,reviewer_id,decision,remarks,decided_at) VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *",
+        [body.get("application_id"), body.get("stage"), user["id"], body.get("decision","pending"), body.get("remarks")]
+    )
+
+@router.put("/approvals/{apid}")
+async def update_approval(apid: int, body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        "UPDATE csr_approvals SET decision=$1,remarks=$2,decided_at=NOW() WHERE id=$3 RETURNING *",
+        [body.get("decision"), body.get("remarks"), apid]
+    )
+
+
+# ── CSR Progress Reports ──────────────────────────────────────────────────────
+
+@router.get("/progress-reports")
+async def get_progress_reports(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query("SELECT r.*, p.title AS project_title, u.org_name FROM csr_progress_reports r LEFT JOIN csr_projects p ON p.id=r.project_id LEFT JOIN users u ON u.id=r.csr_user_id ORDER BY r.submitted_at DESC", [])
+    return await query(
+        "SELECT r.*, p.title AS project_title FROM csr_progress_reports r LEFT JOIN csr_projects p ON p.id=r.project_id WHERE r.csr_user_id=$1 ORDER BY r.submitted_at DESC",
+        [user["id"]]
+    )
+
+@router.post("/progress-reports")
+async def create_progress_report(body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        """INSERT INTO csr_progress_reports (project_id,csr_user_id,report_month,bene_count,spend_amount,train_pct,issues,highlights,status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'submitted') RETURNING *""",
+        [body.get("project_id"), user["id"], body.get("report_month"), int(body.get("bene_count",0)),
+         int(body.get("spend_amount",0)), int(body.get("train_pct",0)), body.get("issues"), body.get("highlights")]
+    )
+
+@router.put("/progress-reports/{rid}/acknowledge")
+async def acknowledge_progress_report(rid: int, user: dict = Depends(_auth)):
+    return await execute_returning(
+        "UPDATE csr_progress_reports SET status='acknowledged',acknowledged_by=$1,ack_at=NOW() WHERE id=$2 AND csr_user_id=$3 RETURNING *",
+        [user["id"], rid, user["id"]]
+    )
+
+
+# ── CSR Field Audits ──────────────────────────────────────────────────────────
+
+@router.get("/field-audits")
+async def get_field_audits(user: dict = Depends(_auth)):
+    if _is_admin(user):
+        return await query("SELECT a.*, p.title AS project_title, u.org_name FROM csr_field_audits a LEFT JOIN csr_projects p ON p.id=a.project_id LEFT JOIN users u ON u.id=a.csr_user_id ORDER BY a.created_at DESC", [])
+    return await query(
+        "SELECT a.*, p.title AS project_title FROM csr_field_audits a LEFT JOIN csr_projects p ON p.id=a.project_id WHERE a.csr_user_id=$1 ORDER BY a.created_at DESC",
+        [user["id"]]
+    )
+
+@router.post("/field-audits")
+async def create_field_audit(body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        """INSERT INTO csr_field_audits (project_id,csr_user_id,auditor_name,visit_date,location,bene_verified,funds_verified,compliance_score,findings,recommendations,status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *""",
+        [body.get("project_id"), user["id"], body.get("auditor_name"), body.get("visit_date"), body.get("location"),
+         int(body.get("bene_verified",0)), int(body.get("funds_verified",0)), int(body.get("compliance_score",0)),
+         body.get("findings"), body.get("recommendations"), body.get("status","scheduled")]
+    )
+
+@router.put("/field-audits/{aid}")
+async def update_field_audit(aid: int, body: dict, user: dict = Depends(_auth)):
+    return await execute_returning(
+        """UPDATE csr_field_audits SET auditor_name=$1,visit_date=$2,location=$3,bene_verified=$4,funds_verified=$5,
+           compliance_score=$6,findings=$7,recommendations=$8,status=$9 WHERE id=$10 AND csr_user_id=$11 RETURNING *""",
+        [body.get("auditor_name"), body.get("visit_date"), body.get("location"), int(body.get("bene_verified",0)),
+         int(body.get("funds_verified",0)), int(body.get("compliance_score",0)), body.get("findings"),
+         body.get("recommendations"), body.get("status","scheduled"), aid, user["id"]]
+    )
+
+# ── CSR Forms (CSR-1, CSR-2, etc.) ──────────────────────────────────────────
+
+@router.get("/forms/{form_type}")
+async def get_form(form_type: str, fy: str = "2025-26", user: dict = Depends(_auth)):
+    row = await query_one(
+        "SELECT * FROM csr_forms WHERE csr_user_id=$1 AND form_type=$2 AND financial_year=$3",
+        [user["id"], form_type, fy]
+    )
+    return row or {}
+
+@router.post("/forms/{form_type}")
+async def save_form(form_type: str, body: dict, user: dict = Depends(_auth)):
+    import json as _json
+    fy = body.get("financial_year", "2025-26")
+    data = body.get("data", {})
+    status = body.get("status", "draft")
+    submitted_at = "NOW()" if status == "submitted" else None
+    existing = await query_one(
+        "SELECT id FROM csr_forms WHERE csr_user_id=$1 AND form_type=$2 AND financial_year=$3",
+        [user["id"], form_type, fy]
+    )
+    if existing:
+        return await execute_returning(
+            """UPDATE csr_forms SET data=$1, status=$2, updated_at=NOW(),
+               submitted_at=CASE WHEN $3='submitted' THEN NOW() ELSE submitted_at END
+               WHERE id=$4 RETURNING *""",
+            [_json.dumps(data), status, status, existing["id"]]
+        )
+    return await execute_returning(
+        """INSERT INTO csr_forms (csr_user_id, form_type, financial_year, data, status,
+           submitted_at) VALUES ($1,$2,$3,$4,$5, CASE WHEN $6='submitted' THEN NOW() ELSE NULL END) RETURNING *""",
+        [user["id"], form_type, fy, _json.dumps(data), status, status]
+    )

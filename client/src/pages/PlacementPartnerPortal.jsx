@@ -395,6 +395,26 @@ export default function PlacementPartnerPortal() {
   const [bankSaving, setBankSaving] = useState(false);
   const [bankMsg, setBankMsg] = useState('');
 
+  const [chatOpen,    setChatOpen]   = useState(false);
+  const [chatMsgs,    setChatMsgs]   = useState([{ role:'assistant', text:'Hi! 👋 I\'m your SkillsnJobs AI assistant. Ask me about placements, candidates, incentives, or reports.' }]);
+  const [chatInput,   setChatInput]  = useState('');
+  const [chatLoading, setChatLoading]= useState(false);
+
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    const history = chatMsgs.map(m => ({ role: m.role, content: m.text }));
+    setChatMsgs(m => [...m, { role:'user', text }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await api.chatbot(text, history);
+      setChatMsgs(m => [...m, { role:'assistant', text: res?.reply || res?.message || 'Sorry, I could not process that.' }]);
+    } catch {
+      setChatMsgs(m => [...m, { role:'assistant', text: 'Sorry, something went wrong. Please try again.' }]);
+    } finally { setChatLoading(false); }
+  }
+
   function loadBank() {
     if (bankLoaded) return;
     api.me().then(u => {
@@ -1958,6 +1978,69 @@ export default function PlacementPartnerPortal() {
       <div style={{ marginLeft: isMobile ? 0 : SW, marginTop:TH, padding:24, minHeight:`calc(100vh - ${TH}px)` }}>
         {renderPanel()}
       </div>
+      {/* ── AI Chatbot floating widget ── */}
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:10001, display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+        {chatOpen && (
+          <div style={{ width:340, height:460, background:'#fff', borderRadius:16, boxShadow:'0 8px 40px rgba(0,0,0,0.18)', border:'1px solid #E0E6EF', display:'flex', flexDirection:'column', marginBottom:10, overflow:'hidden' }}>
+            <div style={{ background:'#1A3C5E', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#9B6FFF)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🤖</div>
+                <div>
+                  <div style={{ color:'#fff', fontWeight:700, fontSize:13 }}>AI Assistant</div>
+                  <div style={{ color:'rgba(255,255,255,0.5)', fontSize:10 }}>SkillsnJobs · Always here</div>
+                </div>
+              </div>
+              <button onClick={() => setChatOpen(false)} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:18, lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {chatMsgs.map((m, i) => (
+                <div key={i} style={{ display:'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth:'82%', padding:'8px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    background: m.role === 'user' ? '#1A3C5E' : '#F1F5F9',
+                    color: m.role === 'user' ? '#fff' : '#1A2B4A', fontSize:12.5, lineHeight:1.6 }}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display:'flex', justifyContent:'flex-start' }}>
+                  <div style={{ padding:'8px 14px', background:'#F1F5F9', borderRadius:'12px 12px 12px 2px', fontSize:12 }}>
+                    <span style={{ display:'inline-flex', gap:3 }}>
+                      {[0,1,2].map(i => <span key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#94A3B8', display:'inline-block', animation:`bounce 1.2s ${i*0.2}s infinite` }} />)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ padding:'6px 10px', display:'flex', gap:6, overflowX:'auto', borderTop:'1px solid #F1F5F9' }}>
+              {['Track placements','Candidate pipeline','Incentive reports','Add candidate'].map(s => (
+                <button key={s} onClick={() => setChatInput(s)}
+                  style={{ flexShrink:0, fontSize:10.5, padding:'4px 10px', borderRadius:20, border:'1px solid #E0E6EF', background:'#F8FAFC', color:'#3D5170', cursor:'pointer', whiteSpace:'nowrap' }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding:'10px 12px', borderTop:'1px solid #E0E6EF', display:'flex', gap:8, alignItems:'center' }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Ask anything…"
+                style={{ flex:1, padding:'8px 12px', borderRadius:20, border:'1.5px solid #E0E6EF', fontSize:12.5, outline:'none', color:'#1A2B4A' }} />
+              <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+                style={{ width:34, height:34, borderRadius:'50%', background:chatInput.trim() ? '#1A3C5E' : '#E0E6EF', border:'none', cursor:'pointer',
+                  color:'#fff', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
+                ➤
+              </button>
+            </div>
+          </div>
+        )}
+        <button onClick={() => setChatOpen(o => !o)} style={{ width:52, height:52, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#1A3C5E)', border:'none', cursor:'pointer', boxShadow:'0 4px 20px rgba(123,92,246,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, position:'relative' }}>
+          {chatOpen ? '✕' : '🤖'}
+          {!chatOpen && chatMsgs.filter(m => m.role === 'assistant').length > 1 && (
+            <span style={{ position:'absolute', top:0, right:0, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>!</span>
+          )}
+        </button>
+      </div>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
     </div>
   );
 }

@@ -55,6 +55,23 @@ const NAV = [
   { key:'grievance',      label:'Grievance',               section:'Support' },
   { key:'faq',            label:'FAQ',                     section:'Support' },
   { key:'settings',       label:'Account Preferences',     section:'Account' },
+  { key:'camp-create',    label:'Create Campaign',           section:'CSR Campaigns' },
+  { key:'camp-list',      label:'My Campaigns',              section:'CSR Campaigns' },
+  { key:'camp-applications', label:'Received Proposals',     section:'CSR Campaigns' },
+  { key:'camp-approval',  label:'Approval Workflow',         section:'CSR Campaigns' },
+  { key:'camp-progress',  label:'Progress Reports',          section:'CSR Campaigns' },
+  { key:'audit-list',     label:'Field Audits',              section:'Audit & Verification' },
+  { key:'audit-new',      label:'Schedule Audit',            section:'Audit & Verification' },
+  { key:'ai-proposal',    label:'Proposal Quality Scoring',   section:'AI Components' },
+  { key:'ai-duplicate',   label:'Duplicate Proposal Detection',section:'AI Components' },
+  { key:'ai-budget',      label:'Budget Anomaly Detection',    section:'AI Components' },
+  { key:'ai-ngo-risk',    label:'NGO Risk Assessment',         section:'AI Components' },
+  { key:'ai-recommend',   label:'CSR Recommendation Engine',   section:'AI Components' },
+  { key:'ai-fraud',       label:'Beneficiary Fraud Detection', section:'AI Components' },
+  { key:'ai-predict',     label:'Predictive Budget Utilization',section:'AI Components' },
+  { key:'ai-forecast',    label:'Impact Forecasting',          section:'AI Components' },
+  { key:'ai-sentiment',   label:'Sentiment Analysis',          section:'AI Components' },
+  { key:'ai-summary',     label:'AI Executive Summaries',      section:'AI Components' },
 ];
 
 // ── stable module-level helpers ───────────────────────────────────────────────
@@ -70,13 +87,14 @@ function SectionHead({ title }) {
 function Bc({ parts }) {
   return <div style={{ fontSize:12, color:'#94a3b8', marginBottom:6 }}>{parts.join(' › ')}</div>;
 }
-function Btn({ children, onClick, style, outline, danger, sm, teal, green }) {
-  return <button onClick={onClick} style={{
+function Btn({ children, onClick, style, outline, danger, sm, teal, green, disabled }) {
+  return <button onClick={onClick} disabled={disabled} style={{
     padding: sm ? '5px 12px' : '8px 18px', borderRadius:8,
     border: outline ? `1.5px solid ${C.blue}` : 'none',
     background: danger ? C.red : teal ? C.teal : green ? C.green : outline ? '#fff' : C.blue,
     color: outline ? C.blue : '#fff',
-    fontSize: sm ? 12 : 13, fontWeight:600, cursor:'pointer', ...style,
+    fontSize: sm ? 12 : 13, fontWeight:600, cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.6 : 1, ...style,
   }}>{children}</button>;
 }
 function Badge({ children, color='blue' }) {
@@ -210,6 +228,13 @@ export default function CsrOrganizationPortal() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuPerms, setMenuPerms] = useState({});
   const searchRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const [toast, setToast] = useState('');
+  function showToast(msg) {
+    setToast(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(''), 3500);
+  }
 
   const [profileInfo, setProfileInfo] = useState(() => ({
     org_name: user?.org_name || '',
@@ -278,33 +303,61 @@ export default function CsrOrganizationPortal() {
     }
   }, [user]);
 
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    const history = chatMsgs.map(m => ({ role: m.role, content: m.text }));
+    setChatMsgs(m => [...m, { role:'user', text }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await api.chatbot(text, history);
+      setChatMsgs(m => [...m, { role:'assistant', text: res?.reply || res?.message || 'Sorry, I could not process that.' }]);
+    } catch {
+      setChatMsgs(m => [...m, { role:'assistant', text: 'Sorry, something went wrong. Please try again.' }]);
+    } finally { setChatLoading(false); }
+  }
+
   async function saveInfo() {
+    if (!profileInfo.org_name.trim()) { showToast('Organisation name is required.'); return; }
     setInfoSaving(true);
     try {
       await api.updateMe({ org_name: profileInfo.org_name, cin: profileInfo.cin, pan: profileInfo.pan, gstin: profileInfo.gstin, tan: profileInfo.tan, website: profileInfo.website, bio: profileInfo.bio, avg_net_profit: profileInfo.avg_net_profit || 0, csr_obligation: profileInfo.csr_obligation || 0, csr_total_spend: profileInfo.csr_total_spend || 0 });
-      alert('Organisation info saved.');
-    } catch { alert('Save failed.'); } finally { setInfoSaving(false); }
+      showToast('✅ Organisation info saved.');
+    } catch { showToast('Save failed. Please try again.'); } finally { setInfoSaving(false); }
   }
   async function saveContact() {
+    if (!profileContact.email.trim()) { showToast('Email address is required.'); return; }
+    const eErr = fieldValidate('email', profileContact.email.trim());
+    if (eErr) { showToast('Email: ' + eErr); return; }
+    if (profileContact.phone) {
+      const mErr = fieldValidate('mobile', profileContact.phone.replace(/^\+91/, ''));
+      if (mErr) { showToast('Mobile: ' + mErr); return; }
+    }
     setContactSaving(true);
     try {
       await api.updateMe({
         address_line1: profileContact.address_line1, city: profileContact.city,
         state_name: profileContact.state_name, pincode: profileContact.pincode,
-        phone: profileContact.phone ? '+91' + profileContact.phone : null,
+        phone: profileContact.phone ? '+91' + profileContact.phone.replace(/^\+91/, '') : null,
         email: profileContact.email,
         spoc_name: profileContact.spoc_name,
         designation: profileContact.designation,
       });
-      alert('Contact info saved.');
-    } catch { alert('Save failed.'); } finally { setContactSaving(false); }
+      showToast('✅ Contact info saved.');
+    } catch { showToast('Save failed. Please try again.'); } finally { setContactSaving(false); }
   }
   async function saveBank() {
+    if (!profileBank.bank_account_name.trim()) { showToast('Account holder name is required.'); return; }
+    if (!profileBank.bank_account_number.trim()) { showToast('Account number is required.'); return; }
+    if (!profileBank.bank_ifsc.trim()) { showToast('IFSC code is required.'); return; }
+    const ifscErr = fieldValidate('ifsc', profileBank.bank_ifsc.trim());
+    if (ifscErr) { showToast('IFSC: ' + ifscErr); return; }
     setBankSaving(true);
     try {
-      await api.updateMe({ bank_account_name: profileBank.bank_account_name, bank_account_number: profileBank.bank_account_number, bank_ifsc: profileBank.bank_ifsc, account_type: profileBank.account_type });
-      alert('Bank details saved.');
-    } catch { alert('Save failed.'); } finally { setBankSaving(false); }
+      await api.updateMe({ bank_account_name: profileBank.bank_account_name, bank_account_number: profileBank.bank_account_number, bank_ifsc: profileBank.bank_ifsc.trim().toUpperCase(), account_type: profileBank.account_type });
+      showToast('✅ Bank details saved.');
+    } catch { showToast('Save failed. Please try again.'); } finally { setBankSaving(false); }
   }
 
   // Project proposal form
@@ -338,7 +391,26 @@ export default function CsrOrganizationPortal() {
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [disbursements, setDisbursements] = useState([]);
   const [trainingPartners, setTrainingPartners] = useState([]);
+  const [vendorList, setVendorList] = useState([]);
   const [loaded, setLoaded] = useState({});
+
+  // CSR Campaigns state
+  const [campaigns, setCampaigns] = useState([]);
+  const [campForm, setCampForm] = useState({ title:'', theme:'Skill Development', description:'', total_budget:'', financial_year:'2025-26', target_states:'', open_date:'', close_date:'', eligibility_criteria:'', status:'draft' });
+  const [campSaving, setCampSaving] = useState(false);
+  const [campMsg, setCampMsg] = useState('');
+  const [applications, setApplications] = useState([]);
+  const [appForm, setAppForm] = useState({ campaign_id:'', org_name:'', reg_no:'', contact_person:'', email:'', phone:'', proposed_budget:'', project_title:'', proposal_summary:'', target_beneficiaries:'', target_states:'' });
+  const [appSaving, setAppSaving] = useState(false);
+  const [appMsg, setAppMsg] = useState('');
+  const [progressReports, setProgressReports] = useState([]);
+  const [progForm, setProgForm] = useState({ project_id:'', report_month:'', bene_count:'', spend_amount:'', train_pct:'', issues:'', highlights:'' });
+  const [progSaving, setProgSaving] = useState(false);
+  const [progMsg, setProgMsg] = useState('');
+  const [fieldAudits, setFieldAudits] = useState([]);
+  const [auditForm, setAuditForm] = useState({ project_id:'', auditor_name:'', visit_date:'', location:'', bene_verified:'', funds_verified:'', compliance_score:'', findings:'', recommendations:'', status:'scheduled' });
+  const [auditFmSaving, setAuditFmSaving] = useState(false);
+  const [auditFmMsg, setAuditFmMsg] = useState('');
 
   const [notifications, setNotifications] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -350,6 +422,30 @@ export default function CsrOrganizationPortal() {
   const [grievanceForm, setGrievanceForm] = useState({ type:'Project Approval Delay', against:'', description:'' });
   const [grievanceSaving, setGrievanceSaving] = useState(false);
   const [grievanceMsg, setGrievanceMsg] = useState('');
+
+  // CSR-2 form state (kept here to avoid hook-order issues when panel renders as plain function)
+  const CSR2_FY = '2025-26';
+  const [csr2Record, setCsr2Record] = useState(null);
+  const [csr2Form, setCsr2Form] = useState({
+    cin: '', company_name: '', registered_office: '',
+    avg_net_profit: '', csr_obligation: '', amount_spent_own: '',
+    amount_spent_implementing_agency: '', amount_transferred_unspent: '',
+    transfer_account_name: '', transfer_date: '',
+    board_approval_date: '', csr_committee_composition: '',
+    activities_undertaken: '', ongoing_projects: '',
+    total_amount_spent: '', unspent_amount: '',
+    reason_shortfall: '', impact_assessment: '',
+    ceo_name: '', ceo_designation: '', cfo_name: '', cfo_designation: '',
+  });
+  const [csr2Msg, setCsr2Msg] = useState('');
+  const [csr2Saving, setCsr2Saving] = useState(false);
+  const [csr2Loading, setCsr2Loading] = useState(false);
+
+  // AI Chatbot state
+  const [chatOpen,    setChatOpen]   = useState(false);
+  const [chatMsgs,    setChatMsgs]   = useState([{ role:'assistant', text:'Hi! 👋 I\'m your SkillsnJobs AI assistant. Ask me about CSR compliance, project management, campaigns, or anything else.' }]);
+  const [chatInput,   setChatInput]  = useState('');
+  const [chatLoading, setChatLoading]= useState(false);
 
   const loadStats = useCallback(() => api.csrStats().then(setStats).catch(() => {}), []);
   const loadProjects = useCallback(() => {
@@ -368,6 +464,10 @@ export default function CsrOrganizationPortal() {
     if (loaded.tps) return;
     api.csrTrainingPartners().then(d => { setTrainingPartners(d); setLoaded(l => ({ ...l, tps: true })); }).catch(() => {});
   }, [loaded.tps]);
+  const loadVendors = useCallback(() => {
+    if (loaded.vendors) return;
+    api.csrVendorList().then(d => { setVendorList(d); setLoaded(l => ({ ...l, vendors: true })); }).catch(() => {});
+  }, [loaded.vendors]);
   const loadUnspentFunds = useCallback(() => {
     if (loaded.unspent) return;
     api.csrUnspentFunds().then(d => { setUnspentFunds(d); setLoaded(l => ({ ...l, unspent: true })); }).catch(() => {});
@@ -388,8 +488,20 @@ export default function CsrOrganizationPortal() {
     if (loaded.grievances) return;
     api.csrGrievances().then(d => { setGrievances(d); setLoaded(l => ({ ...l, grievances: true })); }).catch(() => {});
   }, [loaded.grievances]);
+  const loadCampaigns = useCallback(() => {
+    api.csrCampaigns().then(d => { setCampaigns(Array.isArray(d) ? d : []); setLoaded(l => ({ ...l, campaigns: true })); }).catch(() => {});
+  }, []);
+  const loadApplications = useCallback(() => {
+    api.csrApplications().then(d => { setApplications(Array.isArray(d) ? d : []); setLoaded(l => ({ ...l, applications: true })); }).catch(() => {});
+  }, []);
+  const loadProgressReports = useCallback(() => {
+    api.csrProgressReports().then(d => { setProgressReports(Array.isArray(d) ? d : []); setLoaded(l => ({ ...l, progressReports: true })); }).catch(() => {});
+  }, []);
+  const loadFieldAudits = useCallback(() => {
+    api.csrFieldAudits().then(d => { setFieldAudits(Array.isArray(d) ? d : []); setLoaded(l => ({ ...l, fieldAudits: true })); }).catch(() => {});
+  }, []);
 
-  useEffect(() => { loadStats(); loadProjects(); loadDisbursements(); }, []);
+  useEffect(() => { loadStats(); loadProjects(); loadDisbursements(); loadBeneficiaries(); loadTPs(); }, []);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handler);
@@ -412,16 +524,48 @@ export default function CsrOrganizationPortal() {
     if (['fund-disbursements','fund-utilization'].includes(key)) loadDisbursements();
     if (key === 'fund-unspent') { loadDisbursements(); loadUnspentFunds(); }
     if (key === 'rep-financial') { loadUnspentFunds(); }
-    if (['tp-list','tp-performance','tp-mou'].includes(key)) loadTPs();
+    if (['tp-list','tp-performance','tp-mou'].includes(key)) { loadTPs(); loadVendors(); }
     if (key === 'notifications') loadNotifications();
     if (key === 'comp-audit') loadAuditLogs();
     if (key === 'helpdesk') loadTickets();
     if (key === 'grievance') loadGrievances();
+    if (key === 'comp-csr2' && !csr2Loading && !csr2Record) {
+      setCsr2Loading(true);
+      api.csrGetForm('csr2', CSR2_FY).then(d => {
+        if (d && d.data) {
+          const saved = typeof d.data === 'string' ? JSON.parse(d.data) : d.data;
+          setCsr2Form(f => ({ ...f, ...saved }));
+          setCsr2Record(d);
+        }
+        setCsr2Loading(false);
+      }).catch(() => setCsr2Loading(false));
+    }
+    if (key.startsWith('ai-')) {
+      setOpenMenus(m => ({ ...m, ai: true }));
+      loadProjects(); loadBeneficiaries(); loadDisbursements(); loadTPs();
+    }
+    if (key.startsWith('camp-')) {
+      setOpenMenus(m => ({ ...m, camp: true }));
+      loadCampaigns(); loadApplications(); loadProgressReports(); loadProjects();
+    }
+    if (key.startsWith('audit-')) {
+      setOpenMenus(m => ({ ...m, fieldaudit: true }));
+      loadFieldAudits(); loadProjects();
+    }
   }
   function handleLogout() { logout(); navigate('/'); }
 
   const crore = n => n >= 10000000 ? `₹${(n/10000000).toFixed(1)} Cr` : n >= 100000 ? `₹${(n/100000).toFixed(1)} L` : `₹${(n||0).toLocaleString('en-IN')}`;
   const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0;
+
+  function downloadCSV(filename, headers, rows) {
+    const escape = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = filename; a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   const searchResults = searchQ.trim()
     ? NAV.filter(n => n.label.toLowerCase().includes(searchQ.toLowerCase()) || n.section.toLowerCase().includes(searchQ.toLowerCase())).slice(0, 8)
@@ -443,12 +587,12 @@ export default function CsrOrganizationPortal() {
     function Sub({ id, children }) {
       return openMenus[id] ? <div style={{ background:'rgba(0,0,0,.12)' }}>{children}</div> : null;
     }
-    function SubItem({ label, k }) {
+    function SubItem({ label, k, noBullet }) {
       if (!allowed(k)) return null;
       return <div onClick={()=>go(k)} style={{ padding:'3px 16px 3px 45px', cursor:'pointer', fontSize:12.5, color: panel===k ? C.blue : 'rgba(255,255,255,.52)', fontWeight: panel===k ? 600 : 400, transition:'.15s' }}
         onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='#fff'; }}
         onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color = panel===k ? C.blue : 'rgba(255,255,255,.52)'; }}>
-        · {label}
+        {noBullet ? '' : '· '}{label}
       </div>;
     }
     const lbl = s => <div style={{ padding:'7px 16px 2px', fontSize:9.5, fontWeight:700, color:'rgba(255,255,255,.32)', letterSpacing:'.08em', textTransform:'uppercase' }}>{s}</div>;
@@ -477,7 +621,7 @@ export default function CsrOrganizationPortal() {
           <SubItem label="CSR Policy & Documents" k="profile-docs" />
           <SubItem label="Bank & Payment Details" k="profile-bank" />
         </Sub>
-        <NavItem icon="🔔" label="Notifications" badge="5" active={panel==='notifications'} onClick={()=>go('notifications')} />
+        <NavItem icon="🔔" label="Notifications" badge={notifications.length > 0 ? notifications.length : undefined} active={panel==='notifications'} onClick={()=>go('notifications')} />
 
         {lbl('CSR Projects')}
         <NavItem icon="📋" label="Projects" id="projects" onClick={()=>toggleMenu('projects')} />
@@ -505,6 +649,38 @@ export default function CsrOrganizationPortal() {
           <SubItem label="Add Training Partner" k="tp-add" />
           <SubItem label="Partner Performance" k="tp-performance" />
           <SubItem label="MoU / Agreements" k="tp-mou" />
+        </Sub>
+
+        {lbl('CSR Campaigns')}
+        <NavItem icon="🚀" label="CSR Campaigns" id="camp" onClick={()=>toggleMenu('camp')} active={panel.startsWith('camp-')} />
+        <Sub id="camp">
+          <SubItem label="Create Campaign"    k="camp-create" noBullet />
+          <SubItem label="My Campaigns"       k="camp-list" noBullet />
+          <SubItem label="Received Proposals" k="camp-applications" noBullet />
+          <SubItem label="Approval Workflow"  k="camp-approval" noBullet />
+          <SubItem label="Progress Reports"   k="camp-progress" noBullet />
+        </Sub>
+
+        {lbl('Audit & Verification')}
+        <NavItem icon="🔍" label="Audit & Verification" id="fieldaudit" onClick={()=>toggleMenu('fieldaudit')} active={panel.startsWith('audit-')} />
+        <Sub id="fieldaudit">
+          <SubItem label="Field Audits"    k="audit-list" noBullet />
+          <SubItem label="Schedule Audit"  k="audit-new" noBullet />
+        </Sub>
+
+        {lbl('AI Components')}
+        <NavItem icon="🤖" label="AI Components" id="ai" onClick={()=>toggleMenu('ai')} active={panel.startsWith('ai-')} />
+        <Sub id="ai">
+          <SubItem label="Proposal Scoring"      k="ai-proposal" noBullet />
+          <SubItem label="Duplicate Detection"   k="ai-duplicate" noBullet />
+          <SubItem label="Budget Anomaly"        k="ai-budget" noBullet />
+          <SubItem label="NGO Risk"              k="ai-ngo-risk" noBullet />
+          <SubItem label="CSR Recommender"       k="ai-recommend" noBullet />
+          <SubItem label="Fraud Detection"       k="ai-fraud" noBullet />
+          <SubItem label="Budget Forecast"       k="ai-predict" noBullet />
+          <SubItem label="Impact Forecast"       k="ai-forecast" noBullet />
+          <SubItem label="Sentiment Analysis"    k="ai-sentiment" noBullet />
+          <SubItem label="Executive Summary"     k="ai-summary" noBullet />
         </Sub>
 
         {lbl('Fund Management')}
@@ -621,21 +797,121 @@ export default function CsrOrganizationPortal() {
   // ── PANELS ────────────────────────────────────────────────────────────────
   function PanelDashboard() {
     const utilPct = pct(stats.totalSpent, stats.totalBudget);
-    const activeProjList = projects.filter(p => p.status === 'active').slice(0, 5);
-    const completedProjList = projects.filter(p => p.status === 'completed');
-    const inProgressBene = beneficiaries.filter(b => b.training_status === 'in_progress').length;
-    const enrolledBene = beneficiaries.filter(b => b.training_status === 'enrolled').length;
+    const placementRate = pct(stats.placedBeneficiaries, stats.totalBeneficiaries);
+    const certRate = pct(stats.certifiedBeneficiaries, stats.totalBeneficiaries);
+
+    // ── SVG chart helpers ──────────────────────────────────────────
+    function DonutChart({ slices, size = 90, hole = 0.62 }) {
+      const r = size / 2, cx = r, cy = r, ir = r * hole;
+      let angle = -Math.PI / 2;
+      const paths = slices.map(({ value, color }, i) => {
+        if (!value) return null;
+        const sweep = (value / slices.reduce((s, x) => s + (x.value || 0), 0)) * 2 * Math.PI;
+        const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+        angle += sweep;
+        const x2 = cx + r * Math.cos(angle), y2 = cy + r * Math.sin(angle);
+        const ix1 = cx + ir * Math.cos(angle - sweep), iy1 = cy + ir * Math.sin(angle - sweep);
+        const ix2 = cx + ir * Math.cos(angle), iy2 = cy + ir * Math.sin(angle);
+        const large = sweep > Math.PI ? 1 : 0;
+        return <path key={i} d={`M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${ir},${ir} 0 ${large},0 ${ix1},${iy1} Z`} fill={color} />;
+      });
+      return <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>{paths}</svg>;
+    }
+
+    function BarChart({ bars, height = 70 }) {
+      const max = Math.max(...bars.map(b => b.value), 1);
+      const w = 100 / bars.length;
+      return (
+        <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" style={{ width:'100%', height }}>
+          {bars.map((b, i) => {
+            const bh = (b.value / max) * (height - 16);
+            return <g key={i}>
+              <rect x={i * w + 1} y={height - 14 - bh} width={w - 2} height={bh} fill={b.color || C.blue} rx="2" />
+              <text x={i * w + w / 2} y={height - 2} textAnchor="middle" fontSize="6" fill="#64748b">{b.label}</text>
+            </g>;
+          })}
+        </svg>
+      );
+    }
+
+    function LineChart({ points, height = 70, color = C.blue }) {
+      if (!points.length) return null;
+      const maxV = Math.max(...points.map(p => p.value), 1);
+      const minV = Math.min(...points.map(p => p.value), 0);
+      const range = maxV - minV || 1;
+      const pts = points.map((p, i) => {
+        const x = (i / (points.length - 1 || 1)) * 96 + 2;
+        const y = height - 14 - ((p.value - minV) / range) * (height - 20);
+        return `${x},${y}`;
+      });
+      const area = `M${pts[0]} L${pts.join(' L')} L${pts[pts.length-1].split(',')[0]},${height-14} L2,${height-14} Z`;
+      return (
+        <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" style={{ width:'100%', height }}>
+          <defs><linearGradient id={`lg${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.18"/><stop offset="100%" stopColor={color} stopOpacity="0.01"/></linearGradient></defs>
+          <path d={area} fill={`url(#lg${color.replace('#','')})`} />
+          <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          {points.map((p, i) => {
+            const x = (i / (points.length - 1 || 1)) * 96 + 2;
+            const y = height - 14 - ((p.value - minV) / range) * (height - 20);
+            return <g key={i}>
+              <circle cx={x} cy={y} r="2.5" fill={color} />
+              <text x={x} y={height - 2} textAnchor="middle" fontSize="5.5" fill="#64748b">{p.label}</text>
+            </g>;
+          })}
+        </svg>
+      );
+    }
+
+    // ── Derive chart data from loaded state ────────────────────────
+    // Sector allocation from project activity field
+    const sectorColors = ['#1E5FBF','#0B7B8C','#1A7C3E','#C8860A','#6B3FA0','#C05621','#C0392B'];
+    const sectorMap = projects.reduce((acc, p) => {
+      const s = p.activity || p.sub_sector || 'Other';
+      acc[s] = (acc[s] || 0) + 1; return acc;
+    }, {});
+    const sectorSlices = Object.entries(sectorMap).slice(0, 7).map(([label, value], i) => ({ label, value, color: sectorColors[i % sectorColors.length] }));
+
+    // State-wise projects bar chart
+    const stateMap = projects.reduce((acc, p) => { const s = (p.state_name || 'Unknown').slice(0, 5); acc[s] = (acc[s] || 0) + 1; return acc; }, {});
+    const stateBars = Object.entries(stateMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value], i) => ({ label, value, color: sectorColors[i % sectorColors.length] }));
+
+    // Monthly disbursements line chart (last 6 months)
+    const now = new Date(); const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const label = d.toLocaleString('en-IN', { month: 'short' });
+      months.push({ key, label, value: 0 });
+    }
+    disbursements.filter(d => d.status === 'disbursed').forEach(d => {
+      const date = d.disbursed_date || d.created_at || '';
+      const key = date.slice(0, 7);
+      const m = months.find(m => m.key === key);
+      if (m) m.value += Number(d.amount) || 0;
+    });
+    const disbMonthly = months.map(m => ({ label: m.label, value: m.value / 100000 })); // in lakhs
+
+    // Project status counts for pie-style bars
+    const statusCounts = { active: 0, completed: 0, draft: 0, pending: 0 };
+    projects.forEach(p => { if (statusCounts[p.status] !== undefined) statusCounts[p.status]++; });
+
     return <>
-      <Alert icon="⚡" type="warn"><strong>Action needed:</strong> FY 2025-26 CSR-2 form submission due by 30 Sep 2026. <strong>File Now →</strong></Alert>
+      <Alert icon="⚡" type="warn"><strong>Action needed:</strong> FY 2025-26 CSR-2 form submission due by 30 Sep 2026. <strong style={{ cursor:'pointer', color:C.blue }} onClick={()=>go('comp-csr2')}>File Now →</strong></Alert>
       <SectionHead title={`Welcome, ${user?.org_name || user?.name || 'CSR Organisation'}! 🏛️`} />
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:10 }}>
-        <KpiCard val={crore(stats.totalSpent)} label="Total CSR Spend" sub="All projects combined" color={C.blue} />
-        <KpiCard val={(stats.totalBeneficiaries || 0).toLocaleString('en-IN')} label="Beneficiaries Enrolled" sub={`${stats.certifiedBeneficiaries||0} certified`} color={C.teal} />
-        <KpiCard val={stats.activeProjects || 0} label="Active Projects" sub={`${stats.completedProjects||0} completed`} color={C.green} />
-        <KpiCard val={`${utilPct}%`} label="Fund Utilization" sub={`${crore(stats.totalBudget)} allocated`} color={C.gold} />
+
+      {/* ── Row 1: 6 KPI Cards ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:10 }}>
+        <KpiCard val={crore(stats.totalBudget)} label="CSR Budget" sub="Total obligation" color={C.blue} />
+        <KpiCard val={stats.totalProjects || 0} label="Projects" sub={`${stats.activeProjects||0} active`} color={C.teal} />
+        <KpiCard val={stats.totalPartners || 0} label="Training Partners" sub={`${stats.activePartners||0} active MoUs`} color={C.green} />
+        <KpiCard val={(stats.totalBeneficiaries || 0).toLocaleString('en-IN')} label="Beneficiaries" sub={`${stats.certifiedBeneficiaries||0} certified`} color={C.gold} />
+        <KpiCard val={`${certRate}%`} label="Certified Rate" sub="Training completed" color={C.purple} />
+        <KpiCard val={`${placementRate}%`} label="Placement Rate" sub="Of certified learners" color={C.orange} />
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:10 }}>
-        {[['📋','Propose Project','proj-new'],['👥','Add Beneficiary','bene-register'],['💰','Disburse Funds','fund-disbursements'],['📜','File CSR-2','comp-csr2']].map(([icon,lbl,k])=>(
+
+      {/* ── Row 2: Quick actions ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:10 }}>
+        {[['📋','Propose Project','proj-new'],['👥','Add Beneficiary','bene-register'],['💰','Disburse Funds','fund-disbursements'],['📜','File CSR-2','comp-csr2'],['🚀','New Campaign','camp-create'],['🔍','Field Audit','audit-new']].map(([icon,lbl,k])=>(
           <div key={k} onClick={()=>go(k)} style={{ background:'#fff', border:'1.5px solid #e8ecf3', borderRadius:10, padding:'10px 8px', textAlign:'center', cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.blue; e.currentTarget.style.background=C.pBlue; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e8ecf3'; e.currentTarget.style.background='#fff'; }}>
@@ -644,14 +920,23 @@ export default function CsrOrganizationPortal() {
           </div>
         ))}
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:0 }}>
+
+      {/* ── Row 3: Spend vs Budget | Project Status table ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
         <Card style={{ marginBottom:0 }}>
           <CardTitle>📊 CSR Spend vs Budget</CardTitle>
           <StatRow n={crore(stats.totalSpent)} label="Actual Spend" pct={utilPct} color={C.green} />
           <StatRow n={crore(stats.totalBudget)} label="Total Budget Allocated" pct={100} color={C.blue} />
           <StatRow n={crore(Math.max(0,(stats.totalBudget||0)-(stats.totalSpent||0)))} label="Unspent Balance" pct={100-utilPct} color={C.red} />
-          <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'14px 0' }} />
-          <div style={{ fontSize:12, color:'#64748b' }}>{stats.totalPartners||0} training partners · {stats.activePartners||0} active MoUs</div>
+          <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'12px 0 8px' }} />
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6, marginTop:4 }}>
+            {[['active',C.green],['completed',C.blue],['draft',C.gold],['pending',C.purple]].map(([s,col])=>(
+              <div key={s} style={{ background:'#f8fafc', borderRadius:8, padding:'7px 6px', textAlign:'center', borderTop:`3px solid ${col}` }}>
+                <div style={{ fontWeight:700, color:col, fontSize:17 }}>{statusCounts[s]||0}</div>
+                <div style={{ fontSize:10.5, color:'#64748b', textTransform:'capitalize' }}>{s}</div>
+              </div>
+            ))}
+          </div>
         </Card>
         <Card style={{ marginBottom:0, overflowX:'auto' }}>
           <CardTitle>🏆 Project Status</CardTitle>
@@ -664,7 +949,158 @@ export default function CsrOrganizationPortal() {
               ])} />}
         </Card>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
+
+      {/* ── Row 4: Sector Allocation | State-wise Projects | Monthly Disbursements ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>🎯 Sector Allocation</CardTitle>
+          {sectorSlices.length === 0
+            ? <div style={{ color:'#888', fontSize:12, padding:8 }}>No project data yet.</div>
+            : <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ flexShrink:0 }}><DonutChart slices={sectorSlices} size={88} /></div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  {sectorSlices.map((s, i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:'50%', background:s.color, flexShrink:0 }} />
+                      <div style={{ fontSize:11, color:'#334155', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{s.label}</div>
+                      <div style={{ fontSize:11, fontWeight:700, color:'#64748b', flexShrink:0 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>}
+        </Card>
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>🗺️ State-wise Projects</CardTitle>
+          {stateBars.length === 0
+            ? <div style={{ color:'#888', fontSize:12, padding:8 }}>No location data yet.</div>
+            : <BarChart bars={stateBars} height={88} />}
+        </Card>
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>📈 Monthly Disbursements (₹L)</CardTitle>
+          {disbursements.length === 0
+            ? <div style={{ color:'#888', fontSize:12, padding:8 }}>No disbursement data yet.</div>
+            : <LineChart points={disbMonthly} height={88} color={C.teal} />}
+        </Card>
+      </div>
+
+      {/* ── Row 5: SDG Progress | Impact Score | Programme Performance ── */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:10 }}>
+        {/* SDG Progress */}
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>🌍 SDG Alignment</CardTitle>
+          {(() => {
+            const SDG_MAP = {
+              'Skill Development':'SDG 4', 'Vocational Training':'SDG 4', 'Education':'SDG 4',
+              'Livelihood':'SDG 8', 'Employment':'SDG 8', 'Retail':'SDG 8',
+              'Health':'SDG 3', 'Women Empowerment':'SDG 5', 'Women':'SDG 5',
+              'Environment':'SDG 13', 'Clean Energy':'SDG 7', 'Agriculture':'SDG 2',
+              'Plumbing':'SDG 9', 'Construction':'SDG 9', 'Infrastructure':'SDG 9',
+            };
+            const SDG_LABELS = { 'SDG 2':'Zero Hunger','SDG 3':'Good Health','SDG 4':'Quality Edu','SDG 5':'Gender Eq','SDG 7':'Clean Energy','SDG 8':'Decent Work','SDG 9':'Industry','SDG 13':'Climate' };
+            const SDG_COLORS = { 'SDG 4':'#1E5FBF','SDG 8':'#C8860A','SDG 3':'#1A7C3E','SDG 5':'#6B3FA0','SDG 13':'#0B7B8C','SDG 9':'#C05621','SDG 2':'#C0392B','SDG 7':'#F59E0B' };
+            const counts = {};
+            projects.forEach(p => {
+              const act = p.activity || p.sub_sector || '';
+              const sdg = Object.entries(SDG_MAP).find(([k]) => act.toLowerCase().includes(k.toLowerCase()));
+              const key = sdg ? sdg[1] : 'SDG 4';
+              counts[key] = (counts[key] || 0) + (Number(p.beneficiaries_actual) || Number(p.beneficiaries_target) || 1);
+            });
+            const maxV = Math.max(...Object.values(counts), 1);
+            const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+            if (!entries.length) return <div style={{ color:'#888', fontSize:12, padding:8 }}>Add projects to see SDG alignment.</div>;
+            return <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+              {entries.slice(0,6).map(([sdg, val]) => (
+                <div key={sdg}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginBottom:3 }}>
+                    <span style={{ fontWeight:600, color: SDG_COLORS[sdg]||C.blue }}>{sdg}</span>
+                    <span style={{ color:'#64748b' }}>{SDG_LABELS[sdg]||sdg} · {val}</span>
+                  </div>
+                  <div style={{ height:6, background:'#E8EDF4', borderRadius:4 }}>
+                    <div style={{ height:'100%', width:`${Math.round(val/maxV*100)}%`, background: SDG_COLORS[sdg]||C.blue, borderRadius:4, transition:'width .4s' }} />
+                  </div>
+                </div>
+              ))}
+            </div>;
+          })()}
+        </Card>
+
+        {/* Impact Score Gauge */}
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>⭐ Impact Score</CardTitle>
+          {(() => {
+            const score = Math.round(
+              Math.min(100, (placementRate * 0.4) + (certRate * 0.35) + (utilPct * 0.25))
+            );
+            const grade = score >= 80 ? ['A+', C.green] : score >= 60 ? ['A', C.teal] : score >= 40 ? ['B', C.gold] : ['C', C.red];
+            const R = 40, cx = 60, cy = 58;
+            const pct01 = score / 100;
+            const startAngle = -Math.PI * 0.75;
+            const endAngle = startAngle + pct01 * Math.PI * 1.5;
+            const x1 = cx + R * Math.cos(startAngle), y1 = cy + R * Math.sin(startAngle);
+            const x2 = cx + R * Math.cos(endAngle), y2 = cy + R * Math.sin(endAngle);
+            const large = pct01 > 0.5 ? 1 : 0;
+            return <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
+              <svg viewBox="0 0 120 80" style={{ width:'100%', maxWidth:180 }}>
+                <path d={`M${cx+R*Math.cos(-Math.PI*0.75)},${cy+R*Math.sin(-Math.PI*0.75)} A${R},${R} 0 1,1 ${cx+R*Math.cos(-Math.PI*0.25)},${cy+R*Math.sin(-Math.PI*0.25)}`} fill="none" stroke="#E8EDF4" strokeWidth="8" strokeLinecap="round" />
+                {score > 0 && <path d={`M${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2}`} fill="none" stroke={grade[0]==='A+'?C.green:grade[0]==='A'?C.teal:grade[0]==='B'?C.gold:C.red} strokeWidth="8" strokeLinecap="round" />}
+                <text x={cx} y={cy-6} textAnchor="middle" fontSize="18" fontWeight="700" fill={grade[1]}>{score}</text>
+                <text x={cx} y={cy+8} textAnchor="middle" fontSize="7" fill="#64748b">out of 100</text>
+                <text x={cx} y={cy+20} textAnchor="middle" fontSize="9" fontWeight="700" fill={grade[1]}>{grade[0]}</text>
+              </svg>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, width:'100%', marginTop:4 }}>
+                {[['Placement',`${placementRate}%`,C.green],['Certified',`${certRate}%`,C.teal],['Utilization',`${utilPct}%`,C.gold]].map(([l,v,c])=>(
+                  <div key={l} style={{ textAlign:'center', padding:'5px 4px', background:'#F8FAFC', borderRadius:8, borderTop:`2px solid ${c}` }}>
+                    <div style={{ fontWeight:700, color:c, fontSize:13 }}>{v}</div>
+                    <div style={{ fontSize:9.5, color:'#64748b' }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>;
+          })()}
+        </Card>
+
+        {/* Programme Performance Radar */}
+        <Card style={{ marginBottom:0 }}>
+          <CardTitle>📡 Programme Performance</CardTitle>
+          {(() => {
+            const total = stats.totalBeneficiaries || 0;
+            const dims = [
+              { label:'Reach', val: Math.min(100, (new Set(projects.map(p=>p.state_name).filter(Boolean)).size / 5) * 100) },
+              { label:'Scale', val: Math.min(100, (total / 100) * 100) },
+              { label:'Conversion', val: certRate },
+              { label:'Placement', val: placementRate },
+              { label:'Utilization', val: utilPct },
+              { label:'Partners', val: Math.min(100, (stats.totalPartners||0) * 25) },
+            ];
+            const n = dims.length, cx = 70, cy = 68, r = 52;
+            const pts = dims.map((d, i) => {
+              const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+              const v = (d.val || 0) / 100;
+              return { x: cx + r * v * Math.cos(angle), y: cy + r * v * Math.sin(angle), lx: cx + (r + 14) * Math.cos(angle), ly: cy + (r + 14) * Math.sin(angle), label: d.label };
+            });
+            const spokes = dims.map((_, i) => {
+              const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+              return { x2: cx + r * Math.cos(angle), y2: cy + r * Math.sin(angle) };
+            });
+            const rings = [0.25, 0.5, 0.75, 1].map(scale => {
+              const rpts = dims.map((_, i) => {
+                const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+                return `${cx + r * scale * Math.cos(angle)},${cy + r * scale * Math.sin(angle)}`;
+              });
+              return rpts.join(' ');
+            });
+            return <svg viewBox="0 0 140 140" style={{ width:'100%' }}>
+              {rings.map((rpts, i) => <polygon key={i} points={rpts} fill="none" stroke="#E8EDF4" strokeWidth={i===3?1.5:0.8} />)}
+              {spokes.map((s, i) => <line key={i} x1={cx} y1={cy} x2={s.x2} y2={s.y2} stroke="#E8EDF4" strokeWidth="0.8" />)}
+              <polygon points={pts.map(p=>`${p.x},${p.y}`).join(' ')} fill={`${C.blue}30`} stroke={C.blue} strokeWidth="1.5" />
+              {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3" fill={C.blue} />)}
+              {pts.map((p, i) => <text key={i} x={p.lx} y={p.ly+3} textAnchor="middle" fontSize="7" fontWeight="600" fill="#334155">{p.label}</text>)}
+            </svg>;
+          })()}
+        </Card>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:0 }}>
         <Card style={{ marginBottom:0 }}>
           <CardTitle>🔔 Recent Disbursements</CardTitle>
           {disbursements.length === 0
@@ -676,11 +1112,20 @@ export default function CsrOrganizationPortal() {
               ))}
         </Card>
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>📈 Beneficiary Status</CardTitle>
+          <CardTitle>👥 Beneficiary Pipeline</CardTitle>
           <StatRow n={stats.totalBeneficiaries||0} label="Total Enrolled" pct={100} color={C.blue} />
-          <StatRow n={stats.certifiedBeneficiaries||0} label="Training Completed" pct={pct(stats.certifiedBeneficiaries,stats.totalBeneficiaries)} color={C.teal} />
-          <StatRow n={stats.placedBeneficiaries||0} label="Placed" pct={pct(stats.placedBeneficiaries,stats.totalBeneficiaries)} color={C.green} />
-          <StatRow n={stats.totalPartners||0} label="Training Partners" pct={pct(stats.activePartners,stats.totalPartners)*100/100} color={C.gold} />
+          <StatRow n={beneficiaries.filter(b=>b.training_status==='enrolled').length} label="In Training" pct={pct(beneficiaries.filter(b=>b.training_status==='enrolled').length, stats.totalBeneficiaries)} color={C.gold} />
+          <StatRow n={stats.certifiedBeneficiaries||0} label="Training Completed" pct={certRate} color={C.teal} />
+          <StatRow n={stats.placedBeneficiaries||0} label="Placed in Jobs" pct={placementRate} color={C.green} />
+          <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'10px 0 6px' }} />
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+            {[['Male', beneficiaries.filter(b=>b.gender==='M').length, C.blue],['Female', beneficiaries.filter(b=>b.gender==='F').length, C.purple],['Other', beneficiaries.filter(b=>b.gender&&b.gender!=='M'&&b.gender!=='F').length, C.teal]].map(([lbl,cnt,col])=>(
+              <div key={lbl} style={{ flex:1, background:'#f8fafc', borderRadius:8, padding:'6px 8px', textAlign:'center', borderTop:`2px solid ${col}` }}>
+                <div style={{ fontWeight:700, color:col, fontSize:15 }}>{cnt}</div>
+                <div style={{ fontSize:10, color:'#64748b' }}>{lbl}</div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
     </>;
@@ -773,19 +1218,19 @@ export default function CsrOrganizationPortal() {
       <Card>
         <CardTitle>📋 Policy Documents</CardTitle>
         <Table head={['Document','Version','Uploaded','Status','Action']} rows={[
-          ['CSR Policy FY 2025-26','v3.1','Mar 15, 2025',<Badge color="green">Current</Badge>,<Btn sm outline>Download</Btn>],
-          ['CSR Implementation Plan','v2.0','Apr 01, 2025',<Badge color="green">Current</Badge>,<Btn sm outline>Download</Btn>],
-          ['Board Resolution — CSR','FY26','Apr 01, 2025',<Badge color="teal">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['Annual Action Plan','FY26','Apr 05, 2025',<Badge color="gold">Under Review</Badge>,<Btn sm outline>Download</Btn>],
+          ['CSR Policy FY 2025-26','v3.1','Mar 15, 2025',<Badge color="green">Current</Badge>,<Btn sm outline onClick={()=>showToast('No file uploaded yet. Use Upload Document to attach the file.')}>Download</Btn>],
+          ['CSR Implementation Plan','v2.0','Apr 01, 2025',<Badge color="green">Current</Badge>,<Btn sm outline onClick={()=>showToast('No file uploaded yet. Use Upload Document to attach the file.')}>Download</Btn>],
+          ['Board Resolution — CSR','FY26','Apr 01, 2025',<Badge color="teal">Verified</Badge>,<Btn sm outline onClick={()=>showToast('No file uploaded yet. Use Upload Document to attach the file.')}>Download</Btn>],
+          ['Annual Action Plan','FY26','Apr 05, 2025',<Badge color="gold">Under Review</Badge>,<Btn sm outline onClick={()=>showToast('No file uploaded yet. Use Upload Document to attach the file.')}>Download</Btn>],
         ]} />
-        <div style={{ marginTop:14 }}><Btn>📤 Upload Document</Btn></div>
+        <div style={{ marginTop:14 }}><Btn onClick={()=>showToast('File uploads require document storage to be configured. Contact your administrator.')}>📤 Upload Document</Btn></div>
       </Card>
       <Card>
         <CardTitle>🏆 Certifications</CardTitle>
         {['MCA CSR-1 Registered','DPIIT Recognised','NSDC Partner','ISO 9001:2015','FCRA Registered'].map(s=>(
           <span key={s} style={{ display:'inline-block', padding:'3px 8px', borderRadius:6, fontSize:11, fontWeight:600, background:'#e8ecf3', color:'#374151', margin:2 }}>{s}</span>
         ))}
-        <div style={{ marginTop:14 }}><Btn>+ Add Certification</Btn></div>
+        <div style={{ marginTop:14 }}><Btn onClick={()=>showToast('Certifications are managed via your Organisation Profile. Contact support to update them.')}>+ Add Certification</Btn></div>
       </Card>
     </>;
   }
@@ -886,12 +1331,24 @@ export default function CsrOrganizationPortal() {
       <Card>
         {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
          : active.length === 0 ? <div style={{ color:'#888', padding:12 }}>No active projects.</div>
-         : <Table head={['Project','State','Budget','Spent','Beneficiaries','Status']} rows={active.map(p => [
-             p.title, p.state_name,
-             crore(p.budget), `${crore(p.spent)} (${pct(p.spent,p.budget)}%)`,
-             (p.beneficiaries_actual||0).toLocaleString('en-IN'),
-             <Badge color={p.status==='active'?'green':p.status==='delayed'?'gold':'teal'}>{p.status}</Badge>
-           ])} />}
+         : active.map(p => (
+             <div key={p.id} style={{ border:'1px solid #e2e8f0', borderRadius:8, padding:'12px 14px', marginBottom:10 }}>
+               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                 <div>
+                   <div style={{ fontWeight:700, fontSize:13.5, color:C.navy }}>{p.title}</div>
+                   <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{p.state_name||'—'} · Budget: {crore(p.budget)} · Spent: {crore(p.spent)} ({pct(p.spent,p.budget)}%) · Beneficiaries: {(p.beneficiaries_actual||0).toLocaleString('en-IN')}</div>
+                 </div>
+                 <Badge color="green">{p.status}</Badge>
+               </div>
+               <div style={{ display:'flex', gap:8, marginTop:10, flexWrap:'wrap' }}>
+                 <Btn sm outline onClick={()=>{ setDisbForm(f=>({...f, project_id: p.title})); go('fund-disbursements'); }}>💰 Disburse Funds</Btn>
+                 <Btn sm outline onClick={()=>go('bene-register')}>👥 Add Beneficiary</Btn>
+                 <Btn sm outline onClick={()=>go('audit-new')}>🔍 Schedule Field Audit</Btn>
+                 <Btn sm outline onClick={()=>go('camp-progress')}>📋 Submit Progress Report</Btn>
+                 <Btn sm outline onClick={()=>go('bene-track')}>📈 Track Beneficiaries</Btn>
+               </div>
+             </div>
+           ))}
       </Card>
     </>;
   }
@@ -906,7 +1363,7 @@ export default function CsrOrganizationPortal() {
          : drafts.length === 0 ? <div style={{ color:'#888', padding:12 }}>No draft projects.</div>
          : <Table head={['Title','State','Budget','Action']} rows={drafts.map(p => [
              p.title, p.state_name || '—', crore(p.budget),
-             <><Btn sm outline onClick={() => { setProjForm({ title: p.title || '', schedule7: p.activity || 'Skill Development', sub_sector: p.sub_sector || 'Vocational Training', target_beneficiaries: p.beneficiaries_target || '', target_states: p.target_states || '', start_date: p.start_date || '', end_date: p.end_date || '', objectives: p.objectives || '', budget: p.budget || '', own_contribution: p.own_contribution || '', other_sources: p.other_sources || '', implementing_agency: p.implementing_agency || '', agency_type: p.agency_type || 'NGO', mou_signed: p.mou_signed || 'No — in progress' }); go('proj-new'); }}>Edit</Btn>{' '}<Btn sm green onClick={() => api.csrUpdateProject(p.id, { status: 'pending' }).then(() => { setLoaded(l => ({ ...l, projects: false })); loadProjects(); }).catch(() => {})}>Submit</Btn></>
+             <><Btn sm outline onClick={() => { setProjForm({ title: p.title || '', schedule7: p.activity || 'Skill Development', sub_sector: p.sub_sector || 'Vocational Training', target_beneficiaries: p.beneficiaries_target || '', target_states: p.target_states || '', start_date: p.start_date || '', end_date: p.end_date || '', objectives: p.objectives || '', budget: p.budget || '', own_contribution: p.own_contribution || '', other_sources: p.other_sources || '', implementing_agency: p.implementing_agency || '', agency_type: p.agency_type || 'NGO', mou_signed: p.mou_signed || 'No — in progress' }); go('proj-new'); }}>Edit</Btn>{' '}<Btn sm green onClick={() => api.csrUpdateProject(p.id, { status: 'pending' }).then(() => { setLoaded(l => ({ ...l, projects: false })); loadProjects(); go('proj-approval'); }).catch(() => {})}>Submit</Btn></>
            ])} />}
         <div style={{ marginTop:14 }}><Btn onClick={()=>go('proj-new')}>+ Propose New Project</Btn></div>
       </Card>
@@ -921,11 +1378,15 @@ export default function CsrOrganizationPortal() {
       <Card>
         {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
          : completed.length === 0 ? <div style={{ color:'#888', padding:12 }}>No completed projects yet.</div>
-         : <Table head={['Project','State','Beneficiaries','Fund Used','Certificate']} rows={completed.map(p => [
+         : <Table head={['Project','State','Beneficiaries','Fund Used','Certificate','Actions']} rows={completed.map(p => [
              p.title, p.state_name || '—',
              (p.beneficiaries_actual||0).toLocaleString('en-IN'),
              crore(p.spent),
-             <Btn sm outline>Download</Btn>
+             <Btn sm outline onClick={()=>showToast('No certificate file uploaded for this project yet.')}>Download</Btn>,
+             <div style={{ display:'flex', gap:6 }}>
+               <Btn sm outline onClick={()=>go('rep-impact')}>📊 Impact Report</Btn>
+               <Btn sm outline onClick={()=>go('comp-csr2')}>📜 File CSR-2</Btn>
+             </div>
            ])} />}
       </Card>
     </>;
@@ -1015,13 +1476,21 @@ export default function CsrOrganizationPortal() {
         {!loaded.beneficiaries ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
          : beneficiaries.length === 0 ? <div style={{ color:'#888', padding:12 }}>No beneficiaries registered yet.</div>
          : <>
-             <Table head={['Name','Gender','State','Project','Training Status','Batch']} rows={beneficiaries.map(b => [
+             <Table head={['Name','Gender','State','Project','Training Status','Batch','Actions']} rows={beneficiaries.map(b => [
                b.name, b.gender || '—', b.state_name || '—',
                b.project_title || '—',
                <Badge color={b.training_status==='completed'?'green':b.training_status==='in_progress'?'blue':b.training_status==='dropout'?'red':'teal'}>{b.training_status}</Badge>,
-               b.batch_code || '—'
+               b.batch_code || '—',
+               <div style={{ display:'flex', gap:6 }}>
+                 <Btn sm outline onClick={()=>go('bene-track')}>📈 Track</Btn>
+                 {b.training_status==='completed' && <Btn sm outline onClick={()=>go('bene-placement')}>🎯 Placement</Btn>}
+               </div>
              ])} />
-             <div style={{ marginTop:12, fontSize:12, color:'#64748b' }}>Total: {beneficiaries.length} beneficiaries</div>
+             <div style={{ marginTop:12, display:'flex', gap:10, alignItems:'center' }}>
+               <span style={{ fontSize:12, color:'#64748b' }}>Total: {beneficiaries.length} beneficiaries</span>
+               <Btn sm outline onClick={()=>go('bene-track')}>📈 View Progress Funnel</Btn>
+               <Btn sm outline onClick={()=>go('bene-placement')}>🎯 Placement Outcomes</Btn>
+             </div>
            </>}
       </Card>
     </>;
@@ -1042,6 +1511,10 @@ export default function CsrOrganizationPortal() {
           <StatRow n={inProgress} label="Training In Progress" pct={pct(inProgress,total)} color={C.teal} />
           <StatRow n={completed} label="Training Completed" pct={pct(completed,total)} color={C.green} />
           <StatRow n={placed} label="Placed" pct={pct(placed,total)} color={C.gold} />
+          <div style={{ marginTop:14, display:'flex', gap:10 }}>
+            <Btn sm outline onClick={()=>go('bene-list')}>← Back to List</Btn>
+            <Btn sm green onClick={()=>go('bene-placement')}>🎯 View Placement Outcomes →</Btn>
+          </div>
         </>}
       </Card>
     </>;
@@ -1074,19 +1547,61 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelTpList() {
+    const isLoading = !loaded.vendors && !loaded.tps;
+    const allPartners = [
+      ...vendorList.map(v => ({ ...v, _source: 'system' })),
+      ...trainingPartners.map(tp => ({ ...tp, _source: 'csr', type: tp.type || 'Training Partner' })),
+    ];
     return <>
       <Bc parts={['Training Partners','Empanelled Partners']} />
       <SectionHead title="Empanelled Training Partners 🎓" />
+      {vendorList.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:10, marginBottom:14 }}>
+          {[
+            { label:'Total Vendors', val: vendorList.length },
+            { label:'Total Trainers', val: vendorList.reduce((s,v)=>s+(v.num_trainers||0),0) },
+            { label:'Total Centres', val: vendorList.reduce((s,v)=>s+(v.num_centres||0),0) },
+            { label:'Beneficiaries Trained', val: vendorList.reduce((s,v)=>s+(v.beneficiaries_trained||0),0).toLocaleString('en-IN') },
+          ].map(s => (
+            <div key={s.label} style={{ background:'#fff', borderRadius:10, padding:'12px 16px', boxShadow:'0 1px 4px rgba(0,0,0,.07)', textAlign:'center' }}>
+              <div style={{ fontSize:22, fontWeight:800, color:C.blue }}>{s.val}</div>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <Card>
-        {!loaded.tps ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
-         : trainingPartners.length === 0 ? <div style={{ color:'#888', padding:12 }}>No training partners added yet.</div>
-         : <Table head={['Partner','Type','State','District','Beneficiaries Trained','Status']} rows={trainingPartners.map(tp => [
-             tp.name, tp.type||'—', tp.state_name||'—', tp.district||'—',
-             (tp.beneficiaries_trained||0).toLocaleString('en-IN'),
-             <Badge color={tp.status==='active'?'green':tp.status==='mou_expired'?'red':'gold'}>{tp.status}</Badge>
-           ])} />}
-        <div style={{ marginTop:14 }}><Btn onClick={()=>go('tp-add')}>+ Add New Partner</Btn></div>
+        <CardTitle>🏢 Registered Training Vendors</CardTitle>
+        {!loaded.vendors ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : vendorList.length === 0 ? <div style={{ color:'#888', padding:12 }}>No training vendors registered in the system yet.</div>
+         : <Table
+             head={['Organisation','Email','Phone','State','District / City','Centres','Trainers','Courses','Beneficiaries','Status']}
+             rows={vendorList.map(v => [
+               <span style={{ fontWeight:600, color:C.navy }}>{v.name}</span>,
+               v.email,
+               v.phone || '—',
+               v.state_name,
+               v.district !== '—' ? `${v.district}${v.city && v.city !== '—' ? ', '+v.city : ''}` : (v.city !== '—' ? v.city : '—'),
+               v.num_centres,
+               v.num_trainers,
+               v.num_courses,
+               (v.beneficiaries_trained||0).toLocaleString('en-IN'),
+               <Badge color="green">Active</Badge>
+             ])}
+           />}
       </Card>
+      {trainingPartners.length > 0 && (
+        <Card>
+          <CardTitle>📋 CSR-Added Partners</CardTitle>
+          <Table head={['Partner','Type','State','District','Trainers','Beneficiaries Trained','Status']} rows={trainingPartners.map(tp => [
+            tp.name, tp.type||'—', tp.state_name||'—', tp.district||'—',
+            tp.num_trainers||'—',
+            (tp.beneficiaries_trained||0).toLocaleString('en-IN'),
+            <Badge color={tp.status==='active'?'green':tp.status==='mou_expired'?'red':'gold'}>{tp.status}</Badge>
+          ])} />
+        </Card>
+      )}
+      <div style={{ marginTop:4 }}><Btn onClick={()=>go('tp-add')}>+ Add Partner Manually</Btn></div>
     </>;
   }
 
@@ -1202,6 +1717,11 @@ export default function CsrOrganizationPortal() {
              return [p.title, crore(alloc), crore(disb), crore(rem),
                <Badge color={u>=75?'green':u>=50?'blue':'gold'}>{u}%</Badge>];
            })} />}
+        <div style={{ marginTop:12, display:'flex', gap:10 }}>
+          <Btn sm outline onClick={()=>go('fund-disbursements')}>📤 Add Disbursement →</Btn>
+          <Btn sm outline onClick={()=>go('fund-utilization')}>📊 Utilization Report →</Btn>
+          {unalloc > 0 && <Btn sm outline onClick={()=>go('fund-unspent')}>⚠️ Report Unspent Funds →</Btn>}
+        </div>
       </Card>
     </>;
   }
@@ -1211,6 +1731,7 @@ export default function CsrOrganizationPortal() {
     const set = k => e => setDisbForm(f => ({ ...f, [k]: e.target.value }));
 
     async function saveDisbursement() {
+      if (!df.recipient.trim()) { setDisbMsg('Recipient name is required.'); return; }
       if (!df.amount || isNaN(Number(df.amount)) || Number(df.amount) <= 0) { setDisbMsg('A valid amount is required.'); return; }
       if (!df.payment_date) { setDisbMsg('Payment date is required.'); return; }
       setDisbSaving(true); setDisbMsg('');
@@ -1237,7 +1758,7 @@ export default function CsrOrganizationPortal() {
     return <>
       <Bc parts={['Funds','Disbursements']} />
       <SectionHead title="Disbursements 📤" />
-      {disbMsg && <Alert icon={disbMsg.startsWith('✅') ? '✅' : '❌'} type={disbMsg.startsWith('✅') ? 'success' : 'red'}>{disbMsg}</Alert>}
+      {disbMsg && <Alert icon={disbMsg.startsWith('✅') ? '✅' : '❌'} type={disbMsg.startsWith('✅') ? 'success' : 'red'}>{disbMsg}{disbMsg.startsWith('✅') && <> <button onClick={()=>go('fund-utilization')} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600, padding:0 }}>View Utilization →</button></>}</Alert>}
       <Card>
         <CardTitle>➕ New Disbursement Request</CardTitle>
         <Grid><Field label="Project"><Sel value={df.project_id} onChange={set('project_id')} options={projectOptions} /></Field><Field label="Recipient / Training Partner"><Inp value={df.recipient} onChange={set('recipient')} placeholder="e.g. SkillBridge Institute" /></Field></Grid>
@@ -1253,6 +1774,7 @@ export default function CsrOrganizationPortal() {
              d.project_title||'—', d.recipient||'—', crore(d.amount), d.mode||'—', d.disbursed_date||'—',
              <Badge color={d.status==='disbursed'?'green':d.status==='returned'?'red':'gold'}>{d.status}</Badge>
            ])} />}
+        {disbursements.length > 0 && <div style={{ marginTop:12 }}><Btn sm outline onClick={()=>go('fund-utilization')}>📊 View Utilization Report →</Btn></div>}
       </Card>
     </>;
   }
@@ -1278,7 +1800,16 @@ export default function CsrOrganizationPortal() {
                <Badge color={u>=75?'green':u>=50?'gold':'red'}>{u}%</Badge>
              ];
            })} />}
-        <div style={{ marginTop:14, display:'flex', gap:10 }}><Btn outline>📥 Download Report</Btn><Btn>📊 Full Year Report</Btn></div>
+        <div style={{ marginTop:14, display:'flex', gap:10, flexWrap:'wrap' }}>
+          <Btn outline onClick={()=>downloadCSV('csr_utilization_report.csv',
+            ['Project','State','Budget (₹)','Spent (₹)','Utilization %'],
+            projects.map(p=>[ p.title, p.state_name||'', p.budget||0, p.spent||0, pct(p.spent,p.budget) ]))}>📥 Download Report</Btn>
+          <Btn onClick={()=>downloadCSV('csr_full_year_report.csv',
+            ['Project','Activity','State','District','Budget (₹)','Spent (₹)','Beneficiaries Target','Beneficiaries Actual','Status'],
+            projects.map(p=>[ p.title, p.activity||'', p.state_name||'', p.district||'', p.budget||0, p.spent||0, p.beneficiaries_target||0, p.beneficiaries_actual||0, p.status ]))}>📊 Full Year Report</Btn>
+          <Btn outline onClick={()=>go('rep-impact')}>🌟 View Impact Report →</Btn>
+          <Btn outline onClick={()=>go('rep-financial')}>💹 Financial Report →</Btn>
+        </div>
       </Card>
     </>;
   }
@@ -1422,7 +1953,7 @@ export default function CsrOrganizationPortal() {
           Government shares <strong>25% of stipend</strong> (max ₹1,500/month) per apprentice. Promotes industry-based apprenticeship.
         </div>
         <div style={{ color:'#94a3b8', fontSize:13, padding:'12px 0', textAlign:'center' }}>No apprentice enrollments recorded yet</div>
-        <div style={{ marginTop:14 }}><Btn>+ Enroll New Apprentice</Btn></div>
+        <div style={{ marginTop:14 }}><Btn onClick={()=>go('bene-register')}>+ Enroll New Apprentice</Btn></div>
       </Card>
     </>;
   }
@@ -1489,7 +2020,16 @@ export default function CsrOrganizationPortal() {
             <Badge color={u.status==='transferred'?'green':u.status==='pending'?'gold':'blue'}>{u.status}</Badge>
           ])} />
         </>}
-        <div style={{ marginTop:14 }}><Btn outline>📥 Download Statement</Btn></div>
+        <div style={{ marginTop:14 }}><Btn outline onClick={()=>{
+          const rows = [
+            ['CSR Obligation FY26', obligation > 0 ? obligation : '—'],
+            ['Total Spent', totalSpend],
+            ['Unspent Amount', unspent],
+            ['Utilization %', util + '%'],
+            ...unspentFunds.map(u=>['Unspent Fund — '+u.financial_year, u.unspent_amount]),
+          ];
+          downloadCSV('csr_financial_statement.csv', ['Line Item','Value (₹)'], rows);
+        }}>📥 Download Statement</Btn></div>
       </Card>
     </>;
   }
@@ -1501,14 +2041,19 @@ export default function CsrOrganizationPortal() {
       <Card>
         <CardTitle>🔄 Generate Report</CardTitle>
         <Grid><Field label="Financial Year"><Sel options={['FY 2025-26','FY 2024-25','FY 2023-24']} /></Field><Field label="Format"><Sel options={['PDF','Word Document','Excel']} /></Field></Grid>
-        <div style={{ marginTop:14, textAlign:'right' }}><Btn green>🔄 Generate Report</Btn></div>
+        <div style={{ marginTop:14, textAlign:'right' }}><Btn green onClick={()=>{
+          downloadCSV('csr_annual_report.csv',
+            ['Project','Activity','State','District','Budget (₹)','Spent (₹)','Beneficiaries Target','Beneficiaries Actual','IA','Status'],
+            projects.map(p=>[p.title,p.activity||'',p.state_name||'',p.district||'',p.budget||0,p.spent||0,p.beneficiaries_target||0,p.beneficiaries_actual||0,p.implementing_agency||'',p.status]));
+          showToast('Annual report exported as CSV.');
+        }}>🔄 Generate Report</Btn></div>
       </Card>
       <Card>
         <CardTitle>📁 Past Annual Reports</CardTitle>
         <Table head={['Year','Generated On','Pages','Action']} rows={[
-          ['FY 2024-25','Apr 15, 2025','42',<Btn sm outline>Download</Btn>],
-          ['FY 2023-24','Apr 12, 2024','38',<Btn sm outline>Download</Btn>],
-          ['FY 2022-23','Apr 18, 2023','35',<Btn sm outline>Download</Btn>],
+          ['FY 2024-25','Apr 15, 2025','42',<Btn sm outline onClick={()=>showToast('Historical PDF reports are not stored yet — use Generate Report to export current data.')}>Download</Btn>],
+          ['FY 2023-24','Apr 12, 2024','38',<Btn sm outline onClick={()=>showToast('Historical PDF reports are not stored yet — use Generate Report to export current data.')}>Download</Btn>],
+          ['FY 2022-23','Apr 18, 2023','35',<Btn sm outline onClick={()=>showToast('Historical PDF reports are not stored yet — use Generate Report to export current data.')}>Download</Btn>],
         ]} />
       </Card>
     </>;
@@ -1556,7 +2101,9 @@ export default function CsrOrganizationPortal() {
              state, data.projects, data.beneficiaries.toLocaleString('en-IN'), crore(data.spend),
              [...data.districts].join(', ') || '—'
            ])} />}
-        <div style={{ marginTop:14 }}><Btn outline>📥 Download State Report</Btn></div>
+        <div style={{ marginTop:14 }}><Btn outline onClick={()=>downloadCSV('csr_geographic_report.csv',
+          ['State','Projects','Beneficiaries','Spend (₹)','Districts'],
+          Object.entries(byState).map(([state,d])=>[state,d.projects,d.beneficiaries,d.spend,[...d.districts].join('; ')||'—']))}>📥 Download State Report</Btn></div>
       </Card>
     </>;
   }
@@ -1608,34 +2155,130 @@ export default function CsrOrganizationPortal() {
       <Card>
         <CardTitle>📋 Registered Implementing Agencies</CardTitle>
         <Table head={['Implementing Agency','CIN / Reg No.','CSR-1 Date','Status','Action']} rows={[
-          ['SkillBridge Institute Pvt Ltd','U85100MH2015PTC266234','Jan 10, 2025',<Badge color="green">Verified</Badge>,<Btn sm outline>View</Btn>],
-          ['TrainRight Academy Society','S-00123/RJ/2018','Jan 15, 2025',<Badge color="green">Verified</Badge>,<Btn sm outline>View</Btn>],
-          ['HealSkill Foundation','U85310BR2012NPL012345','Feb 01, 2025',<Badge color="gold">Under Review</Badge>,<Btn sm outline>View</Btn>],
+          ['SkillBridge Institute Pvt Ltd','U85100MH2015PTC266234','Jan 10, 2025',<Badge color="green">Verified</Badge>,<Btn sm outline onClick={()=>showToast('IA filing details are maintained on the MCA21 portal. Use the CSR-1 registry to verify.')}>View</Btn>],
+          ['TrainRight Academy Society','S-00123/RJ/2018','Jan 15, 2025',<Badge color="green">Verified</Badge>,<Btn sm outline onClick={()=>showToast('IA filing details are maintained on the MCA21 portal. Use the CSR-1 registry to verify.')}>View</Btn>],
+          ['HealSkill Foundation','U85310BR2012NPL012345','Feb 01, 2025',<Badge color="gold">Under Review</Badge>,<Btn sm outline onClick={()=>showToast('IA filing details are maintained on the MCA21 portal. Use the CSR-1 registry to verify.')}>View</Btn>],
         ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Register New IA (CSR-1)</Btn></div>
+        <div style={{ marginTop:14 }}><Btn onClick={()=>window.open('https://www.mca.gov.in/content/mca/global/en/mca/e-filing/company-forms-download.html','_blank','noopener,noreferrer')}>+ Register New IA (CSR-1)</Btn></div>
       </Card>
     </>;
   }
 
   function PanelCompCsr2() {
+    const form = csr2Form;
+    const setForm = setCsr2Form;
+    const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+    const totalSpent = (Number(form.amount_spent_own || 0) + Number(form.amount_spent_implementing_agency || 0));
+    const obligation = Number(form.csr_obligation || user?.csr_obligation || 0);
+    const unspent = Math.max(0, obligation - totalSpent);
+
+    async function handleSave(status) {
+      if (status === 'submitted') {
+        if (!form.company_name.trim()) { setCsr2Msg('❌ Company name is required before submitting.'); return; }
+        if (!form.avg_net_profit || Number(form.avg_net_profit) <= 0) { setCsr2Msg('❌ Average net profit (Part B) is required before submitting.'); return; }
+        if (!form.csr_obligation || Number(form.csr_obligation) <= 0) { setCsr2Msg('❌ CSR obligation (Part B) is required before submitting.'); return; }
+        if (!form.ceo_name.trim()) { setCsr2Msg('❌ CEO/MD name (Part D — Certification) is required before submitting.'); return; }
+      }
+      setCsr2Saving(true); setCsr2Msg('');
+      const data = { ...form, total_amount_spent: totalSpent, unspent_amount: unspent };
+      try {
+        const res = await api.csrSaveForm('csr2', { financial_year: '2025-26', data, status });
+        setCsr2Record(res);
+        setCsr2Msg(status === 'submitted' ? '✅ CSR-2 data submitted successfully! File the form on MCA21 portal to complete compliance.' : '✅ Draft saved.');
+      } catch(e) { setCsr2Msg('❌ ' + (e.message || 'Save failed.')); }
+      setCsr2Saving(false);
+    }
+
+    if (csr2Loading) return <div style={{ color:'#888', padding:20 }}>Loading saved data…</div>;
+
+    const isSubmitted = csr2Record?.status === 'submitted';
+
     return <>
       <Bc parts={['Compliance','Form CSR-2']} />
-      <SectionHead title="Form CSR-2 — Annual Report 📝" />
-      <Alert icon="⚠️" type="warn"><strong>CSR-2 for FY 2025-26</strong> is due by <strong>30 Sep 2026</strong>. This is filed separately on the MCA21 portal.</Alert>
+      <SectionHead title="Form CSR-2 — Annual Report on CSR 📝" />
+      <Alert icon="⚠️" type="warn"><strong>CSR-2 for FY 2025-26</strong> is due by <strong>30 Sep 2026</strong>. Fill the details below, save, then file on MCA21 portal.</Alert>
+      {csr2Msg && <Alert icon={csr2Msg.startsWith('✅')?'✅':'❌'} type={csr2Msg.startsWith('✅')?'success':'red'}>{csr2Msg}</Alert>}
+      {isSubmitted && <Alert icon="✅" type="success">This CSR-2 was marked as submitted on {csr2Record.submitted_at ? new Date(csr2Record.submitted_at).toLocaleDateString('en-IN') : '—'}. You can update and re-save.</Alert>}
+
+      {/* Part A — Company Details */}
+      <Card>
+        <CardTitle>📋 Part A — Company Details</CardTitle>
+        <Grid>
+          <Field label="CIN"><Inp value={form.cin} onChange={set('cin')} placeholder="L12345MH2000PLC123456" /></Field>
+          <Field label="Company Name"><Inp value={form.company_name} onChange={set('company_name')} placeholder="Company name as per MCA" /></Field>
+        </Grid>
+        <Field label="Registered Office Address"><Inp value={form.registered_office} onChange={set('registered_office')} placeholder="Full address" /></Field>
+      </Card>
+
+      {/* Part B — Financial Details */}
+      <Card>
+        <CardTitle>💰 Part B — CSR Financial Details</CardTitle>
+        <Grid cols={3}>
+          <Field label="Avg Net Profit (3yr) ₹"><Inp type="number" value={form.avg_net_profit} onChange={set('avg_net_profit')} placeholder="e.g. 10000000" /></Field>
+          <Field label="2% CSR Obligation ₹"><Inp type="number" value={form.csr_obligation} onChange={set('csr_obligation')} placeholder="Computed by system" /></Field>
+          <Field label="Board Approval Date"><Inp type="date" value={form.board_approval_date} onChange={set('board_approval_date')} /></Field>
+        </Grid>
+        <Grid cols={3}>
+          <Field label="Amount Spent (Own) ₹"><Inp type="number" value={form.amount_spent_own} onChange={set('amount_spent_own')} placeholder="Direct spend" /></Field>
+          <Field label="Amount via Implementing Agency ₹"><Inp type="number" value={form.amount_spent_implementing_agency} onChange={set('amount_spent_implementing_agency')} placeholder="Via IA" /></Field>
+          <Field label="Amount Transferred to Unspent A/C ₹"><Inp type="number" value={form.amount_transferred_unspent} onChange={set('amount_transferred_unspent')} placeholder="If applicable" /></Field>
+        </Grid>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginTop:10, background:'#f8fafc', borderRadius:8, padding:'10px 14px' }}>
+          <div><div style={{ fontSize:11, color:'#64748b' }}>Total Spent (auto)</div><div style={{ fontWeight:700, color:C.green, fontSize:14 }}>₹{(totalSpent/100000).toFixed(2)}L</div></div>
+          <div><div style={{ fontSize:11, color:'#64748b' }}>Obligation</div><div style={{ fontWeight:700, color:C.navy, fontSize:14 }}>₹{(obligation/100000).toFixed(2)}L</div></div>
+          <div><div style={{ fontSize:11, color:'#64748b' }}>Unspent (auto)</div><div style={{ fontWeight:700, color:unspent>0?C.red:C.green, fontSize:14 }}>₹{(unspent/100000).toFixed(2)}L</div></div>
+        </div>
+        {Number(form.amount_transferred_unspent) > 0 && <Grid style={{ marginTop:10 }}>
+          <Field label="Transfer Account Name"><Inp value={form.transfer_account_name} onChange={set('transfer_account_name')} placeholder="Bank / Fund name" /></Field>
+          <Field label="Transfer Date"><Inp type="date" value={form.transfer_date} onChange={set('transfer_date')} /></Field>
+        </Grid>}
+      </Card>
+
+      {/* Part C — CSR Committee */}
+      <Card>
+        <CardTitle>👥 Part C — CSR Committee & Activities</CardTitle>
+        <Field label="CSR Committee Composition"><textarea rows={2} value={form.csr_committee_composition} onChange={set('csr_committee_composition')} placeholder="Names and designations of CSR committee members…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit' }} /></Field>
+        <Field label="Activities Undertaken (Schedule VII reference)" style={{ marginTop:8 }}><textarea rows={3} value={form.activities_undertaken} onChange={set('activities_undertaken')} placeholder="List CSR activities and Schedule VII clauses covered…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit' }} /></Field>
+        <Field label="Ongoing Multi-year Projects (if any)" style={{ marginTop:8 }}><textarea rows={2} value={form.ongoing_projects} onChange={set('ongoing_projects')} placeholder="Project names and expected completion dates…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit' }} /></Field>
+        {unspent > 0 && <Field label="Reason for Shortfall (if obligation not fully met)" style={{ marginTop:8 }}><textarea rows={2} value={form.reason_shortfall} onChange={set('reason_shortfall')} placeholder="Explain reasons for shortfall…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit' }} /></Field>}
+        <Field label="Impact Assessment Summary" style={{ marginTop:8 }}><textarea rows={2} value={form.impact_assessment} onChange={set('impact_assessment')} placeholder="Key outcomes and beneficiary impact…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13, resize:'vertical', fontFamily:'inherit' }} /></Field>
+      </Card>
+
+      {/* Part D — Certification */}
+      <Card>
+        <CardTitle>✍️ Part D — Certification</CardTitle>
+        <Grid>
+          <Field label="CEO / MD Name"><Inp value={form.ceo_name} onChange={set('ceo_name')} placeholder="Full name" /></Field>
+          <Field label="Designation"><Inp value={form.ceo_designation} onChange={set('ceo_designation')} placeholder="e.g. Managing Director" /></Field>
+        </Grid>
+        <Grid>
+          <Field label="CFO Name"><Inp value={form.cfo_name} onChange={set('cfo_name')} placeholder="Full name" /></Field>
+          <Field label="Designation"><Inp value={form.cfo_designation} onChange={set('cfo_designation')} placeholder="e.g. Chief Financial Officer" /></Field>
+        </Grid>
+      </Card>
+
+      {/* Checklist */}
       <Card>
         <CardTitle>📋 Filing Checklist</CardTitle>
         {[
-          [true,'Average net profit of 3 preceding FYs calculated','₹1,000 Cr (avg)'],
-          [true,'2% CSR obligation computed','₹20.0 Cr'],
-          [true,'Total amount spent filled','₹18.4 Cr'],
-          [true,'Unspent amount identified','₹1.6 Cr'],
-          [false,'Unspent amount transferred to designated account','Pending by Sep 30'],
-          [false,'CSR-2 form filed on MCA21 portal','Pending'],
-        ].map(([done,title,sub],i)=>(
+          [!!form.avg_net_profit, 'Average net profit of 3 preceding FYs entered', form.avg_net_profit ? `₹${(Number(form.avg_net_profit)/10000000).toFixed(2)} Cr` : 'Pending'],
+          [!!form.csr_obligation, '2% CSR obligation computed', form.csr_obligation ? `₹${(Number(form.csr_obligation)/10000000).toFixed(2)} Cr` : 'Pending'],
+          [totalSpent > 0, 'Total amount spent filled', totalSpent > 0 ? `₹${(totalSpent/10000000).toFixed(2)} Cr` : 'Pending'],
+          [unspent === 0 || !!form.amount_transferred_unspent, 'Unspent amount addressed', unspent === 0 ? 'Fully utilised ✅' : form.amount_transferred_unspent ? 'Transfer recorded' : 'Pending transfer'],
+          [!!form.csr_committee_composition, 'CSR committee composition filled', form.csr_committee_composition ? 'Done' : 'Pending'],
+          [!!form.ceo_name && !!form.cfo_name, 'Certification details filled', (form.ceo_name && form.cfo_name) ? 'Done' : 'Pending'],
+          [isSubmitted, 'CSR-2 data saved and marked submitted', isSubmitted ? 'Submitted ✅' : 'Not yet submitted'],
+        ].map(([done, title, sub], i) => (
           <Step key={i} num={i+1} title={title} sub={sub} done={done} pending={!done} />
         ))}
-        <div style={{ marginTop:14 }}><Btn teal>🔗 Open MCA21 Portal to File CSR-2</Btn></div>
       </Card>
+
+      <div style={{ display:'flex', gap:10, marginTop:4, flexWrap:'wrap' }}>
+        <Btn outline onClick={() => handleSave('draft')} disabled={csr2Saving}>{csr2Saving ? '⏳ Saving…' : '💾 Save Draft'}</Btn>
+        <Btn green onClick={() => handleSave('submitted')} disabled={csr2Saving}>{csr2Saving ? '⏳ Submitting…' : '✅ Mark as Submitted'}</Btn>
+        <Btn teal onClick={() => window.open('https://www.mca.gov.in/content/mca/global/en/mca/e-filing/company-forms-download.html', '_blank', 'noopener,noreferrer')}>🔗 File on MCA21 Portal</Btn>
+      </div>
     </>;
   }
 
@@ -1645,12 +2288,12 @@ export default function CsrOrganizationPortal() {
       <SectionHead title="Board Resolutions 🏛️" />
       <Card>
         <Table head={['Resolution','Date','Subject','Status','Action']} rows={[
-          ['BR-2025-CSR-001','Apr 01, 2025','Annual CSR Budget & Plan — FY26',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['BR-2025-CSR-002','Apr 15, 2025','SkillBridge Institute engagement as IA',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['BR-2025-CSR-003','Jul 01, 2025','Q1 Expenditure Ratification',<Badge color="green">Verified</Badge>,<Btn sm outline>Download</Btn>],
-          ['BR-2025-CSR-004','Sep 30, 2025','Q2 Plan Revision',<Badge color="gold">Pending Upload</Badge>,<Btn sm>Upload</Btn>],
+          ['BR-2025-CSR-001','Apr 01, 2025','Annual CSR Budget & Plan — FY26',<Badge color="green">Verified</Badge>,<Btn sm outline onClick={()=>showToast('No file attached yet. Upload the resolution PDF to enable download.')}>Download</Btn>],
+          ['BR-2025-CSR-002','Apr 15, 2025','SkillBridge Institute engagement as IA',<Badge color="green">Verified</Badge>,<Btn sm outline onClick={()=>showToast('No file attached yet. Upload the resolution PDF to enable download.')}>Download</Btn>],
+          ['BR-2025-CSR-003','Jul 01, 2025','Q1 Expenditure Ratification',<Badge color="green">Verified</Badge>,<Btn sm outline onClick={()=>showToast('No file attached yet. Upload the resolution PDF to enable download.')}>Download</Btn>],
+          ['BR-2025-CSR-004','Sep 30, 2025','Q2 Plan Revision',<Badge color="gold">Pending Upload</Badge>,<Btn sm onClick={()=>showToast('File uploads require document storage to be configured. Contact your administrator.')}>Upload</Btn>],
         ]} />
-        <div style={{ marginTop:14 }}><Btn>📤 Upload Resolution</Btn></div>
+        <div style={{ marginTop:14 }}><Btn onClick={()=>showToast('File uploads require document storage to be configured. Contact your administrator.')}>📤 Upload Resolution</Btn></div>
       </Card>
     </>;
   }
@@ -1779,6 +2422,807 @@ export default function CsrOrganizationPortal() {
     return <AccountPreferences onLogout={handleLogout} />;
   }
 
+  function PanelAI({ sub }) {
+    const C2 = { accent:'#6366f1', accentSoft:'#eef2ff', gold:'#f59e0b', green:'#10b981', red:'#ef4444', navy:'#1e3a5f', muted:'#64748b' };
+    const projs = projects || [];
+    const benes = beneficiaries || [];
+    const disbs = disbursements || [];
+    const totalBudget = projs.reduce((s,p)=>s+(Number(p.budget)||0),0);
+    const totalSpent  = disbs.filter(d=>d.status==='disbursed').reduce((s,d)=>s+(Number(d.amount)||0),0);
+    const utilPct = totalBudget>0 ? Math.round((totalSpent/totalBudget)*100) : 0;
+    const certRate = benes.length>0 ? Math.round((benes.filter(b=>b.training_status==='certified').length/benes.length)*100) : 0;
+    const placedRate = benes.length>0 ? Math.round((benes.filter(b=>b.placement_status==='placed').length/benes.length)*100) : 0;
+
+    const AICard = ({ icon, title, badge, badgeColor='#6366f1', children }) => (
+      <div style={{ background:'#fff', borderRadius:10, padding:'14px 16px', boxShadow:'0 1px 4px rgba(0,0,0,.07)', border:'1px solid #e8ecf3', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+          <span style={{ fontSize:18 }}>{icon}</span>
+          <span style={{ fontWeight:700, fontSize:14, color:C2.navy, flex:1 }}>{title}</span>
+          {badge && <span style={{ background:badgeColor, color:'#fff', borderRadius:12, padding:'2px 10px', fontSize:11, fontWeight:700 }}>{badge}</span>}
+        </div>
+        {children}
+      </div>
+    );
+
+    const ScoreBar = ({ label, score, max=100, color='#6366f1' }) => (
+      <div style={{ marginBottom:8 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:C2.muted, marginBottom:3 }}>
+          <span>{label}</span><span style={{ fontWeight:700, color }}>{score}/{max}</span>
+        </div>
+        <div style={{ background:'#f1f5f9', borderRadius:4, height:7 }}>
+          <div style={{ width:`${(score/max)*100}%`, height:'100%', borderRadius:4, background:color }} />
+        </div>
+      </div>
+    );
+
+    const InfoRow = ({ label, value, color }) => (
+      <div style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #f1f5f9', fontSize:13 }}>
+        <span style={{ color:C2.muted }}>{label}</span>
+        <span style={{ fontWeight:600, color: color || C2.navy }}>{value}</span>
+      </div>
+    );
+
+    if (sub === 'ai-proposal') {
+      const scored = projs.map(p => {
+        let score = 40;
+        if (p.objectives && p.objectives.length > 30) score += 15;
+        if (p.implementing_agency) score += 10;
+        if (p.mou_signed && p.mou_signed.includes('Yes')) score += 10;
+        if (p.budget && Number(p.budget) > 0) score += 10;
+        if (p.target_beneficiaries && Number(p.target_beneficiaries) > 0) score += 10;
+        if (p.start_date && p.end_date) score += 5;
+        return { ...p, score: Math.min(100, score) };
+      });
+      return <>
+        <Bc parts={['AI Components','Proposal Quality Scoring']} />
+        <SectionHead title="🧠 Proposal Quality Scoring" />
+        <AICard icon="📊" title="How It Works" badge="AI Model">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Each proposal is evaluated across 7 dimensions: objectives clarity, implementing agency, MoU status, financial planning, beneficiary targeting, timeline definition, and sector alignment. Scores above 80 are recommended for fast-track approval.</p>
+        </AICard>
+        {scored.length === 0 ? <div style={{ color:C2.muted, padding:20 }}>No proposals to score yet.</div> :
+          scored.map(p => (
+            <AICard key={p.id} icon="📋" title={p.title || 'Untitled'} badge={p.score>=80?'High Quality':p.score>=60?'Good':'Needs Work'} badgeColor={p.score>=80?C2.green:p.score>=60?C2.gold:C2.red}>
+              <ScoreBar label="Overall Score" score={p.score} color={p.score>=80?C2.green:p.score>=60?C2.gold:C2.red} />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginTop:8 }}>
+                <ScoreBar label="Objectives" score={p.objectives?.length>30?15:0} max={15} color={C2.accent} />
+                <ScoreBar label="Agency" score={p.implementing_agency?10:0} max={10} color={C2.accent} />
+                <ScoreBar label="MoU" score={p.mou_signed?.includes('Yes')?10:0} max={10} color={C2.accent} />
+                <ScoreBar label="Budget" score={p.budget&&Number(p.budget)>0?10:0} max={10} color={C2.accent} />
+                <ScoreBar label="Beneficiaries" score={p.target_beneficiaries&&Number(p.target_beneficiaries)>0?10:0} max={10} color={C2.accent} />
+                <ScoreBar label="Timeline" score={p.start_date&&p.end_date?5:0} max={5} color={C2.accent} />
+              </div>
+            </AICard>
+          ))
+        }
+      </>;
+    }
+
+    if (sub === 'ai-duplicate') {
+      const groups = [];
+      const used = new Set();
+      projs.forEach((p, i) => {
+        if (used.has(i)) return;
+        const group = [p];
+        projs.forEach((q, j) => {
+          if (i === j || used.has(j)) return;
+          const titleSim = p.title && q.title && p.title.toLowerCase().split(' ').filter(w=>w.length>3).some(w=>q.title.toLowerCase().includes(w));
+          const sectorSim = p.activity === q.activity;
+          const stateSim = p.target_states && q.target_states && p.target_states === q.target_states;
+          if (titleSim && (sectorSim || stateSim)) { group.push(q); used.add(j); }
+        });
+        if (group.length > 1) groups.push(group);
+        used.add(i);
+      });
+      return <>
+        <Bc parts={['AI Components','Duplicate Proposal Detection']} />
+        <SectionHead title="🔍 Duplicate Proposal Detection" />
+        <AICard icon="🤖" title="Detection Method" badge={`${groups.length} Cluster${groups.length!==1?'s':''} Found`} badgeColor={groups.length>0?C2.red:C2.green}>
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>The AI compares proposal titles, activity sectors, and target geographies using similarity analysis. Proposals with overlapping keywords, same sector, and same target state are flagged as potential duplicates for review.</p>
+        </AICard>
+        {groups.length === 0
+          ? <AICard icon="✅" title="No Duplicates Detected" badge="Clean" badgeColor={C2.green}><p style={{ fontSize:13, color:C2.muted, margin:0 }}>All proposals appear to be unique based on title, sector, and geography analysis.</p></AICard>
+          : groups.map((g, gi) => (
+            <AICard key={gi} icon="⚠️" title={`Duplicate Cluster ${gi+1}`} badge="Review Required" badgeColor={C2.red}>
+              {g.map(p => (
+                <div key={p.id} style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:6, padding:'8px 10px', marginBottom:6 }}>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{p.title}</div>
+                  <div style={{ fontSize:12, color:C2.muted }}>{p.activity} · {p.target_states} · ₹{Number(p.budget||0).toLocaleString('en-IN')}</div>
+                </div>
+              ))}
+            </AICard>
+          ))
+        }
+      </>;
+    }
+
+    if (sub === 'ai-budget') {
+      const projBudgets = projs.map(p => {
+        const budget = Number(p.budget||0);
+        const benes_count = benes.filter(b=>b.project_id===p.id).length;
+        const perHead = benes_count>0 ? Math.round(budget/benes_count) : 0;
+        const anomalies = [];
+        if (budget > 5000000) anomalies.push('Budget exceeds ₹50L threshold');
+        if (perHead > 100000) anomalies.push(`High per-beneficiary cost: ₹${perHead.toLocaleString('en-IN')}`);
+        if (budget > 0 && !p.own_contribution) anomalies.push('No co-contribution declared');
+        if (p.other_sources && Number(p.other_sources||0) + budget > budget*1.5) anomalies.push('Other sources exceed 50% of CSR budget');
+        return { ...p, budget, benes_count, perHead, anomalies };
+      });
+      return <>
+        <Bc parts={['AI Components','Budget Anomaly Detection']} />
+        <SectionHead title="💸 Budget Anomaly Detection" />
+        <AICard icon="🤖" title="Detection Rules" badge="4 Rules Active">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Analyzes each project budget for: unusually high total amounts, high per-beneficiary costs (above ₹1L), missing co-contributions, and disproportionate third-party funding ratios.</p>
+        </AICard>
+        {projBudgets.map(p => (
+          <AICard key={p.id} icon={p.anomalies.length>0?'⚠️':'✅'} title={p.title||'Untitled'} badge={p.anomalies.length>0?`${p.anomalies.length} Anomal${p.anomalies.length>1?'ies':'y'}`:'Normal'} badgeColor={p.anomalies.length>0?C2.red:C2.green}>
+            <InfoRow label="Total Budget" value={`₹${p.budget.toLocaleString('en-IN')}`} />
+            <InfoRow label="Beneficiaries" value={p.benes_count} />
+            <InfoRow label="Per-Beneficiary Cost" value={p.benes_count>0?`₹${p.perHead.toLocaleString('en-IN')}`:'N/A'} color={p.perHead>100000?C2.red:C2.green} />
+            {p.anomalies.length>0 && <div style={{ marginTop:8 }}>{p.anomalies.map((a,i)=>(
+              <div key={i} style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:4, padding:'4px 8px', fontSize:12, color:'#dc2626', marginBottom:4 }}>⚠ {a}</div>
+            ))}</div>}
+          </AICard>
+        ))}
+        {projs.length===0 && <div style={{ color:C2.muted, padding:20 }}>No projects to analyse yet.</div>}
+      </>;
+    }
+
+    if (sub === 'ai-ngo-risk') {
+      const tps = trainingPartners || [];
+      const scored = tps.map(tp => {
+        let risk = 0;
+        if (!tp.nsdc_reg) risk += 30;
+        if (!tp.contact_person) risk += 15;
+        if (!tp.email) risk += 10;
+        if (Number(tp.num_trainers||0) < 5) risk += 20;
+        if (Number(tp.max_batch_size||0) > 100) risk += 15;
+        const label = risk>=50?'High':risk>=25?'Medium':'Low';
+        const color = risk>=50?C2.red:risk>=25?C2.gold:C2.green;
+        return { ...tp, risk, label, color };
+      });
+      return <>
+        <Bc parts={['AI Components','NGO Risk Assessment']} />
+        <SectionHead title="🏢 NGO Risk Assessment" />
+        <AICard icon="🤖" title="Risk Factors" badge={`${scored.length} Partners`}>
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Partners are scored on NSDC registration status, contact completeness, trainer capacity, and batch size limits. Risk bands: Low (0–24), Medium (25–49), High (50+).</p>
+        </AICard>
+        {scored.length===0 ? <div style={{ color:C2.muted, padding:20 }}>No training partners added yet.</div>
+          : scored.map(tp=>(
+          <AICard key={tp.id} icon="🏢" title={tp.org_name||'Partner'} badge={`${tp.label} Risk`} badgeColor={tp.color}>
+            <ScoreBar label="Risk Score" score={tp.risk} color={tp.color} />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 16px', marginTop:6 }}>
+              <InfoRow label="NSDC Reg" value={tp.nsdc_reg||'Not provided'} color={tp.nsdc_reg?C2.green:C2.red} />
+              <InfoRow label="Trainers" value={tp.num_trainers||0} color={Number(tp.num_trainers||0)<5?C2.red:C2.green} />
+              <InfoRow label="Contact" value={tp.contact_person||'Missing'} color={tp.contact_person?C2.green:C2.red} />
+              <InfoRow label="Max Batch" value={tp.max_batch_size||0} />
+            </div>
+          </AICard>
+        ))}
+      </>;
+    }
+
+    if (sub === 'ai-recommend') {
+      const topSectors = ['Skill Development','Education','Health','Women Empowerment','Livelihood'];
+      const topStates = ['Maharashtra','Uttar Pradesh','Rajasthan','Odisha','Jharkhand'];
+      const usedSectors = [...new Set(projs.map(p=>p.activity).filter(Boolean))];
+      const usedStates = [...new Set(projs.map(p=>p.target_states).filter(Boolean).flatMap(s=>s.split(',')))];
+      const recommendations = [];
+      topSectors.filter(s=>!usedSectors.includes(s)).slice(0,3).forEach(s=>{
+        recommendations.push({ type:'Sector Gap', text:`Your portfolio lacks projects in "${s}" — a high-impact Schedule VII activity.`, priority:'High' });
+      });
+      topStates.filter(s=>!usedStates.some(u=>u.trim()===s)).slice(0,2).forEach(s=>{
+        recommendations.push({ type:'Geography Gap', text:`Consider expanding to ${s}, a high-need state with low CSR penetration.`, priority:'Medium' });
+      });
+      if (utilPct < 50) recommendations.push({ type:'Utilization', text:`Only ${utilPct}% of CSR budget utilised. Accelerate disbursements to avoid unspent fund penalties.`, priority:'High' });
+      if (benes.length === 0) recommendations.push({ type:'Beneficiaries', text:'No beneficiaries registered. Start enrolling beneficiaries to activate impact tracking.', priority:'High' });
+      if ((trainingPartners||[]).length === 0) recommendations.push({ type:'Partners', text:'No training partners empanelled. Add at least one implementation partner to deliver training.', priority:'High' });
+      return <>
+        <Bc parts={['AI Components','CSR Recommendation Engine']} />
+        <SectionHead title="💡 CSR Recommendation Engine" />
+        <AICard icon="🤖" title="Personalised for Your Portfolio" badge={`${recommendations.length} Suggestions`}>
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Recommendations are generated from your active projects, sector coverage, geographic spread, and fund utilization — compared against national CSR benchmarks.</p>
+        </AICard>
+        {recommendations.length===0
+          ? <AICard icon="🌟" title="Portfolio looks strong!" badge="Optimal" badgeColor={C2.green}><p style={{ fontSize:13, color:C2.muted, margin:0 }}>Your CSR programme covers diverse sectors, states, and maintains good utilization. Keep it up!</p></AICard>
+          : recommendations.map((r,i)=>(
+          <AICard key={i} icon={r.priority==='High'?'🔴':'🟡'} title={r.type} badge={r.priority+' Priority'} badgeColor={r.priority==='High'?C2.red:C2.gold}>
+            <p style={{ fontSize:13, color:'#374151', margin:0 }}>{r.text}</p>
+          </AICard>
+        ))}
+      </>;
+    }
+
+    if (sub === 'ai-fraud') {
+      const flagged = benes.map(b => {
+        const flags = [];
+        const dupeAadhaar = benes.filter(x=>x.id!==b.id && x.aadhaar && x.aadhaar===b.aadhaar);
+        if (dupeAadhaar.length>0) flags.push('Duplicate Aadhaar detected');
+        const dupeMobile = benes.filter(x=>x.id!==b.id && x.mobile && x.mobile===b.mobile);
+        if (dupeMobile.length>0) flags.push('Duplicate mobile number');
+        if (b.training_status==='certified' && b.placement_status==='placed' && !b.enrollment_date) flags.push('Certified without enrollment date');
+        if (b.dob && new Date().getFullYear()-new Date(b.dob).getFullYear()<15) flags.push('Beneficiary appears under age');
+        return { ...b, flags };
+      });
+      const suspicious = flagged.filter(b=>b.flags.length>0);
+      return <>
+        <Bc parts={['AI Components','Beneficiary Fraud Detection']} />
+        <SectionHead title="🛡️ Beneficiary Fraud Detection" />
+        <AICard icon="🤖" title="Detection Checks" badge={`${suspicious.length} Flagged`} badgeColor={suspicious.length>0?C2.red:C2.green}>
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Scans for: duplicate Aadhaar, duplicate mobile numbers, certified status without enrollment, and age anomalies. Flagged records should be manually verified before disbursal.</p>
+        </AICard>
+        {suspicious.length===0
+          ? <AICard icon="✅" title="No Suspicious Records" badge="Clean" badgeColor={C2.green}><p style={{ fontSize:13, color:C2.muted, margin:0 }}>All {benes.length} beneficiary records passed fraud checks.</p></AICard>
+          : suspicious.map(b=>(
+          <AICard key={b.id} icon="⚠️" title={b.full_name||`BNF-${b.id}`} badge={`${b.flags.length} Flag${b.flags.length>1?'s':''}`} badgeColor={C2.red}>
+            <InfoRow label="Aadhaar" value={b.aadhaar ? b.aadhaar.replace(/\d(?=\d{4})/g,'*') : 'Not provided'} />
+            <InfoRow label="Status" value={b.training_status||'—'} />
+            <div style={{ marginTop:8 }}>{b.flags.map((f,i)=>(
+              <div key={i} style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:4, padding:'4px 8px', fontSize:12, color:'#dc2626', marginBottom:4 }}>⚠ {f}</div>
+            ))}</div>
+          </AICard>
+        ))}
+      </>;
+    }
+
+    if (sub === 'ai-predict') {
+      const monthsElapsed = (() => {
+        const start = projs.map(p=>p.start_date).filter(Boolean).sort()[0];
+        if (!start) return 1;
+        return Math.max(1, Math.round((new Date()-new Date(start))/2592000000));
+      })();
+      const monthlyBurn = monthsElapsed > 0 ? totalSpent / monthsElapsed : 0;
+      const remaining = totalBudget - totalSpent;
+      const monthsToExhaust = monthlyBurn > 0 ? Math.round(remaining / monthlyBurn) : null;
+      const projectedEndUtil = monthlyBurn > 0 && projs.some(p=>p.end_date) ? (() => {
+        const latestEnd = projs.map(p=>p.end_date).filter(Boolean).sort().reverse()[0];
+        const monthsLeft = Math.max(0, Math.round((new Date(latestEnd)-new Date())/2592000000));
+        return Math.min(100, Math.round(((totalSpent + monthlyBurn*monthsLeft)/totalBudget)*100));
+      })() : null;
+      return <>
+        <Bc parts={['AI Components','Predictive Budget Utilization']} />
+        <SectionHead title="📈 Predictive Budget Utilization" />
+        <AICard icon="🤖" title="Burn Rate Model" badge="Linear Projection">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Projects monthly spending from historical disbursements and estimates remaining runway and projected end-of-project utilization.</p>
+        </AICard>
+        <AICard icon="💰" title="Utilization Forecast">
+          <InfoRow label="Total Budget" value={`₹${totalBudget.toLocaleString('en-IN')}`} />
+          <InfoRow label="Spent So Far" value={`₹${totalSpent.toLocaleString('en-IN')}`} />
+          <InfoRow label="Remaining" value={`₹${remaining.toLocaleString('en-IN')}`} />
+          <InfoRow label="Current Utilization" value={`${utilPct}%`} color={utilPct>=75?C2.green:utilPct>=40?C2.gold:C2.red} />
+          <InfoRow label="Avg Monthly Burn" value={monthlyBurn>0?`₹${Math.round(monthlyBurn).toLocaleString('en-IN')}`:'No data'} />
+          <InfoRow label="Months to Exhaust" value={monthsToExhaust!=null?`~${monthsToExhaust} months`:'N/A'} />
+          {projectedEndUtil!=null && <InfoRow label="Projected End Utilization" value={`${projectedEndUtil}%`} color={projectedEndUtil>=80?C2.green:C2.gold} />}
+        </AICard>
+        <AICard icon="⚡" title="AI Recommendation" badge={utilPct<50?'Action Needed':'On Track'} badgeColor={utilPct<50?C2.red:C2.green}>
+          <p style={{ fontSize:13, color:'#374151', margin:0 }}>
+            {utilPct < 30 && 'Utilization is critically low. Accelerate disbursements or risk MCA penalties for unspent funds.'}
+            {utilPct >= 30 && utilPct < 60 && 'Utilization is below optimal. Consider increasing disbursement frequency to stay on track.'}
+            {utilPct >= 60 && utilPct < 80 && 'Utilization is progressing well. Monitor monthly to ensure year-end compliance.'}
+            {utilPct >= 80 && 'Excellent utilization rate. Ensure remaining funds are linked to approved projects.'}
+          </p>
+        </AICard>
+      </>;
+    }
+
+    if (sub === 'ai-forecast') {
+      const activeProjs = projs.filter(p=>p.status==='active');
+      const forecastCert = Math.round(benes.length * (certRate/100 + (certRate<80?0.1:0.02)));
+      const forecastPlaced = Math.round(forecastCert * Math.max(0.3, placedRate/100 + 0.05));
+      const projectedImpact = Math.min(100, Math.round((forecastPlaced/Math.max(1,benes.length))*100*1.2));
+      return <>
+        <Bc parts={['AI Components','Impact Forecasting']} />
+        <SectionHead title="🔮 Impact Forecasting" />
+        <AICard icon="🤖" title="Forecast Model" badge="AI Projection">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Uses current certification and placement trajectories, with a 5–10% improvement factor for in-progress cohorts, to project end-of-programme outcomes for active beneficiaries.</p>
+        </AICard>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:12 }}>
+          {[
+            { label:'Forecast Certified', val:forecastCert, curr:benes.filter(b=>b.training_status==='certified').length, color:C2.accent },
+            { label:'Forecast Placed', val:forecastPlaced, curr:benes.filter(b=>b.placement_status==='placed').length, color:C2.green },
+            { label:'Projected Impact Score', val:`${projectedImpact}%`, curr:`${utilPct}%`, color:C2.gold },
+          ].map(k=>(
+            <div key={k.label} style={{ background:C2.accentSoft, borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+              <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.val}</div>
+              <div style={{ fontSize:11, color:C2.muted, marginTop:2 }}>{k.label}</div>
+              <div style={{ fontSize:10, color:'#94a3b8', marginTop:1 }}>Current: {k.curr}</div>
+            </div>
+          ))}
+        </div>
+        <AICard icon="📊" title="Project-level Forecast">
+          {activeProjs.length===0 ? <div style={{ color:C2.muted, fontSize:13 }}>No active projects to forecast.</div>
+            : activeProjs.map(p=>{
+            const pb = benes.filter(b=>b.project_id===p.id).length;
+            const fc = Math.round(pb * Math.max(0.6, certRate/100+0.1));
+            const fp = Math.round(fc * Math.max(0.3, placedRate/100+0.05));
+            return (
+              <div key={p.id} style={{ borderBottom:'1px solid #f1f5f9', paddingBottom:8, marginBottom:8 }}>
+                <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>{p.title}</div>
+                <div style={{ display:'flex', gap:16, fontSize:12, color:C2.muted }}>
+                  <span>Enrolled: <b style={{ color:C2.navy }}>{pb}</b></span>
+                  <span>→ Cert: <b style={{ color:C2.accent }}>{fc}</b></span>
+                  <span>→ Placed: <b style={{ color:C2.green }}>{fp}</b></span>
+                </div>
+              </div>
+            );
+          })}
+        </AICard>
+      </>;
+    }
+
+    if (sub === 'ai-sentiment') {
+      const reports = projs.map(p => {
+        const text = [p.objectives||'', p.title||''].join(' ').toLowerCase();
+        const positiveWords = ['excellent','success','achieved','good','completed','trained','placed','improved','empowered','skills'];
+        const negativeWords = ['delay','challenge','issue','problem','deficit','failure','pending','incomplete','gap','concern'];
+        const posCount = positiveWords.filter(w=>text.includes(w)).length;
+        const negCount = negativeWords.filter(w=>text.includes(w)).length;
+        const score = 50 + (posCount-negCount)*10;
+        const sentiment = score>=65?'Positive':score>=45?'Neutral':'Negative';
+        const color = score>=65?C2.green:score>=45?C2.gold:C2.red;
+        return { ...p, score: Math.min(100,Math.max(0,score)), sentiment, color, posCount, negCount };
+      });
+      const avgSentiment = reports.length>0 ? Math.round(reports.reduce((s,r)=>s+r.score,0)/reports.length) : 50;
+      return <>
+        <Bc parts={['AI Components','Sentiment Analysis']} />
+        <SectionHead title="💬 Sentiment Analysis of Project Reports" />
+        <AICard icon="🤖" title="NLP Sentiment Engine" badge={`Avg: ${avgSentiment}/100`} badgeColor={avgSentiment>=65?C2.green:avgSentiment>=45?C2.gold:C2.red}>
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Analyses project objectives and titles for positive and negative sentiment markers using keyword-based NLP. Helps flag projects that may be under stress or facing challenges.</p>
+        </AICard>
+        {reports.length===0 ? <div style={{ color:C2.muted, padding:20 }}>No project text to analyse.</div>
+          : reports.map(r=>(
+          <AICard key={r.id} icon={r.sentiment==='Positive'?'😊':r.sentiment==='Neutral'?'😐':'😟'} title={r.title||'Untitled'} badge={r.sentiment} badgeColor={r.color}>
+            <ScoreBar label="Sentiment Score" score={r.score} color={r.color} />
+            <div style={{ display:'flex', gap:16, fontSize:12, marginTop:6 }}>
+              <span style={{ color:C2.green }}>✅ {r.posCount} positive signals</span>
+              <span style={{ color:C2.red }}>⚠ {r.negCount} concern signals</span>
+            </div>
+          </AICard>
+        ))}
+      </>;
+    }
+
+    if (sub === 'ai-summary') {
+      const fyStart = new Date().getMonth()>=3 ? new Date().getFullYear() : new Date().getFullYear()-1;
+      const summaryData = {
+        org: stats.org_name || user?.org_name || 'Your Organisation',
+        fy: `FY ${fyStart}–${(fyStart+1).toString().slice(2)}`,
+        obligation: totalBudget,
+        spent: totalSpent,
+        utilPct,
+        projects: projs.length,
+        active: projs.filter(p=>p.status==='active').length,
+        benes: benes.length,
+        certified: benes.filter(b=>b.training_status==='certified').length,
+        placed: benes.filter(b=>b.placement_status==='placed').length,
+        certRate, placedRate,
+        partners: (trainingPartners||[]).length,
+        sectors: [...new Set(projs.map(p=>p.activity).filter(Boolean))],
+        states: [...new Set(projs.map(p=>p.target_states).filter(Boolean))],
+      };
+      const execSummary = `${summaryData.org} CSR Programme — ${summaryData.fy} Executive Summary
+
+FINANCIAL OVERVIEW
+During ${summaryData.fy}, the organisation committed a total CSR budget of ₹${(summaryData.obligation/100000).toFixed(1)}L under the mandate of the Companies Act, 2013. As of the reporting date, ₹${(summaryData.spent/100000).toFixed(1)}L has been disbursed, representing a utilization rate of ${summaryData.utilPct}%.${summaryData.utilPct<80?' Efforts are underway to accelerate remaining disbursements before the financial year close.':' The programme is on track for full utilization.'}
+
+PROGRAMME SCOPE
+A total of ${summaryData.projects} CSR project${summaryData.projects!==1?'s':''} ${summaryData.projects===1?'has':'have'} been registered under the programme, of which ${summaryData.active} ${summaryData.active===1?'is':'are'} currently active. Implementation is being carried out across ${summaryData.states.length||'—'} state${summaryData.states.length!==1?'s':''} in partnership with ${summaryData.partners} empanelled training partner${summaryData.partners!==1?'s':''}.
+
+BENEFICIARY IMPACT
+The programme has enrolled ${summaryData.benes} beneficiar${summaryData.benes!==1?'ies':'y'} to date. Of these, ${summaryData.certified} (${summaryData.certRate}%) have successfully completed training and received certification. Employment outcomes stand at ${summaryData.placed} placements, reflecting a placement rate of ${summaryData.placedRate}% among certified learners.
+
+SECTOR FOCUS
+CSR activities span the following sectors: ${summaryData.sectors.length>0?summaryData.sectors.join(', '):'Not yet classified'}. All activities are aligned with Schedule VII of the Companies Act, 2013.
+
+COMPLIANCE STATUS
+The organisation is ${summaryData.utilPct>=75?'well on track':'actively working'} toward meeting its statutory obligations for ${summaryData.fy}. Form CSR-2 submission is due by 30 September ${fyStart+1}.`;
+
+      return <>
+        <Bc parts={['AI Components','AI Executive Summaries']} />
+        <SectionHead title="📄 AI-Generated Executive Summary" />
+        <AICard icon="🤖" title="Auto-Generated from Live Data" badge="AI Generated">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>This executive summary is generated in real-time from your CSR programme data — projects, disbursements, beneficiaries, and partners. You can copy and use it in board reports or CSR-2 filings.</p>
+        </AICard>
+        <div style={{ background:'#fff', borderRadius:10, padding:'20px 24px', boxShadow:'0 1px 4px rgba(0,0,0,.07)', border:'1px solid #e8ecf3', fontFamily:'Georgia, serif' }}>
+          <pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.8, color:'#1e293b', margin:0, fontFamily:'inherit' }}>{execSummary}</pre>
+        </div>
+        <div style={{ marginTop:10, display:'flex', gap:8 }}>
+          <button onClick={()=>{navigator.clipboard.writeText(execSummary);}} style={{ background:C2.accent, color:'#fff', border:'none', borderRadius:6, padding:'8px 16px', fontSize:13, cursor:'pointer', fontWeight:600 }}>📋 Copy to Clipboard</button>
+        </div>
+      </>;
+    }
+
+    return <div style={{ color:C2.muted, padding:20 }}>Select an AI feature from the menu.</div>;
+  }
+
+  // ── CSR Campaigns panels ───────────────────────────────────────────────────
+  function PanelCampaigns({ sub }) {
+    const THEMES = ['Skill Development','Digital Literacy','Healthcare','Women Empowerment','Rural Development','Green Environment','Education','Livelihood'];
+    const STATES = ['Andhra Pradesh','Bihar','Gujarat','Haryana','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Odisha','Punjab','Rajasthan','Tamil Nadu','Telangana','Uttar Pradesh','West Bengal'];
+    const FYS = ['2024-25','2025-26','2026-27'];
+    const cf = campForm;
+    const setCf = v => setCampForm(p => ({ ...p, ...v }));
+
+    const APPROVAL_STAGES = ['Document Verification','Technical Review','Finance Review','Board Approval','Fund Released'];
+    const stageColor = s => s==='approved'?C.green:s==='rejected'?C.red:s==='pending'?C.gold:'#94a3b8';
+    const stageBg   = s => s==='approved'?C.pGreen:s==='rejected'?C.pRed:s==='pending'?C.pGold:'#f8fafc';
+
+    const statusBadge = (s) => {
+      const map = { draft:['#64748b','#f1f5f9'], published:[C.teal,C.pTeal], closed:[C.red,C.pRed], submitted:[C.blue,C.pBlue], shortlisted:[C.green,C.pGreen], rejected:[C.red,C.pRed], approved:[C.green,C.pGreen], acknowledged:[C.green,C.pGreen], scheduled:[C.gold,C.pGold], completed:[C.green,C.pGreen] };
+      const [fg,bg] = map[s] || ['#475569','#f1f5f9'];
+      return <span style={{ background:bg, color:fg, borderRadius:10, padding:'2px 9px', fontSize:11, fontWeight:700 }}>{s}</span>;
+    };
+
+    if (sub === 'camp-create') {
+      const handleSave = async (status) => {
+        if (!cf.title.trim()) { setCampMsg('❌ Campaign title is required.'); return; }
+        if (cf.total_budget && (isNaN(Number(cf.total_budget)) || Number(cf.total_budget) <= 0)) { setCampMsg('❌ Total budget must be a positive number.'); return; }
+        if (cf.open_date && cf.close_date && cf.close_date < cf.open_date) { setCampMsg('❌ Close date must be after the open date.'); return; }
+        setCampSaving(true); setCampMsg('');
+        try {
+          await api.csrCreateCampaign({ ...cf, status });
+          setCampMsg('✅ Campaign ' + (status==='published'?'published':'saved as draft') + ' successfully!');
+          setCampForm({ title:'', theme:'Skill Development', description:'', total_budget:'', financial_year:'2025-26', target_states:'', open_date:'', close_date:'', eligibility_criteria:'', status:'draft' });
+          loadCampaigns();
+        } catch(e) { setCampMsg('❌ ' + (e.message||'Save failed.')); }
+        finally { setCampSaving(false); }
+      };
+      return <>
+        <Bc parts={['CSR Campaigns','Create Campaign']} />
+        <SectionHead title="🚀 Create CSR Campaign" />
+        {campMsg && <Alert icon={campMsg.startsWith('✅')?'✅':'❌'} type={campMsg.startsWith('✅')?'success':'red'}>{campMsg}</Alert>}
+        <Card>
+          <CardTitle>📋 Campaign Details</CardTitle>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <Field label="Campaign Title *"><Inp value={cf.title} onChange={v=>setCf({title:v})} placeholder="e.g. Skill India FY 2025-26" /></Field>
+            <Field label="Theme / Sector"><Sel value={cf.theme} onChange={v=>setCf({theme:v})} options={THEMES} /></Field>
+            <Field label="Financial Year"><Sel value={cf.financial_year} onChange={v=>setCf({financial_year:v})} options={FYS} /></Field>
+            <Field label="Total Budget (₹)"><Inp value={cf.total_budget} onChange={v=>setCf({total_budget:v})} placeholder="e.g. 15000000" /></Field>
+            <Field label="Application Open Date"><Inp type="date" value={cf.open_date} onChange={v=>setCf({open_date:v})} /></Field>
+            <Field label="Application Close Date"><Inp type="date" value={cf.close_date} onChange={v=>setCf({close_date:v})} /></Field>
+          </div>
+          <Field label="Target States" style={{ marginTop:8 }}><Inp value={cf.target_states} onChange={v=>setCf({target_states:v})} placeholder="e.g. Maharashtra, Odisha, Bihar" /></Field>
+          <Field label="Campaign Description" style={{ marginTop:8 }}><textarea value={cf.description} onChange={e=>setCf({description:e.target.value})} rows={3} placeholder="Describe the CSR programme objectives, expected outcomes..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <Field label="Eligibility Criteria" style={{ marginTop:8 }}><textarea value={cf.eligibility_criteria} onChange={e=>setCf({eligibility_criteria:e.target.value})} rows={2} placeholder="e.g. Registered NGO with 3+ years experience, valid 12A & 80G..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <Btn onClick={()=>handleSave('draft')} outline disabled={campSaving}>💾 Save Draft</Btn>
+            <Btn onClick={()=>handleSave('published')} green disabled={campSaving}>📢 Publish Opportunity</Btn>
+          </div>
+        </Card>
+      </>;
+    }
+
+    if (sub === 'camp-list') {
+      return <>
+        <Bc parts={['CSR Campaigns','My Campaigns']} />
+        <SectionHead title="🗂️ My CSR Campaigns" />
+        <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10 }}>
+          <Btn green onClick={()=>go('camp-create')}>+ Create Campaign</Btn>
+        </div>
+        {campaigns.length === 0
+          ? <Alert icon="ℹ️" type="info">No campaigns yet. <span style={{ cursor:'pointer', color:C.blue, fontWeight:600 }} onClick={()=>go('camp-create')}>Create your first campaign →</span></Alert>
+          : campaigns.map(c => (
+            <Card key={c.id}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:8 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14, color:C.navy }}>{c.title}</div>
+                  <div style={{ fontSize:12, color:'#64748b', marginTop:3 }}>{c.theme} · {c.financial_year} · {c.target_states||'—'}</div>
+                  {c.open_date && <div style={{ fontSize:11, color:'#94a3b8', marginTop:2 }}>Open: {c.open_date} → {c.close_date||'—'}</div>}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {statusBadge(c.status)}
+                  <span style={{ fontWeight:700, color:C.green, fontSize:13 }}>₹{(Number(c.total_budget||0)/100000).toFixed(1)}L</span>
+                </div>
+              </div>
+              {c.description && <div style={{ fontSize:12, color:'#475569', marginTop:8, borderTop:'1px solid #f1f5f9', paddingTop:8 }}>{c.description}</div>}
+              <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                {c.status==='draft' && <Btn sm green onClick={async()=>{ await api.csrUpdateCampaign(c.id,{...c,status:'published'}); loadCampaigns(); }}>📢 Publish</Btn>}
+                {c.status==='published' && <Btn sm outline onClick={async()=>{ await api.csrUpdateCampaign(c.id,{...c,status:'closed'}); loadCampaigns(); }}>🔒 Close</Btn>}
+                <Btn sm outline onClick={()=>go('camp-applications')}>👁 View Proposals ({applications.filter(a=>a.campaign_id===c.id).length})</Btn>
+              </div>
+            </Card>
+          ))
+        }
+      </>;
+    }
+
+    if (sub === 'camp-applications') {
+      const af = appForm;
+      const setAf = v => setAppForm(p=>({...p,...v}));
+      const publishedCamps = campaigns.filter(c=>c.status==='published');
+
+      const handleSubmitApp = async () => {
+        if (!af.campaign_id||!af.org_name) { setAppMsg('❌ Campaign and organisation name are required.'); return; }
+        setAppSaving(true); setAppMsg('');
+        try {
+          await api.csrCreateApplication(af);
+          setAppMsg('✅ Application submitted successfully!');
+          setAppForm({ campaign_id:'', org_name:'', reg_no:'', contact_person:'', email:'', phone:'', proposed_budget:'', project_title:'', proposal_summary:'', target_beneficiaries:'', target_states:'' });
+          loadApplications();
+        } catch(e) { setAppMsg('❌ ' + (e.message||'Submit failed.')); }
+        finally { setAppSaving(false); }
+      };
+
+      const handleStatusChange = async (id, status, reason='') => {
+        try { await api.csrUpdateApplicationStatus(id, { status, rejection_reason: reason }); loadApplications(); }
+        catch(e) { showToast('Update failed: ' + (e.message||'Try again.')); }
+      };
+
+      const aiColor = s => s>=75?C.green:s>=55?C.gold:C.red;
+
+      return <>
+        <Bc parts={['CSR Campaigns','Received Proposals']} />
+        <SectionHead title="📥 Received Proposals" />
+
+        {publishedCamps.length > 0 && <Card style={{ marginBottom:12 }}>
+          <CardTitle>➕ Add NGO Application</CardTitle>
+          {appMsg && <Alert icon={appMsg.startsWith('✅')?'✅':'❌'} type={appMsg.startsWith('✅')?'success':'red'}>{appMsg}</Alert>}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <Field label="Campaign *"><Sel value={af.campaign_id} onChange={v=>setAf({campaign_id:v})} options={['', ...publishedCamps.map(c=>c.id)]} labels={['Select...', ...publishedCamps.map(c=>c.title)]} /></Field>
+            <Field label="NGO / Org Name *"><Inp value={af.org_name} onChange={v=>setAf({org_name:v})} placeholder="Organisation name" /></Field>
+            <Field label="Registration No."><Inp value={af.reg_no} onChange={v=>setAf({reg_no:v})} placeholder="12A / 80G / Reg No." /></Field>
+            <Field label="Contact Person"><Inp value={af.contact_person} onChange={v=>setAf({contact_person:v})} placeholder="Name" /></Field>
+            <Field label="Email"><Inp value={af.email} onChange={v=>setAf({email:v})} placeholder="contact@ngo.org" /></Field>
+            <Field label="Phone"><Inp value={af.phone} onChange={v=>setAf({phone:v})} placeholder="+91 " /></Field>
+            <Field label="Proposed Budget (₹)"><Inp value={af.proposed_budget} onChange={v=>setAf({proposed_budget:v})} placeholder="Amount" /></Field>
+            <Field label="Target Beneficiaries"><Inp value={af.target_beneficiaries} onChange={v=>setAf({target_beneficiaries:v})} placeholder="Count" /></Field>
+            <Field label="Project Title"><Inp value={af.project_title} onChange={v=>setAf({project_title:v})} placeholder="Proposed project name" /></Field>
+            <Field label="Target States"><Inp value={af.target_states} onChange={v=>setAf({target_states:v})} placeholder="States" /></Field>
+          </div>
+          <Field label="Proposal Summary" style={{ marginTop:6 }}><textarea value={af.proposal_summary} onChange={e=>setAf({proposal_summary:e.target.value})} rows={2} placeholder="Brief description of the proposed project..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <div style={{ marginTop:10 }}><Btn green onClick={handleSubmitApp} disabled={appSaving}>📨 Submit Application</Btn></div>
+        </Card>}
+
+        {applications.length === 0
+          ? <Alert icon="ℹ️" type="info">No proposals received yet. Publish a campaign to start receiving applications.</Alert>
+          : applications.map(a => (
+            <Card key={a.id}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:8 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:C.navy }}>{a.org_name}</div>
+                  <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{a.project_title||'—'} · {a.campaign_title||'—'}</div>
+                  <div style={{ fontSize:11, color:'#94a3b8', marginTop:1 }}>Reg: {a.reg_no||'—'} · {a.contact_person||'—'} · {a.email||'—'}</div>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+                  {statusBadge(a.status)}
+                  <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <span style={{ fontSize:10, color:'#64748b' }}>AI Score:</span>
+                    <span style={{ fontWeight:800, fontSize:13, color:aiColor(a.ai_score||0), cursor:'pointer' }} onClick={()=>go('ai-proposal')} title="View AI Proposal Scoring">
+                      {a.ai_score||0}/100 🤖
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:16, fontSize:12, color:'#64748b', marginTop:6 }}>
+                <span>Budget: <b style={{ color:C.navy }}>₹{(Number(a.proposed_budget||0)/100000).toFixed(1)}L</b></span>
+                <span>Beneficiaries: <b style={{ color:C.navy }}>{a.target_beneficiaries||0}</b></span>
+                <span>States: <b style={{ color:C.navy }}>{a.target_states||'—'}</b></span>
+              </div>
+              {a.proposal_summary && <div style={{ fontSize:12, color:'#475569', marginTop:6, borderTop:'1px solid #f1f5f9', paddingTop:6 }}>{a.proposal_summary}</div>}
+              {a.status === 'submitted' && <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                <Btn sm green onClick={()=>handleStatusChange(a.id,'shortlisted')}>✅ Shortlist</Btn>
+                <Btn sm teal onClick={()=>go('camp-approval')}>⚖️ Send to Committee</Btn>
+                <Btn sm danger onClick={()=>{ const r=prompt('Rejection reason:'); if(r) handleStatusChange(a.id,'rejected',r); }}>❌ Reject</Btn>
+              </div>}
+              {a.status === 'shortlisted' && <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                <Btn sm teal onClick={()=>go('camp-approval')}>⚖️ Start Approval Workflow</Btn>
+              </div>}
+            </Card>
+          ))
+        }
+      </>;
+    }
+
+    if (sub === 'camp-approval') {
+      const STAGES = ['Document Verification','Technical Review','Finance Review','Board Approval','Fund Released'];
+      const shortlisted = applications.filter(a=>['shortlisted','approved'].includes(a.status));
+
+      const handleDecision = async (appId, stage, decision, remarks) => {
+        try {
+          await api.csrCreateApproval({ application_id: appId, stage, decision, remarks });
+          if (stage === 'Fund Released' && decision === 'approved') {
+            await api.csrUpdateApplicationStatus(appId, { status: 'approved' });
+          }
+          loadApplications();
+        } catch(e) { showToast('Failed: ' + (e.message||'Try again.')); }
+      };
+
+      return <>
+        <Bc parts={['CSR Campaigns','Approval Workflow']} />
+        <SectionHead title="⚖️ Committee Approval Workflow" />
+        <div style={{ display:'flex', gap:6, marginBottom:16, overflowX:'auto', paddingBottom:4 }}>
+          {STAGES.map((s,i)=>(
+            <div key={s} style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <div style={{ background:'#eef2ff', border:'1.5px solid #c7d2fe', borderRadius:8, padding:'8px 12px', whiteSpace:'nowrap', fontSize:12, fontWeight:600, color:'#4338ca', minWidth:120, textAlign:'center' }}>
+                <div style={{ fontWeight:800, color:'#6366f1', fontSize:11 }}>Step {i+1}</div>
+                {s}
+              </div>
+              {i < STAGES.length-1 && <span style={{ color:'#94a3b8', fontSize:18, fontWeight:700 }}>›</span>}
+            </div>
+          ))}
+        </div>
+        {shortlisted.length === 0
+          ? <Alert icon="ℹ️" type="info">No shortlisted applications yet. Shortlist proposals from Received Proposals panel.</Alert>
+          : shortlisted.map(a => (
+            <Card key={a.id} style={{ marginBottom:12 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:14, color:C.navy }}>{a.org_name}</div>
+                  <div style={{ fontSize:12, color:'#64748b' }}>{a.project_title} · ₹{(Number(a.proposed_budget||0)/100000).toFixed(1)}L · AI Score: <b style={{ color:a.ai_score>=70?C.green:C.gold }}>{a.ai_score}/100</b></div>
+                </div>
+                {statusBadge(a.status)}
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                {STAGES.map(stage => (
+                  <div key={stage} style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:6, padding:'8px 10px', minWidth:130, flex:1 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:'#64748b', marginBottom:6 }}>{stage}</div>
+                    <div style={{ display:'flex', gap:4 }}>
+                      <button onClick={()=>{ const r=prompt(`Remarks for "${stage}":`)||''; handleDecision(a.id,stage,'approved',r); }}
+                        style={{ background:C.pGreen, color:C.green, border:'none', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontWeight:600 }}>✓ Approve</button>
+                      <button onClick={()=>{ const r=prompt(`Rejection reason for "${stage}":`)||''; handleDecision(a.id,stage,'rejected',r); }}
+                        style={{ background:C.pRed, color:C.red, border:'none', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontWeight:600 }}>✗ Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))
+        }
+      </>;
+    }
+
+    if (sub === 'camp-progress') {
+      const pf = progForm;
+      const setPf = v => setProgForm(p=>({...p,...v}));
+      const activeProjs = projects.filter(p=>p.status==='active');
+
+      const handleSubmitReport = async () => {
+        if (!pf.project_id || !pf.report_month) { setProgMsg('❌ Project and report month are required.'); return; }
+        setProgSaving(true); setProgMsg('');
+        try {
+          await api.csrCreateProgressReport(pf);
+          setProgMsg('✅ Progress report submitted!');
+          setProgForm({ project_id:'', report_month:'', bene_count:'', spend_amount:'', train_pct:'', issues:'', highlights:'' });
+          loadProgressReports();
+        } catch(e) { setProgMsg('❌ ' + (e.message||'Submit failed.')); }
+        finally { setProgSaving(false); }
+      };
+
+      return <>
+        <Bc parts={['CSR Campaigns','Progress Reports']} />
+        <SectionHead title="📊 Monthly Progress Reports" />
+        <Card style={{ marginBottom:12 }}>
+          <CardTitle>📝 Submit Progress Report</CardTitle>
+          {progMsg && <Alert icon={progMsg.startsWith('✅')?'✅':'❌'} type={progMsg.startsWith('✅')?'success':'red'}>{progMsg}</Alert>}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <Field label="Project *"><Sel value={pf.project_id} onChange={v=>setPf({project_id:v})} options={['', ...activeProjs.map(p=>p.id)]} labels={['Select project...', ...activeProjs.map(p=>p.title)]} /></Field>
+            <Field label="Report Month *"><Inp type="month" value={pf.report_month} onChange={v=>setPf({report_month:v})} /></Field>
+            <Field label="Beneficiaries Count"><Inp value={pf.bene_count} onChange={v=>setPf({bene_count:v})} placeholder="Number" /></Field>
+            <Field label="Amount Spent (₹)"><Inp value={pf.spend_amount} onChange={v=>setPf({spend_amount:v})} placeholder="Amount" /></Field>
+            <Field label="Training Completion (%)"><Inp value={pf.train_pct} onChange={v=>setPf({train_pct:v})} placeholder="0-100" /></Field>
+          </div>
+          <Field label="Key Highlights" style={{ marginTop:6 }}><textarea value={pf.highlights} onChange={e=>setPf({highlights:e.target.value})} rows={2} placeholder="Key achievements this month..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <Field label="Issues / Blockers" style={{ marginTop:6 }}><textarea value={pf.issues} onChange={e=>setPf({issues:e.target.value})} rows={2} placeholder="Any challenges or blockers..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <div style={{ marginTop:10, display:'flex', gap:10 }}>
+            <Btn green onClick={handleSubmitReport} disabled={progSaving}>📤 Submit Report</Btn>
+            {activeProjs.length === 0 && <Btn outline onClick={()=>go('proj-active')}>← View Active Projects</Btn>}
+          </div>
+        </Card>
+        <SectionHead title="Past Reports" />
+        {progressReports.length === 0
+          ? <Alert icon="ℹ️" type="info">No progress reports submitted yet.</Alert>
+          : progressReports.map(r => (
+            <Card key={r.id}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:6 }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{r.project_title||`Project #${r.project_id}`} · {r.report_month}</div>
+                  <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>
+                    Beneficiaries: <b>{r.bene_count||0}</b> · Spent: <b>₹{(Number(r.spend_amount||0)/100000).toFixed(2)}L</b> · Training: <b>{r.train_pct||0}%</b>
+                  </div>
+                </div>
+                {statusBadge(r.status)}
+              </div>
+              {r.highlights && <div style={{ fontSize:12, color:'#059669', marginTop:6 }}>✅ {r.highlights}</div>}
+              {r.issues && <div style={{ fontSize:12, color:'#dc2626', marginTop:4 }}>⚠️ {r.issues}</div>}
+              {r.status === 'submitted' && <div style={{ marginTop:8 }}>
+                <Btn sm green onClick={async()=>{ await api.csrAcknowledgeReport(r.id); loadProgressReports(); }}>✅ Acknowledge</Btn>
+              </div>}
+            </Card>
+          ))
+        }
+      </>;
+    }
+
+    return <div style={{ color:'#64748b', padding:20 }}>Select an option from the CSR Campaigns menu.</div>;
+  }
+
+  // ── Audit & Verification panels ────────────────────────────────────────────
+  function PanelAudit({ sub }) {
+    const af = auditForm;
+    const setAf = v => setAuditForm(p=>({...p,...v}));
+    const activeProjs = projects.filter(p=>p.status==='active');
+
+    const statusBadge = (s) => {
+      const map = { scheduled:[C.gold,C.pGold], 'in-progress':[C.blue,C.pBlue], completed:[C.green,C.pGreen] };
+      const [fg,bg] = map[s]||['#64748b','#f1f5f9'];
+      return <span style={{ background:bg, color:fg, borderRadius:10, padding:'2px 9px', fontSize:11, fontWeight:700 }}>{s}</span>;
+    };
+
+    const handleSaveAudit = async (isNew) => {
+      if (!af.project_id) { setAuditFmMsg('❌ Project is required.'); return; }
+      if (!af.visit_date) { setAuditFmMsg('❌ Visit date is required.'); return; }
+      if (af.compliance_score && (isNaN(Number(af.compliance_score)) || Number(af.compliance_score) < 0 || Number(af.compliance_score) > 100)) { setAuditFmMsg('❌ Compliance score must be between 0 and 100.'); return; }
+      setAuditFmSaving(true); setAuditFmMsg('');
+      try {
+        await api.csrCreateFieldAudit(af);
+        setAuditFmMsg('✅ Audit ' + (af.status==='scheduled'?'scheduled':'saved') + ' successfully!');
+        setAuditForm({ project_id:'', auditor_name:'', visit_date:'', location:'', bene_verified:'', funds_verified:'', compliance_score:'', findings:'', recommendations:'', status:'scheduled' });
+        loadFieldAudits();
+      } catch(e) { setAuditFmMsg('❌ ' + (e.message||'Save failed.')); }
+      finally { setAuditFmSaving(false); }
+    };
+
+    if (sub === 'audit-new') {
+      return <>
+        <Bc parts={['Audit & Verification','Schedule Audit']} />
+        <SectionHead title="🗓️ Schedule Field Audit" />
+        {auditFmMsg && <Alert icon={auditFmMsg.startsWith('✅')?'✅':'❌'} type={auditFmMsg.startsWith('✅')?'success':'red'}>{auditFmMsg}</Alert>}
+        <Card>
+          <CardTitle>📋 Audit Details</CardTitle>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <Field label="Project *"><Sel value={af.project_id} onChange={v=>setAf({project_id:v})} options={['', ...activeProjs.map(p=>p.id)]} labels={['Select project...', ...activeProjs.map(p=>p.title)]} /></Field>
+            <Field label="Auditor Name"><Inp value={af.auditor_name} onChange={v=>setAf({auditor_name:v})} placeholder="Name of auditor / firm" /></Field>
+            <Field label="Visit Date"><Inp type="date" value={af.visit_date} onChange={v=>setAf({visit_date:v})} /></Field>
+            <Field label="Location / Centre"><Inp value={af.location} onChange={v=>setAf({location:v})} placeholder="Village, District, State" /></Field>
+            <Field label="Status"><Sel value={af.status} onChange={v=>setAf({status:v})} options={['scheduled','in-progress','completed']} /></Field>
+            <Field label="Beneficiaries Verified"><Inp value={af.bene_verified} onChange={v=>setAf({bene_verified:v})} placeholder="Count" /></Field>
+            <Field label="Funds Verified (₹)"><Inp value={af.funds_verified} onChange={v=>setAf({funds_verified:v})} placeholder="Amount" /></Field>
+            <Field label="Compliance Score (0-100)"><Inp value={af.compliance_score} onChange={v=>setAf({compliance_score:v})} placeholder="0–100" /></Field>
+          </div>
+          <Field label="Findings" style={{ marginTop:6 }}><textarea value={af.findings} onChange={e=>setAf({findings:e.target.value})} rows={2} placeholder="Key observations during field visit..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <Field label="Recommendations" style={{ marginTop:6 }}><textarea value={af.recommendations} onChange={e=>setAf({recommendations:e.target.value})} rows={2} placeholder="Corrective actions recommended..." style={{ width:'100%', borderRadius:6, border:'1px solid #d1d5db', padding:'7px 9px', fontSize:13, resize:'vertical' }} /></Field>
+          <div style={{ marginTop:10 }}><Btn green onClick={handleSaveAudit} disabled={auditFmSaving}>📅 Save Audit</Btn></div>
+        </Card>
+      </>;
+    }
+
+    // audit-list (default)
+    return <>
+      <Bc parts={['Audit & Verification','Field Audits']} />
+      <SectionHead title="🔍 Field Audits" />
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:10 }}>
+        <Btn green onClick={()=>go('audit-new')}>+ Schedule Audit</Btn>
+      </div>
+      {fieldAudits.length === 0
+        ? <Alert icon="ℹ️" type="info">No field audits yet. <span style={{ cursor:'pointer', color:C.blue, fontWeight:600 }} onClick={()=>go('audit-new')}>Schedule one →</span> or <span style={{ cursor:'pointer', color:C.blue, fontWeight:600 }} onClick={()=>go('proj-active')}>view active projects →</span></Alert>
+        : fieldAudits.map(a => (
+          <Card key={a.id}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:8 }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{a.project_title||`Project #${a.project_id}`}</div>
+                <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>Auditor: {a.auditor_name||'—'} · {a.visit_date||'—'} · {a.location||'—'}</div>
+              </div>
+              <div style={{ display:'flex', align:'center', gap:8 }}>
+                {statusBadge(a.status)}
+                {a.compliance_score > 0 && <span style={{ background:a.compliance_score>=75?C.pGreen:a.compliance_score>=50?C.pGold:C.pRed, color:a.compliance_score>=75?C.green:a.compliance_score>=50?C.gold:C.red, borderRadius:10, padding:'2px 9px', fontSize:11, fontWeight:700 }}>Score: {a.compliance_score}/100</span>}
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:16, fontSize:12, color:'#64748b', marginTop:6 }}>
+              {a.bene_verified > 0 && <span>Beneficiaries verified: <b style={{ color:C.navy }}>{a.bene_verified}</b></span>}
+              {a.funds_verified > 0 && <span>Funds verified: <b style={{ color:C.navy }}>₹{(Number(a.funds_verified)/100000).toFixed(2)}L</b></span>}
+            </div>
+            {a.findings && <div style={{ fontSize:12, color:'#374151', marginTop:6, borderTop:'1px solid #f1f5f9', paddingTop:6 }}>📋 <b>Findings:</b> {a.findings}</div>}
+            {a.recommendations && <div style={{ fontSize:12, color:'#374151', marginTop:4 }}>💡 <b>Recommendations:</b> {a.recommendations}</div>}
+            <div style={{ display:'flex', gap:8, marginTop:8 }}>
+              {a.status !== 'completed' && <Btn sm green onClick={async()=>{ await api.csrUpdateFieldAudit(a.id,{...a,status:'completed'}); loadFieldAudits(); }}>✅ Mark Completed</Btn>}
+              <Btn sm outline onClick={()=>go('rep-impact')}>📊 View Impact Report</Btn>
+              <Btn sm outline onClick={()=>go('comp-audit')}>📋 Audit Trail</Btn>
+            </div>
+          </Card>
+        ))
+      }
+    </>;
+  }
+
   function renderPanel() {
     switch(panel) {
       case 'dashboard':       return PanelDashboard();
@@ -1822,6 +3266,23 @@ export default function CsrOrganizationPortal() {
       case 'grievance':       return PanelGrievance();
       case 'faq':             return PanelFAQ();
       case 'settings':        return PanelSettings();
+      case 'camp-create':     return PanelCampaigns({ sub:'camp-create' });
+      case 'camp-list':       return PanelCampaigns({ sub:'camp-list' });
+      case 'camp-applications': return PanelCampaigns({ sub:'camp-applications' });
+      case 'camp-approval':   return PanelCampaigns({ sub:'camp-approval' });
+      case 'camp-progress':   return PanelCampaigns({ sub:'camp-progress' });
+      case 'audit-list':      return PanelAudit({ sub:'audit-list' });
+      case 'audit-new':       return PanelAudit({ sub:'audit-new' });
+      case 'ai-proposal':     return PanelAI({ sub:'ai-proposal' });
+      case 'ai-duplicate':    return PanelAI({ sub:'ai-duplicate' });
+      case 'ai-budget':       return PanelAI({ sub:'ai-budget' });
+      case 'ai-ngo-risk':     return PanelAI({ sub:'ai-ngo-risk' });
+      case 'ai-recommend':    return PanelAI({ sub:'ai-recommend' });
+      case 'ai-fraud':        return PanelAI({ sub:'ai-fraud' });
+      case 'ai-predict':      return PanelAI({ sub:'ai-predict' });
+      case 'ai-forecast':     return PanelAI({ sub:'ai-forecast' });
+      case 'ai-sentiment':    return PanelAI({ sub:'ai-sentiment' });
+      case 'ai-summary':      return PanelAI({ sub:'ai-summary' });
       default:                return <SectionHead title="Panel Not Found" />;
     }
   }
@@ -1833,6 +3294,76 @@ export default function CsrOrganizationPortal() {
       <div style={{ marginLeft: isMobile ? 0 : SW, marginTop:TH, padding:16, minHeight:`calc(100vh - ${TH}px)`, overflowX:'hidden', boxSizing:'border-box' }}>
         {renderPanel()}
       </div>
+      {toast && (
+        <div style={{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', zIndex:9999, background:C.navy, color:'#fff', padding:'10px 22px', borderRadius:10, fontSize:13, fontWeight:600, boxShadow:'0 4px 20px rgba(0,0,0,.25)', display:'flex', gap:14, alignItems:'center', whiteSpace:'nowrap' }}>
+          {toast}
+          <button onClick={() => setToast('')} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', cursor:'pointer', fontSize:16, lineHeight:1, padding:0 }}>✕</button>
+        </div>
+      )}
+
+      {/* ── AI Chatbot floating widget ── */}
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:10001, display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+        {chatOpen && (
+          <div style={{ width:340, height:460, background:'#fff', borderRadius:16, boxShadow:'0 8px 40px rgba(0,0,0,0.18)', border:'1px solid #E0E6EF', display:'flex', flexDirection:'column', marginBottom:10, overflow:'hidden' }}>
+            <div style={{ background:C.navy, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#9B6FFF)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🤖</div>
+                <div>
+                  <div style={{ color:'#fff', fontWeight:700, fontSize:13 }}>AI Assistant</div>
+                  <div style={{ color:'rgba(255,255,255,0.5)', fontSize:10 }}>SkillsnJobs · Always here</div>
+                </div>
+              </div>
+              <button onClick={() => setChatOpen(false)} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:18, lineHeight:1 }}>✕</button>
+            </div>
+            <div id="csr-chat-msgs" style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {chatMsgs.map((m, i) => (
+                <div key={i} style={{ display:'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth:'82%', padding:'8px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    background: m.role === 'user' ? C.navy : '#F1F5F9',
+                    color: m.role === 'user' ? '#fff' : '#1A2B4A', fontSize:12.5, lineHeight:1.6 }}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display:'flex', justifyContent:'flex-start' }}>
+                  <div style={{ padding:'8px 14px', background:'#F1F5F9', borderRadius:'12px 12px 12px 2px', fontSize:12 }}>
+                    <span style={{ display:'inline-flex', gap:3 }}>
+                      {[0,1,2].map(i => <span key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#94A3B8', display:'inline-block', animation:`bounce 1.2s ${i*0.2}s infinite` }} />)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ padding:'6px 10px', display:'flex', gap:6, overflowX:'auto', borderTop:'1px solid #F1F5F9' }}>
+              {['CSR-2 compliance','Unspent funds','Campaign tips','Project reporting'].map(s => (
+                <button key={s} onClick={() => setChatInput(s)}
+                  style={{ flexShrink:0, fontSize:10.5, padding:'4px 10px', borderRadius:20, border:'1px solid #E0E6EF', background:'#F8FAFC', color:'#3D5170', cursor:'pointer', whiteSpace:'nowrap' }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding:'10px 12px', borderTop:'1px solid #E0E6EF', display:'flex', gap:8, alignItems:'center' }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Ask anything…"
+                style={{ flex:1, padding:'8px 12px', borderRadius:20, border:'1.5px solid #E0E6EF', fontSize:12.5, outline:'none', color:'#1A2B4A' }} />
+              <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+                style={{ width:34, height:34, borderRadius:'50%', background:chatInput.trim() ? C.navy : '#E0E6EF', border:'none', cursor:'pointer',
+                  color:'#fff', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
+                ➤
+              </button>
+            </div>
+          </div>
+        )}
+        <button onClick={() => setChatOpen(o => !o)} style={{ width:52, height:52, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#010E3C)', border:'none', cursor:'pointer', boxShadow:'0 4px 20px rgba(123,92,246,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, position:'relative' }}>
+          {chatOpen ? '✕' : '🤖'}
+          {!chatOpen && chatMsgs.filter(m => m.role === 'assistant').length > 1 && (
+            <span style={{ position:'absolute', top:0, right:0, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>!</span>
+          )}
+        </button>
+      </div>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
     </div>
   );
 }

@@ -194,6 +194,8 @@ export const api = {
   csrCreateTP: (b) => request('/csr/training-partners', { method: 'POST', body: b }),
   csrUpdateTP: (id, b) => request(`/csr/training-partners/${id}`, { method: 'PUT', body: b }),
   csrDeleteTP: (id) => request(`/csr/training-partners/${id}`, { method: 'DELETE' }),
+  csrVendorList: () => request('/csr/vendor-list'),
+  csrAdminOrgsSummary: () => request('/csr/admin/orgs-summary'),
   csrUnspentFunds: () => request('/csr/unspent-funds'),
   csrCreateUnspentFund: (b) => request('/csr/unspent-funds', { method: 'POST', body: b }),
   csrUpdateUnspentFund: (id, b) => request(`/csr/unspent-funds/${id}`, { method: 'PUT', body: b }),
@@ -205,6 +207,34 @@ export const api = {
   csrCreateGrievance: (b) => request('/csr/grievances', { method: 'POST', body: b }),
   csrUpdateGrievance: (id, b) => request(`/csr/grievances/${id}`, { method: 'PUT', body: b }),
   csrAuditTrail: () => request('/csr/audit-trail'),
+  csrGetForm: (type, fy) => request(`/csr/forms/${type}?fy=${fy||'2025-26'}`),
+  csrSaveForm: (type, b) => request(`/csr/forms/${type}`, { method: 'POST', body: b }),
+
+  // ── CSR Campaigns ──
+  csrCampaigns: () => request('/csr/campaigns'),
+  csrCreateCampaign: (b) => request('/csr/campaigns', { method: 'POST', body: b }),
+  csrUpdateCampaign: (id, b) => request(`/csr/campaigns/${id}`, { method: 'PUT', body: b }),
+  csrDeleteCampaign: (id) => request(`/csr/campaigns/${id}`, { method: 'DELETE' }),
+
+  // ── CSR Applications ──
+  csrApplications: () => request('/csr/applications'),
+  csrCreateApplication: (b) => request('/csr/applications', { method: 'POST', body: b }),
+  csrUpdateApplicationStatus: (id, b) => request(`/csr/applications/${id}/status`, { method: 'PUT', body: b }),
+
+  // ── CSR Approvals ──
+  csrApprovals: (aid) => request(`/csr/approvals/${aid}`),
+  csrCreateApproval: (b) => request('/csr/approvals', { method: 'POST', body: b }),
+  csrUpdateApproval: (id, b) => request(`/csr/approvals/${id}`, { method: 'PUT', body: b }),
+
+  // ── CSR Progress Reports ──
+  csrProgressReports: () => request('/csr/progress-reports'),
+  csrCreateProgressReport: (b) => request('/csr/progress-reports', { method: 'POST', body: b }),
+  csrAcknowledgeReport: (id) => request(`/csr/progress-reports/${id}/acknowledge`, { method: 'PUT' }),
+
+  // ── CSR Field Audits ──
+  csrFieldAudits: () => request('/csr/field-audits'),
+  csrCreateFieldAudit: (b) => request('/csr/field-audits', { method: 'POST', body: b }),
+  csrUpdateFieldAudit: (id, b) => request(`/csr/field-audits/${id}`, { method: 'PUT', body: b }),
 
   // ── Batches (Trainer Portal) ──
   myBatches: () => request('/batches/mine'),

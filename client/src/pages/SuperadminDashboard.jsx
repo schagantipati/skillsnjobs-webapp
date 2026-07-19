@@ -1954,6 +1954,285 @@ function PanelRoles({ stats }) {
   );
 }
 
+function PanelCsrAdmin({ subview }) {
+  const [projects, projLoading]     = useLoad(() => api.csrProjects());
+  const [beneficiaries, beneLoading] = useLoad(() => api.csrBeneficiaries());
+  const [disbursements, disbLoading] = useLoad(() => api.csrDisbursements());
+  const [unspent, unspentLoading]   = useLoad(() => api.csrUnspentFunds());
+  const [orgs, orgsLoading]         = useLoad(() => api.csrAdminOrgsSummary());
+
+  const projList    = Array.isArray(projects)     ? projects     : [];
+  const beneList    = Array.isArray(beneficiaries) ? beneficiaries : [];
+  const disbList    = Array.isArray(disbursements) ? disbursements : [];
+  const unspentList = Array.isArray(unspent)       ? unspent       : [];
+  const orgsList    = Array.isArray(orgs)          ? orgs          : [];
+
+  // ── CSR Projects sub-views ──────────────────────────────────────
+  if (['csr-proj-active','csr-proj-draft','csr-proj-completed','csr-proj-approval'].includes(subview)) {
+    const statusMap = { 'csr-proj-active':'active', 'csr-proj-draft':'draft', 'csr-proj-completed':'completed', 'csr-proj-approval':'pending' };
+    const titleMap  = { 'csr-proj-active':'Active Projects', 'csr-proj-draft':'Draft Projects', 'csr-proj-completed':'Completed Projects', 'csr-proj-approval':'Approval Queue' };
+    const display   = projList.filter(p => p.status === statusMap[subview]);
+    return (
+      <>
+        <div className="ph"><h1>{titleMap[subview]}</h1><p>CSR projects across all organisations</p></div>
+        <div className="kpi-grid">
+          <div className="kpi" style={{'--c':'#003366'}}><div className="val">{projList.length}</div><div className="lbl">Total Projects</div></div>
+          <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{projList.filter(p=>p.status==='active').length}</div><div className="lbl">Active</div></div>
+          <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{projList.filter(p=>p.status==='completed').length}</div><div className="lbl">Completed</div></div>
+          <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{projList.filter(p=>p.status==='draft').length}</div><div className="lbl">Draft</div></div>
+          <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">{projList.filter(p=>p.status==='pending').length}</div><div className="lbl">Pending Approval</div></div>
+        </div>
+        <div className="card">
+          {projLoading ? <Loading /> : display.length === 0 ? <Empty icon="📂" msg={`No ${titleMap[subview].toLowerCase()} found.`} /> : (
+            <table className="sa-table">
+              <thead><tr><th>Project</th><th>Organisation</th><th>Activity</th><th>State</th><th>Budget</th><th>Beneficiaries</th><th>Status</th></tr></thead>
+              <tbody>
+                {display.map(p => (
+                  <tr key={p.id}>
+                    <td style={{fontWeight:600}}>{p.title||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{p.org_name||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{p.activity||p.schedule7||'—'}</td>
+                    <td>{p.state_name||'—'}</td>
+                    <td style={{fontWeight:700,color:'#003366'}}>₹{((Number(p.budget)||0)/10000000).toFixed(2)} Cr</td>
+                    <td>{Number(p.beneficiaries_actual||p.beneficiaries_target)||0}</td>
+                    <td><Pill v={p.status||'draft'} map={{active:'green',completed:'blue',draft:'amber',pending:'purple',rejected:'red'}} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // ── CSR Organisations ───────────────────────────────────────────
+  if (subview === 'csr-orgs') {
+    const totalBudget = orgsList.reduce((s,o)=>s+(Number(o.total_budget)||0),0);
+    const totalBene   = orgsList.reduce((s,o)=>s+(Number(o.total_beneficiaries)||0),0);
+    return (
+      <>
+        <div className="ph"><h1>CSR Organisations</h1><p>All registered CSR entities and their programme portfolio</p></div>
+        <div className="kpi-grid">
+          <div className="kpi" style={{'--c':'#003366'}}><div className="val">{orgsList.length}</div><div className="lbl">CSR Orgs</div></div>
+          <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{orgsList.reduce((s,o)=>s+(Number(o.total_projects)||0),0)}</div><div className="lbl">Total Projects</div></div>
+          <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{totalBene.toLocaleString('en-IN')}</div><div className="lbl">Beneficiaries</div></div>
+          <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">₹{(totalBudget/10000000).toFixed(1)} Cr</div><div className="lbl">Total Budget</div></div>
+        </div>
+        <div className="card">
+          {orgsLoading ? <Loading /> : orgsList.length === 0 ? <Empty icon="🏢" msg="No CSR organisations registered yet." /> : (
+            <table className="sa-table">
+              <thead><tr><th>Organisation</th><th>Email</th><th>Active / Total Projects</th><th>Budget</th><th>Beneficiaries</th><th>Placed</th><th>Disbursed</th></tr></thead>
+              <tbody>
+                {orgsList.map(o => (
+                  <tr key={o.id}>
+                    <td style={{fontWeight:600}}>{o.name||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{o.email||'—'}</td>
+                    <td style={{textAlign:'center'}}>
+                      <span style={{fontWeight:700,color:'#003366'}}>{Number(o.active_projects)||0}</span>
+                      <span style={{color:'#6B7FA3',fontSize:'11px'}}>/{Number(o.total_projects)||0}</span>
+                    </td>
+                    <td style={{fontWeight:700,color:'#003366'}}>₹{((Number(o.total_budget)||0)/10000000).toFixed(2)} Cr</td>
+                    <td>{Number(o.total_beneficiaries)||0}</td>
+                    <td style={{fontWeight:600,color:'#007B5E'}}>{Number(o.placed_beneficiaries)||0}</td>
+                    <td>₹{((Number(o.total_disbursed)||0)/10000000).toFixed(2)} Cr</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // ── CSR Beneficiaries sub-views ─────────────────────────────────
+  if (['csr-bene-list','csr-bene-track','csr-bene-outcomes'].includes(subview)) {
+    const titleMap  = { 'csr-bene-list':'Beneficiary List', 'csr-bene-track':'Progress Tracking', 'csr-bene-outcomes':'Placement Outcomes' };
+    const display   = subview === 'csr-bene-outcomes' ? beneList.filter(b=>b.training_status==='completed') : beneList;
+    return (
+      <>
+        <div className="ph"><h1>{titleMap[subview]}</h1><p>CSR programme beneficiaries across all organisations</p></div>
+        <div className="kpi-grid">
+          <div className="kpi" style={{'--c':'#003366'}}><div className="val">{beneList.length}</div><div className="lbl">Total Beneficiaries</div></div>
+          <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{beneList.filter(b=>b.placement_status==='placed').length}</div><div className="lbl">Placed</div></div>
+          <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{beneList.filter(b=>b.training_status==='completed').length}</div><div className="lbl">Certified</div></div>
+          <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{beneList.filter(b=>b.training_status==='enrolled').length}</div><div className="lbl">In Training</div></div>
+        </div>
+        <div className="card">
+          {beneLoading ? <Loading /> : display.length === 0 ? <Empty icon="👥" msg="No beneficiaries found." /> : (
+            <table className="sa-table">
+              <thead><tr><th>Name</th><th>Organisation</th><th>Project</th><th>Course</th><th>State</th><th>Training</th><th>Placement</th></tr></thead>
+              <tbody>
+                {display.map(b => (
+                  <tr key={b.id}>
+                    <td style={{fontWeight:600}}>{b.name||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{b.org_name||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{b.project_title||'—'}</td>
+                    <td style={{fontSize:'11px'}}>{b.course||'—'}</td>
+                    <td>{b.state_name||b.district||'—'}</td>
+                    <td><Pill v={b.training_status||'enrolled'} map={{completed:'green',enrolled:'blue',dropout:'red',absent:'amber'}} /></td>
+                    <td><Pill v={b.placement_status||'not_placed'} map={{placed:'green',not_placed:'amber',self_employed:'blue'}} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  // ── CSR Fund Management sub-views ───────────────────────────────
+  if (['csr-fund-alloc','csr-fund-disbursed','csr-fund-utilization','csr-fund-unspent'].includes(subview)) {
+    const titleMap    = { 'csr-fund-alloc':'Fund Allocation', 'csr-fund-disbursed':'Disbursements', 'csr-fund-utilization':'Utilization Reports', 'csr-fund-unspent':'Unspent Funds' };
+    const totalBudget = projList.reduce((s,p)=>s+(Number(p.budget)||0),0);
+    const totalSpent  = projList.reduce((s,p)=>s+(Number(p.spent)||0),0);
+    const totalDisb   = disbList.filter(d=>d.status==='disbursed').reduce((s,d)=>s+(Number(d.amount)||0),0);
+    const totalUnsp   = unspentList.reduce((s,u)=>s+(Number(u.unspent_amount)||0),0);
+    const utilPct     = totalBudget > 0 ? Math.round(totalSpent/totalBudget*100) : 0;
+    return (
+      <>
+        <div className="ph"><h1>{titleMap[subview]}</h1><p>CSR fund management across all organisations</p></div>
+        <div className="kpi-grid">
+          <div className="kpi" style={{'--c':'#003366'}}><div className="val">₹{(totalBudget/10000000).toFixed(1)} Cr</div><div className="lbl">Total Allocated</div></div>
+          <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">₹{(totalSpent/10000000).toFixed(1)} Cr</div><div className="lbl">Total Spent</div></div>
+          <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">₹{(totalDisb/10000000).toFixed(1)} Cr</div><div className="lbl">Disbursed</div></div>
+          <div className="kpi" style={{'--c':'#DC2626'}}><div className="val">₹{(totalUnsp/10000000).toFixed(1)} Cr</div><div className="lbl">Unspent</div></div>
+          <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">{utilPct}%</div><div className="lbl">Utilization</div></div>
+        </div>
+
+        {subview === 'csr-fund-unspent' ? (
+          <div className="card">
+            {unspentLoading ? <Loading /> : unspentList.length === 0 ? <Empty icon="💰" msg="No unspent funds recorded." /> : (
+              <table className="sa-table">
+                <thead><tr><th>Organisation</th><th>Financial Year</th><th>Unspent Amount</th><th>Reason</th><th>Transfer Deadline</th><th>Status</th></tr></thead>
+                <tbody>
+                  {unspentList.map(u => (
+                    <tr key={u.id}>
+                      <td style={{fontWeight:600}}>{u.org_name||'—'}</td>
+                      <td>{u.financial_year||'—'}</td>
+                      <td style={{fontWeight:700,color:'#DC2626'}}>₹{((Number(u.unspent_amount)||0)/10000000).toFixed(2)} Cr</td>
+                      <td style={{fontSize:'11px'}}>{u.reason||'—'}</td>
+                      <td>{u.transfer_deadline||'—'}</td>
+                      <td><Pill v={u.status||'pending'} map={{transferred:'green',pending:'amber',overdue:'red'}} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : subview === 'csr-fund-disbursed' ? (
+          <div className="card">
+            {disbLoading ? <Loading /> : disbList.length === 0 ? <Empty icon="🏦" msg="No disbursements recorded yet." /> : (
+              <table className="sa-table">
+                <thead><tr><th>Organisation</th><th>Project</th><th>Recipient</th><th>Amount</th><th>Purpose</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody>
+                  {disbList.map(d => (
+                    <tr key={d.id}>
+                      <td style={{fontWeight:600}}>{d.org_name||'—'}</td>
+                      <td style={{fontSize:'11px'}}>{d.project_title||'—'}</td>
+                      <td style={{fontSize:'11px'}}>{d.recipient||'—'}</td>
+                      <td style={{fontWeight:700,color:'#003366'}}>₹{(Number(d.amount)||0).toLocaleString('en-IN')}</td>
+                      <td style={{fontSize:'11px'}}>{d.purpose||'—'}</td>
+                      <td>{d.disbursed_date||'—'}</td>
+                      <td><Pill v={d.status||'pending'} map={{disbursed:'green',pending:'amber',rejected:'red'}} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : (
+          <div className="card">
+            {projLoading ? <Loading /> : projList.length === 0 ? <Empty icon="💵" msg="No CSR projects found." /> : (
+              <table className="sa-table">
+                <thead><tr><th>Project</th><th>Organisation</th><th>Budget</th><th>Spent</th><th>Utilization</th><th>Status</th></tr></thead>
+                <tbody>
+                  {projList.map(p => {
+                    const pct = Number(p.budget) > 0 ? Math.round((Number(p.spent)||0)/Number(p.budget)*100) : 0;
+                    return (
+                      <tr key={p.id}>
+                        <td style={{fontWeight:600}}>{p.title||'—'}</td>
+                        <td style={{fontSize:'11px'}}>{p.org_name||'—'}</td>
+                        <td style={{fontWeight:700,color:'#003366'}}>₹{((Number(p.budget)||0)/10000000).toFixed(2)} Cr</td>
+                        <td>₹{((Number(p.spent)||0)/10000000).toFixed(2)} Cr</td>
+                        <td>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{flex:1,height:6,background:'#E0E6EF',borderRadius:3,minWidth:60}}>
+                              <div style={{width:`${Math.min(pct,100)}%`,height:'100%',background:pct>90?'#DC2626':pct>50?'#FF6B00':'#007B5E',borderRadius:3}} />
+                            </div>
+                            <span style={{fontSize:'11px',fontWeight:600,minWidth:32}}>{pct}%</span>
+                          </div>
+                        </td>
+                        <td><Pill v={p.status||'draft'} map={{active:'green',completed:'blue',draft:'amber',pending:'purple'}} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ── CSR Impact Reports ──────────────────────────────────────────
+  const totalBene   = beneList.length;
+  const placed      = beneList.filter(b=>b.placement_status==='placed').length;
+  const certified   = beneList.filter(b=>b.training_status==='completed').length;
+  const totalBudget = projList.reduce((s,p)=>s+(Number(p.budget)||0),0);
+  const byState     = beneList.reduce((acc,b) => { const st=b.state_name||'Unknown'; acc[st]=(acc[st]||0)+1; return acc; }, {});
+  const topStates   = Object.entries(byState).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  return (
+    <>
+      <div className="ph"><h1>CSR Impact Reports</h1><p>Aggregate impact across all CSR programmes</p></div>
+      <div className="kpi-grid">
+        <div className="kpi" style={{'--c':'#003366'}}><div className="val">{projList.length}</div><div className="lbl">Projects</div></div>
+        <div className="kpi" style={{'--c':'#007B5E'}}><div className="val">{totalBene.toLocaleString('en-IN')}</div><div className="lbl">Total Beneficiaries</div></div>
+        <div className="kpi" style={{'--c':'#1D4ED8'}}><div className="val">{certified}</div><div className="lbl">Certified</div></div>
+        <div className="kpi" style={{'--c':'#FF6B00'}}><div className="val">{placed}</div><div className="lbl">Placed</div></div>
+        <div className="kpi" style={{'--c':'#7C3AED'}}><div className="val">₹{(totalBudget/10000000).toFixed(1)} Cr</div><div className="lbl">Total CSR Spend</div></div>
+        <div className="kpi" style={{'--c':'#059669'}}><div className="val">{totalBene>0?Math.round(placed/totalBene*100):0}%</div><div className="lbl">Placement Rate</div></div>
+      </div>
+      {topStates.length > 0 && (
+        <div className="card">
+          <div className="card-title">📍 Beneficiaries by State</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:8}}>
+            {topStates.map(([state,cnt]) => (
+              <div key={state} style={{padding:'8px 14px',background:'#F8FAFC',borderRadius:8,border:'1px solid #E0E6EF',minWidth:120}}>
+                <div style={{fontWeight:700,color:'#003366',fontSize:18}}>{cnt}</div>
+                <div style={{fontSize:'11px',color:'#6B7FA3'}}>{state}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="card">
+        <div className="card-title">📊 Project Portfolio</div>
+        {projLoading ? <Loading /> : projList.length === 0 ? <Empty icon="📂" msg="No CSR projects found." /> : (
+          <table className="sa-table">
+            <thead><tr><th>Project</th><th>Organisation</th><th>State</th><th>Budget</th><th>Beneficiaries</th><th>Status</th></tr></thead>
+            <tbody>
+              {projList.slice(0,20).map(p => (
+                <tr key={p.id}>
+                  <td style={{fontWeight:600}}>{p.title||'—'}</td>
+                  <td style={{fontSize:'11px'}}>{p.org_name||'—'}</td>
+                  <td>{p.state_name||'—'}</td>
+                  <td style={{fontWeight:700,color:'#003366'}}>₹{((Number(p.budget)||0)/10000000).toFixed(2)} Cr</td>
+                  <td>{Number(p.beneficiaries_actual||p.beneficiaries_target)||0}</td>
+                  <td><Pill v={p.status||'draft'} map={{active:'green',completed:'blue',draft:'amber',pending:'purple'}} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 function PanelSchemeCSR() {
   const [data, loading] = useLoad(() => api.csrStats());
   const [projects, projLoading] = useLoad(() => api.csrProjects ? api.csrProjects() : Promise.resolve([]));
@@ -2290,6 +2569,26 @@ export default function SuperadminDashboard() {
   const [collapsedSections, setCollapsedSections] = useState({});
   const [stats, setStats] = useState({});
 
+  const [chatOpen,    setChatOpen]   = useState(false);
+  const [chatMsgs,    setChatMsgs]   = useState([{ role:'assistant', text:'Hi! 👋 I\'m your SkillsnJobs AI assistant. Ask me about users, roles, permissions, or platform analytics.' }]);
+  const [chatInput,   setChatInput]  = useState('');
+  const [chatLoading, setChatLoading]= useState(false);
+
+  async function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    const history = chatMsgs.map(m => ({ role: m.role, content: m.text }));
+    setChatMsgs(m => [...m, { role:'user', text }]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await api.chatbot(text, history);
+      setChatMsgs(m => [...m, { role:'assistant', text: res?.reply || res?.message || 'Sorry, I could not process that.' }]);
+    } catch {
+      setChatMsgs(m => [...m, { role:'assistant', text: 'Sorry, something went wrong. Please try again.' }]);
+    } finally { setChatLoading(false); }
+  }
+
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handler);
@@ -2368,6 +2667,20 @@ export default function SuperadminDashboard() {
       case 'ddugky': return <PanelComingSoon title="DDU-GKY" desc="Deen Dayal Upadhyaya Grameen Kaushalya Yojana data." icon="🌾" />;
       case 'naps': return <PanelComingSoon title="NAPS (Apprenticeship)" desc="National Apprenticeship Promotion Scheme data." icon="🔧" />;
       case 'state-skill': return <PanelComingSoon title="State Skill Missions" desc="State-wise skill mission programme data." icon="🏛️" />;
+      case 'csr-projects':
+      case 'csr-proj-active':
+      case 'csr-proj-draft':
+      case 'csr-proj-completed':
+      case 'csr-proj-approval': return <PanelCsrAdmin key="csr-projects" subview={activeId === 'csr-projects' ? 'csr-proj-active' : activeId} />;
+      case 'csr-orgs':          return <PanelCsrAdmin key="csr-orgs" subview={activeId} />;
+      case 'csr-bene-list':
+      case 'csr-bene-track':
+      case 'csr-bene-outcomes': return <PanelCsrAdmin key="csr-bene" subview={activeId} />;
+      case 'csr-fund-alloc':
+      case 'csr-fund-disbursed':
+      case 'csr-fund-utilization':
+      case 'csr-fund-unspent':  return <PanelCsrAdmin key="csr-funds" subview={activeId} />;
+      case 'csr-impact':        return <PanelCsrAdmin key="csr-impact" subview={activeId} />;
       case 'csr-prog': return <PanelSchemeCSR />;
       case 'fee-prog': return <PanelComingSoon title="Fee-Based Programs" desc="Self-funded and fee-based course programmes." icon="💰" />;
       case 'scheme-config': return <PanelComingSoon title="Scheme Configuration" desc="Configure scheme parameters, targets and eligibility." icon="⚙️" />;
@@ -2534,6 +2847,70 @@ export default function SuperadminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── AI Chatbot floating widget ── */}
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:10001, display:'flex', flexDirection:'column', alignItems:'flex-end' }}>
+        {chatOpen && (
+          <div style={{ width:340, height:460, background:'#fff', borderRadius:16, boxShadow:'0 8px 40px rgba(0,0,0,0.18)', border:'1px solid #E0E6EF', display:'flex', flexDirection:'column', marginBottom:10, overflow:'hidden' }}>
+            <div style={{ background:'#1a1a2e', padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#9B6FFF)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🤖</div>
+                <div>
+                  <div style={{ color:'#fff', fontWeight:700, fontSize:13 }}>AI Assistant</div>
+                  <div style={{ color:'rgba(255,255,255,0.5)', fontSize:10 }}>SkillsnJobs · Always here</div>
+                </div>
+              </div>
+              <button onClick={() => setChatOpen(false)} style={{ background:'none', border:'none', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:18, lineHeight:1 }}>✕</button>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {chatMsgs.map((m, i) => (
+                <div key={i} style={{ display:'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth:'82%', padding:'8px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                    background: m.role === 'user' ? '#1a1a2e' : '#F1F5F9',
+                    color: m.role === 'user' ? '#fff' : '#1A2B4A', fontSize:12.5, lineHeight:1.6 }}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display:'flex', justifyContent:'flex-start' }}>
+                  <div style={{ padding:'8px 14px', background:'#F1F5F9', borderRadius:'12px 12px 12px 2px', fontSize:12 }}>
+                    <span style={{ display:'inline-flex', gap:3 }}>
+                      {[0,1,2].map(i => <span key={i} style={{ width:5, height:5, borderRadius:'50%', background:'#94A3B8', display:'inline-block', animation:`bounce 1.2s ${i*0.2}s infinite` }} />)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{ padding:'6px 10px', display:'flex', gap:6, overflowX:'auto', borderTop:'1px solid #F1F5F9' }}>
+              {['Manage users','Role permissions','Platform analytics','System settings'].map(s => (
+                <button key={s} onClick={() => setChatInput(s)}
+                  style={{ flexShrink:0, fontSize:10.5, padding:'4px 10px', borderRadius:20, border:'1px solid #E0E6EF', background:'#F8FAFC', color:'#3D5170', cursor:'pointer', whiteSpace:'nowrap' }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding:'10px 12px', borderTop:'1px solid #E0E6EF', display:'flex', gap:8, alignItems:'center' }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Ask anything…"
+                style={{ flex:1, padding:'8px 12px', borderRadius:20, border:'1.5px solid #E0E6EF', fontSize:12.5, outline:'none', color:'#1A2B4A' }} />
+              <button onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
+                style={{ width:34, height:34, borderRadius:'50%', background:chatInput.trim() ? '#1a1a2e' : '#E0E6EF', border:'none', cursor:'pointer',
+                  color:'#fff', fontSize:15, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
+                ➤
+              </button>
+            </div>
+          </div>
+        )}
+        <button onClick={() => setChatOpen(o => !o)} style={{ width:52, height:52, borderRadius:'50%', background:'linear-gradient(135deg,#7B5CF6,#1a1a2e)', border:'none', cursor:'pointer', boxShadow:'0 4px 20px rgba(123,92,246,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, position:'relative' }}>
+          {chatOpen ? '✕' : '🤖'}
+          {!chatOpen && chatMsgs.filter(m => m.role === 'assistant').length > 1 && (
+            <span style={{ position:'absolute', top:0, right:0, width:14, height:14, borderRadius:'50%', background:'#EF4444', border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, color:'#fff', fontWeight:700 }}>!</span>
+          )}
+        </button>
+      </div>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
     </>
   );
 }
