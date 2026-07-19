@@ -747,7 +747,7 @@ test('TC-SUPP-02: Helpdesk form has Category, Priority, Subject fields', async (
   await login(page);
   await navTo(page, 'Helpdesk');
   await expect(page.locator('text=Category').first()).toBeVisible();
-  await expect(page.locator('text=Priority')).toBeVisible();
+  await expect(page.locator('text=Priority').first()).toBeVisible();
   await expect(page.locator('text=Subject').first()).toBeVisible();
 });
 
