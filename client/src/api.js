@@ -197,6 +197,14 @@ export const api = {
   csrUnspentFunds: () => request('/csr/unspent-funds'),
   csrCreateUnspentFund: (b) => request('/csr/unspent-funds', { method: 'POST', body: b }),
   csrUpdateUnspentFund: (id, b) => request(`/csr/unspent-funds/${id}`, { method: 'PUT', body: b }),
+  csrNotifications: () => request('/csr/notifications'),
+  csrTickets: () => request('/csr/tickets'),
+  csrCreateTicket: (b) => request('/csr/tickets', { method: 'POST', body: b }),
+  csrUpdateTicket: (id, b) => request(`/csr/tickets/${id}`, { method: 'PUT', body: b }),
+  csrGrievances: () => request('/csr/grievances'),
+  csrCreateGrievance: (b) => request('/csr/grievances', { method: 'POST', body: b }),
+  csrUpdateGrievance: (id, b) => request(`/csr/grievances/${id}`, { method: 'PUT', body: b }),
+  csrAuditTrail: () => request('/csr/audit-trail'),
 
   // ── Batches (Trainer Portal) ──
   myBatches: () => request('/batches/mine'),

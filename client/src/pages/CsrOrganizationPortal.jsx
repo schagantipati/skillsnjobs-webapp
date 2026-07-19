@@ -340,6 +340,17 @@ export default function CsrOrganizationPortal() {
   const [trainingPartners, setTrainingPartners] = useState([]);
   const [loaded, setLoaded] = useState({});
 
+  const [notifications, setNotifications] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [ticketForm, setTicketForm] = useState({ category:'Technical Issue', priority:'Medium', subject:'', description:'' });
+  const [ticketSaving, setTicketSaving] = useState(false);
+  const [ticketMsg, setTicketMsg] = useState('');
+  const [grievances, setGrievances] = useState([]);
+  const [grievanceForm, setGrievanceForm] = useState({ type:'Project Approval Delay', against:'', description:'' });
+  const [grievanceSaving, setGrievanceSaving] = useState(false);
+  const [grievanceMsg, setGrievanceMsg] = useState('');
+
   const loadStats = useCallback(() => api.csrStats().then(setStats).catch(() => {}), []);
   const loadProjects = useCallback(() => {
     if (loaded.projects) return;
@@ -361,6 +372,22 @@ export default function CsrOrganizationPortal() {
     if (loaded.unspent) return;
     api.csrUnspentFunds().then(d => { setUnspentFunds(d); setLoaded(l => ({ ...l, unspent: true })); }).catch(() => {});
   }, [loaded.unspent]);
+  const loadNotifications = useCallback(() => {
+    if (loaded.notifs) return;
+    api.csrNotifications().then(d => { setNotifications(d); setLoaded(l => ({ ...l, notifs: true })); }).catch(() => {});
+  }, [loaded.notifs]);
+  const loadAuditLogs = useCallback(() => {
+    if (loaded.audit) return;
+    api.csrAuditTrail().then(d => { setAuditLogs(Array.isArray(d) ? d : []); setLoaded(l => ({ ...l, audit: true })); }).catch(() => {});
+  }, [loaded.audit]);
+  const loadTickets = useCallback(() => {
+    if (loaded.tickets) return;
+    api.csrTickets().then(d => { setTickets(d); setLoaded(l => ({ ...l, tickets: true })); }).catch(() => {});
+  }, [loaded.tickets]);
+  const loadGrievances = useCallback(() => {
+    if (loaded.grievances) return;
+    api.csrGrievances().then(d => { setGrievances(d); setLoaded(l => ({ ...l, grievances: true })); }).catch(() => {});
+  }, [loaded.grievances]);
 
   useEffect(() => { loadStats(); loadProjects(); loadDisbursements(); }, []);
   useEffect(() => {
@@ -380,11 +407,16 @@ export default function CsrOrganizationPortal() {
   function toggleMenu(id) { setOpenMenus(m => ({ ...m, [id]: !m[id] })); }
   function go(key) {
     setPanel(key); window.scrollTo(0, 0);
-    if (['dashboard','proj-active','proj-draft','proj-completed','proj-approval'].includes(key)) loadProjects();
-    if (['bene-list','bene-track','bene-placement'].includes(key)) loadBeneficiaries();
+    if (['dashboard','proj-active','proj-draft','proj-completed','proj-approval','fund-allocation','comp-schedule7','rep-sector','rep-geo','rep-annual','scheme-pmkvy','scheme-ddugky','scheme-star','scheme-naps'].includes(key)) loadProjects();
+    if (['bene-list','bene-track','bene-placement','rep-impact'].includes(key)) loadBeneficiaries();
     if (['fund-disbursements','fund-utilization'].includes(key)) loadDisbursements();
     if (key === 'fund-unspent') { loadDisbursements(); loadUnspentFunds(); }
-    if (['tp-list','tp-performance'].includes(key)) loadTPs();
+    if (key === 'rep-financial') { loadUnspentFunds(); }
+    if (['tp-list','tp-performance','tp-mou'].includes(key)) loadTPs();
+    if (key === 'notifications') loadNotifications();
+    if (key === 'comp-audit') loadAuditLogs();
+    if (key === 'helpdesk') loadTickets();
+    if (key === 'grievance') loadGrievances();
   }
   function handleLogout() { logout(); navigate('/'); }
 
@@ -655,17 +687,20 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelNotifications() {
+    const dotColor = t => ({ project:C.blue, disbursement:C.green, alert:C.gold, warn:C.red }[t] || C.blue);
+    const icon = t => ({ project:'📋', disbursement:'💰', alert:'⚠️', warn:'🔴' }[t] || '🔔');
     return <>
       <Bc parts={['Notifications']} />
       <SectionHead title="Notifications 🔔" />
       <Card>
-        {[
-          [C.gold,'⚠️','CSR-2 for FY 2025-26 due by 30 Sep 2026','System · 5 min ago'],
-          [C.blue,'📋','New PMKVY batch approved for Navi Mumbai project','MSDE · 2 hours ago'],
-          [C.green,'✅','₹1.2 Cr disbursement to SkillBridge confirmed','Finance · Today'],
-          [C.purple,'📊','Q1 FY26 Impact Report is ready to download','Reports · Jul 3'],
-          [C.red,'🔴','Compliance: Form CSR-1 amendment pending','MCA · Jul 2'],
-        ].map(([c,ic,t,m])=><TlItem key={t} dot={c} title={`${ic} ${t}`} meta={m} />)}
+        <Alert icon="ℹ️" type="info">CSR-2 for FY 2025-26 is due by <strong>30 Sep 2026</strong>. File on the MCA21 portal.</Alert>
+        {!loaded.notifs ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : notifications.length === 0 ? <div style={{ color:'#888', padding:12 }}>No recent activity. Start by proposing a project or adding beneficiaries.</div>
+         : notifications.map((n,i) => (
+             <TlItem key={i} dot={dotColor(n.type)}
+               title={`${icon(n.type)} ${n.title}`}
+               meta={n.created_at ? new Date(n.created_at).toLocaleString('en-IN') : 'System'} />
+           ))}
       </Card>
     </>;
   }
@@ -897,15 +932,19 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelProjApproval() {
+    const pending = projects.filter(p => p.status === 'pending');
     return <>
       <Bc parts={['Projects','Approval Status']} />
       <SectionHead title="Approval Status 🔄" />
       <Card>
         <CardTitle>📌 Pending Approvals</CardTitle>
-        <Table head={['Project','Submitted','Stage','Remarks']} rows={[
-          ['Tribal Youth Coding Program','Jul 1, 2026',<Badge color="gold">State Nodal Review</Badge>,'Awaiting SDIA verification'],
-          ['Water Conservation — Vidarbha','Jun 28, 2026',<Badge color="blue">NSDC Review</Badge>,'Impact assessment pending'],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : pending.length === 0 ? <div style={{ color:'#888', padding:12 }}>No projects currently awaiting approval.</div>
+         : <Table head={['Project','State','Budget','Submitted','Stage']} rows={pending.map(p => [
+             p.title, p.state_name||'—', crore(p.budget),
+             p.created_at ? new Date(p.created_at).toLocaleDateString('en-IN') : '—',
+             <Badge color="gold">Pending Review</Badge>
+           ])} />}
       </Card>
       <Card>
         <CardTitle>📋 Approval Workflow</CardTitle>
@@ -1103,50 +1142,66 @@ export default function CsrOrganizationPortal() {
       <Bc parts={['Training Partners','Partner Performance']} />
       <SectionHead title="Partner Performance 📊" />
       <Card>
-        <Table head={['Partner','Enrolled','Certified','Placed','Cert Rate','Placement Rate','Score']} rows={[
-          ['EV Academy India','480','456','380','95%','83%',<Badge color="green">⭐ 4.9</Badge>],
-          ['SkillBridge Institute','1,200','1,080','920','90%','85%',<Badge color="green">⭐ 4.7</Badge>],
-          ['TrainRight Academy','840','756','640','90%','85%',<Badge color="blue">⭐ 4.5</Badge>],
-          ['TechLearn Pvt Ltd','2,100','1,800','1,200','86%','67%',<Badge color="blue">⭐ 4.3</Badge>],
-          ['HealSkill Foundation','620','480','320','77%','67%',<Badge color="gold">⭐ 4.1</Badge>],
-        ]} />
+        {!loaded.tps ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : trainingPartners.length === 0 ? <div style={{ color:'#888', padding:12 }}>No training partners added yet. <button onClick={()=>go('tp-add')} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600 }}>Add a partner →</button></div>
+         : <Table head={['Partner','Type','State','Beneficiaries Trained','Contact','Status']} rows={trainingPartners.map(tp => {
+             const trained = tp.beneficiaries_trained || 0;
+             return [
+               tp.name, tp.type||'—', tp.state_name||'—',
+               trained.toLocaleString('en-IN'),
+               tp.contact_person || tp.contact_email || '—',
+               <Badge color={tp.status==='active'?'green':tp.status==='mou_expired'?'red':'gold'}>{tp.status}</Badge>
+             ];
+           })} />}
       </Card>
     </>;
   }
 
   function PanelTpMou() {
+    const withMou = trainingPartners.filter(tp => tp.mou_date);
     return <>
       <Bc parts={['Training Partners','MoU / Agreements']} />
       <SectionHead title="MoU & Agreements 📄" />
       <Card>
-        <Table head={['Partner','MoU Date','Valid Till','Scope','Status','Action']} rows={[
-          ['SkillBridge Institute','Apr 1, 2025','Mar 31, 2026','1,200 beneficiaries',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['TrainRight Academy','Apr 5, 2025','Mar 31, 2026','840 beneficiaries',<Badge color="green">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['TechLearn Pvt Ltd','Apr 10, 2025','Mar 31, 2026','2,100 beneficiaries',<Badge color="blue">Active</Badge>,<Btn sm outline>View</Btn>],
-          ['HealSkill Foundation','May 1, 2025','Mar 31, 2026','620 beneficiaries',<Badge color="gold">Review</Badge>,<Btn sm outline>View</Btn>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>📤 Upload New MoU</Btn></div>
+        {!loaded.tps ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : withMou.length === 0
+           ? <div style={{ color:'#888', padding:12 }}>No MoUs on record. When you add a training partner with MoU dates, they appear here.</div>
+           : <Table head={['Partner','Type','MoU Date','Valid Till','NSDC Reg','Status']} rows={withMou.map(tp => [
+               tp.name, tp.type||'—', tp.mou_date||'—', tp.mou_expiry||'—',
+               tp.nsdc_reg||'—',
+               <Badge color={tp.status==='active'?'green':tp.status==='mou_expired'?'red':'gold'}>{tp.status}</Badge>
+             ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={()=>go('tp-add')}>+ Add Training Partner with MoU</Btn></div>
       </Card>
     </>;
   }
 
   function PanelFundAllocation() {
+    const obligation = parseFloat(user?.csr_obligation || 0);
+    const allocated = stats.totalBudget || 0;
+    const spent = stats.totalSpent || 0;
+    const unalloc = Math.max(0, obligation - allocated);
+    const allocPct = obligation > 0 ? Math.round(allocated / obligation * 100) : 0;
     return <>
       <Bc parts={['Funds','Fund Allocation']} />
       <SectionHead title="Fund Allocation 💰" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:16 }}>
-        <KpiCard val="₹20.0 Cr" label="Total CSR Obligation" sub="FY 2025-26" color={C.navy} />
-        <KpiCard val="₹18.4 Cr" label="Allocated to Projects" sub="92% of obligation" color={C.blue} />
-        <KpiCard val="₹1.6 Cr" label="Unallocated / Unspent" sub="Must transfer by Sep 30" color={C.red} />
+        <KpiCard val={obligation > 0 ? crore(obligation) : '—'} label="Total CSR Obligation" sub="FY 2025-26" color={C.navy} />
+        <KpiCard val={crore(allocated)} label="Allocated to Projects" sub={`${allocPct}% of obligation`} color={C.blue} />
+        <KpiCard val={crore(unalloc)} label="Unallocated / Unspent" sub="Must transfer by Sep 30" color={C.red} />
       </div>
+      {obligation === 0 && <Alert icon="ℹ️" type="info">Set your CSR obligation in <button onClick={()=>go('profile-info')} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600, padding:0 }}>Organisation Information</button> to see allocation breakdown.</Alert>}
       <Card>
-        <Table head={['Project','Allocated','Disbursed','Remaining','Utilization']} rows={[
-          ['Skill Dev — Navi Mumbai','₹1.50 Cr','₹1.10 Cr','₹0.40 Cr',<Badge color="green">73%</Badge>],
-          ['Women Empowerment','₹80 L','₹52 L','₹28 L',<Badge color="blue">65%</Badge>],
-          ['Digital Literacy Drive','₹2.00 Cr','₹1.60 Cr','₹0.40 Cr',<Badge color="green">80%</Badge>],
-          ['Healthcare Outreach','₹60 L','₹38 L','₹22 L',<Badge color="gold">63%</Badge>],
-          ['EV Technician Training','₹1.20 Cr','₹0.70 Cr','₹0.50 Cr',<Badge color="teal">58%</Badge>],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : projects.length === 0 ? <div style={{ color:'#888', padding:12 }}>No projects yet.</div>
+         : <Table head={['Project','Allocated','Spent','Remaining','Utilization']} rows={projects.map(p => {
+             const alloc = p.budget || 0;
+             const disb = p.spent || 0;
+             const rem = Math.max(0, alloc - disb);
+             const u = pct(disb, alloc);
+             return [p.title, crore(alloc), crore(disb), crore(rem),
+               <Badge color={u>=75?'green':u>=50?'blue':'gold'}>{u}%</Badge>];
+           })} />}
       </Card>
     </>;
   }
@@ -1281,6 +1336,7 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelSchemePmkvy() {
+    const skillProjects = projects.filter(p => p.activity === 'Skill Development');
     return <>
       <Bc parts={['Schemes','PMKVY']} />
       <SectionHead title="PMKVY — Pradhan Mantri Kaushal Vikas Yojana 🏛️" />
@@ -1291,18 +1347,20 @@ export default function CsrOrganizationPortal() {
         </div>
       </Card>
       <Card>
-        <CardTitle>📊 My PMKVY Projects</CardTitle>
-        <Table head={['Project','Partner','Trade','Enrolled','Certified','Placed','Status']} rows={[
-          ['Skill Dev — NM','SkillBridge','Data Entry Operator','400','370','320',<Badge color="green">Active</Badge>],
-          ['Digital Literacy — UP','TechLearn','BPO Associate','600','510','380',<Badge color="blue">Active</Badge>],
-          ['EV Technician — GJ','EV Academy','EV Technician','200','190','160',<Badge color="teal">Active</Badge>],
-        ]} />
-        <div style={{ marginTop:14 }}><Btn>+ Apply for New PMKVY Batch</Btn></div>
+        <CardTitle>📊 Skill Development Projects (PMKVY-aligned)</CardTitle>
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : skillProjects.length === 0 ? <div style={{ color:'#888', padding:12 }}>No Skill Development projects yet. <button onClick={()=>go('proj-new')} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600 }}>Propose one →</button></div>
+         : <Table head={['Project','State','Budget','Beneficiaries','Status']} rows={skillProjects.map(p => [
+             p.title, p.state_name||'—', crore(p.budget), p.beneficiaries_actual||0,
+             <Badge color={p.status==='active'?'green':p.status==='completed'?'teal':p.status==='pending'?'gold':'blue'}>{p.status}</Badge>
+           ])} />}
+        <div style={{ marginTop:14 }}><Btn onClick={()=>go('proj-new')}>+ Propose New Project</Btn></div>
       </Card>
     </>;
   }
 
   function PanelSchemeDdugky() {
+    const ruralProjects = projects.filter(p => ['Skill Development','Eradicating Poverty','Gender Equality'].includes(p.activity));
     return <>
       <Bc parts={['Schemes','DDU-GKY']} />
       <SectionHead title="DDU-GKY — Deen Dayal Upadhyaya Grameen Kaushalya Yojana 🌾" />
@@ -1313,16 +1371,21 @@ export default function CsrOrganizationPortal() {
         </div>
       </Card>
       <Card>
-        <CardTitle>📋 My DDU-GKY Projects</CardTitle>
-        <Table head={['Project','PIA','State','Target','Placed','Rate']} rows={[
-          ['Agri-Tech — Punjab','SkillBridge','Punjab','390','320',<Badge color="green">82%</Badge>],
-          ['Women Empowerment','TrainRight','Rajasthan','840','680',<Badge color="green">81%</Badge>],
-        ]} />
+        <CardTitle>📋 DDU-GKY Eligible Projects</CardTitle>
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : ruralProjects.length === 0 ? <div style={{ color:'#888', padding:12 }}>No eligible projects. Propose a Skill Development or Poverty Eradication project.</div>
+         : <Table head={['Project','State','Agency','Target','Actual','Status']} rows={ruralProjects.map(p => [
+             p.title, p.state_name||'—', p.implementing_agency||'—',
+             p.beneficiaries_target||0, p.beneficiaries_actual||0,
+             <Badge color={p.status==='active'?'green':p.status==='completed'?'teal':'gold'}>{p.status}</Badge>
+           ])} />}
       </Card>
     </>;
   }
 
   function PanelSchemeStar() {
+    const skillProjects = projects.filter(p => p.activity === 'Skill Development');
+    const totalCertified = stats.certifiedBeneficiaries || 0;
     return <>
       <Bc parts={['Schemes','STAR Scheme']} />
       <SectionHead title="STAR Scheme — Standard Training Assessment and Reward ⭐" />
@@ -1331,13 +1394,20 @@ export default function CsrOrganizationPortal() {
           STAR offers <strong>monetary rewards to candidates</strong> who get certified in pre-defined job roles.{' '}
           <Badge color="teal">₹500–₹2,000 reward per candidate</Badge>{' '}<Badge color="blue">Aadhaar-linked disbursement</Badge>
         </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginTop:12 }}>
+          <KpiCard val={totalCertified.toLocaleString('en-IN')} label="Certified Beneficiaries" sub="STAR reward eligible" color={C.green} />
+          <KpiCard val={crore(totalCertified * 1000)} label="Est. Rewards Payable" sub="@₹1,000 avg per candidate" color={C.teal} />
+          <KpiCard val={skillProjects.length} label="Eligible Projects" sub="Skill Development activity" color={C.blue} />
+        </div>
       </Card>
       <Card>
         <CardTitle>📊 STAR Benefits in My Projects</CardTitle>
-        <Table head={['Project','Certified','Rewards Claimed','Amount Released','Status']} rows={[
-          ['Skill Dev — NM','370','320','₹4.8 L',<Badge color="green">Settled</Badge>],
-          ['Digital Literacy — UP','510','480','₹7.2 L',<Badge color="gold">Processing</Badge>],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : skillProjects.length === 0 ? <div style={{ color:'#888', padding:12 }}>No Skill Development projects yet.</div>
+         : <Table head={['Project','State','Beneficiaries Target','Status']} rows={skillProjects.map(p => [
+             p.title, p.state_name||'—', p.beneficiaries_target||0,
+             <Badge color={p.status==='active'?'green':p.status==='completed'?'teal':'gold'}>{p.status}</Badge>
+           ])} />}
       </Card>
     </>;
   }
@@ -1358,41 +1428,68 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelRepImpact() {
+    const total = stats.totalBeneficiaries || 0;
+    const certified = stats.certifiedBeneficiaries || 0;
+    const placed = stats.placedBeneficiaries || 0;
+    const women = beneficiaries.filter(b => b.gender === 'Female').length;
+    const womenPct = total > 0 ? Math.round(women / total * 100) : 0;
+    const byState = {};
+    beneficiaries.forEach(b => {
+      const s = b.state_name || 'Unknown';
+      if (!byState[s]) byState[s] = { enrolled:0, certified:0, placed:0 };
+      byState[s].enrolled++;
+      if (b.training_status === 'completed') byState[s].certified++;
+      if (b.placement_status === 'placed') byState[s].placed++;
+    });
     return <>
       <Bc parts={['Reports','Impact Reports']} />
       <SectionHead title="Impact Reports 🌟" />
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))', gap:14, marginBottom:16 }}>
-        <KpiCard val="6,840" label="Beneficiaries Certified" sub="This year" color={C.green} />
-        <KpiCard val="4,890" label="Placed in Jobs" sub="76% placement rate" color={C.blue} />
-        <KpiCard val="₹14,200" label="Avg Monthly CTC" sub="Entry level" color={C.teal} />
-        <KpiCard val="3,240" label="Women Beneficiaries" sub="47% of total" color={C.purple} />
+        <KpiCard val={certified.toLocaleString('en-IN')} label="Beneficiaries Certified" sub="All projects" color={C.green} />
+        <KpiCard val={placed.toLocaleString('en-IN')} label="Placed in Jobs" sub={`${pct(placed,certified)}% placement rate`} color={C.blue} />
+        <KpiCard val={stats.totalPartners||0} label="Training Partners" sub="Active engagements" color={C.teal} />
+        <KpiCard val={`${womenPct}%`} label="Women Beneficiaries" sub={`${women} of ${total}`} color={C.purple} />
       </div>
       <Card>
         <CardTitle>State-wise Impact</CardTitle>
-        <Table head={['State','Enrolled','Certified','Placed','Impact Score']} rows={[
-          ['Maharashtra','2,100','1,890','1,620',<Badge color="green">High</Badge>],
-          ['Rajasthan','840','756','640',<Badge color="green">High</Badge>],
-          ['Uttar Pradesh','2,400','2,160','1,400',<Badge color="blue">Medium</Badge>],
-          ['Bihar','620','480','320',<Badge color="gold">Medium</Badge>],
-          ['Gujarat','480','440','370',<Badge color="teal">High</Badge>],
-        ]} />
-        <div style={{ marginTop:14, display:'flex', gap:10 }}><Btn outline>📥 Download Report</Btn><Btn>📤 Share with Board</Btn></div>
+        {!loaded.beneficiaries ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : Object.keys(byState).length === 0 ? <div style={{ color:'#888', padding:12 }}>No beneficiary data yet.</div>
+         : <Table head={['State','Enrolled','Certified','Placed','Placement Rate']} rows={Object.entries(byState).map(([state, data]) => {
+             const rate = data.certified > 0 ? Math.round(data.placed/data.certified*100) : 0;
+             return [state, data.enrolled, data.certified, data.placed,
+               <Badge color={rate>=75?'green':rate>=50?'blue':'gold'}>{rate}%</Badge>];
+           })} />}
       </Card>
     </>;
   }
 
   function PanelRepFinancial() {
+    const obligation = parseFloat(user?.csr_obligation || 0);
+    const totalSpend = stats.totalSpent || 0;
+    const unspent = Math.max(0, obligation - totalSpend);
+    const util = pct(totalSpend, obligation);
     return <>
       <Bc parts={['Reports','Financial Reports']} />
       <SectionHead title="Financial Reports 💰" />
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:16 }}>
+        <KpiCard val={obligation > 0 ? crore(obligation) : '—'} label="CSR Obligation FY26" sub="2% of avg net profit" color={C.navy} />
+        <KpiCard val={crore(totalSpend)} label="Actual Spend" sub="All projects" color={C.green} />
+        <KpiCard val={`${util}%`} label="Utilization" sub={crore(unspent) + ' unspent'} color={util>=75?C.green:util>=50?C.gold:C.red} />
+      </div>
       <Card>
-        <Table head={['Financial Year','Obligation','Actual Spend','Unspent','Utilization %']} rows={[
-          ['FY 2025-26','₹20.0 Cr','₹18.4 Cr','₹1.6 Cr',<Badge color="green">92%</Badge>],
-          ['FY 2024-25','₹18.0 Cr','₹17.8 Cr','₹0.2 Cr',<Badge color="green">99%</Badge>],
-          ['FY 2023-24','₹16.5 Cr','₹16.5 Cr','—','100%'],
-          ['FY 2022-23','₹14.0 Cr','₹13.2 Cr','₹0.8 Cr',<Badge color="blue">94%</Badge>],
-        ]} />
-        <div style={{ marginTop:14, display:'flex', gap:10 }}><Btn outline>📥 Download Statement</Btn><Btn>📊 Export to Excel</Btn></div>
+        <CardTitle>📊 FY 2025-26 Summary</CardTitle>
+        {obligation === 0 && <Alert icon="ℹ️" type="info">Set your CSR obligation in <button onClick={()=>go('profile-info')} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600, padding:0 }}>Organisation Information</button> for accurate figures.</Alert>}
+        <StatRow n={obligation > 0 ? crore(obligation) : '—'} label="Total CSR Obligation" pct={100} color={C.navy} />
+        <StatRow n={crore(totalSpend)} label="Total Spent" pct={util} color={C.green} />
+        <StatRow n={crore(unspent)} label="Unspent Amount" pct={100-util} color={C.red} />
+        {unspentFunds.length > 0 && <>
+          <div style={{ marginTop:14, marginBottom:8, fontWeight:700, fontSize:13, color:C.navy }}>Recorded Unspent Fund Plans</div>
+          <Table head={['FY','Amount','Destination','Status']} rows={unspentFunds.map(u => [
+            u.financial_year, crore(u.unspent_amount), u.transfer_destination||'—',
+            <Badge color={u.status==='transferred'?'green':u.status==='pending'?'gold':'blue'}>{u.status}</Badge>
+          ])} />
+        </>}
+        <div style={{ marginTop:14 }}><Btn outline>📥 Download Statement</Btn></div>
       </Card>
     </>;
   }
@@ -1418,54 +1515,87 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelRepSector() {
+    const bySector = {};
+    projects.forEach(p => {
+      const s = p.activity || 'Skill Development';
+      if (!bySector[s]) bySector[s] = { projects:0, beneficiaries:0, spend:0 };
+      bySector[s].projects++;
+      bySector[s].beneficiaries += p.beneficiaries_actual || 0;
+      bySector[s].spend += p.spent || 0;
+    });
     return <>
       <Bc parts={['Reports','Sector-wise Report']} />
       <SectionHead title="Sector-wise Report 🏭" />
       <Card>
-        <Table head={['Sector (Schedule VII)','Projects','Beneficiaries','Spend','Placement Rate']} rows={[
-          ['Skill Development & Livelihood','7','5,200','₹12.4 Cr',<Badge color="green">78%</Badge>],
-          ['Healthcare & Sanitation','2','620','₹3.2 Cr',<Badge color="blue">62%</Badge>],
-          ['Promoting Education','2','840','₹2.2 Cr',<Badge color="teal">N/A</Badge>],
-          ['Environment Sustainability','1','180','₹0.6 Cr',<Badge color="purple">N/A</Badge>],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : Object.keys(bySector).length === 0 ? <div style={{ color:'#888', padding:12 }}>No project data yet.</div>
+         : <Table head={['Sector (Schedule VII)','Projects','Beneficiaries','Spend']} rows={Object.entries(bySector).map(([sector, data]) => [
+             sector, data.projects, data.beneficiaries.toLocaleString('en-IN'), crore(data.spend)
+           ])} />}
       </Card>
     </>;
   }
 
   function PanelRepGeo() {
+    const byState = {};
+    projects.forEach(p => {
+      const s = p.state_name || 'Unknown';
+      if (!byState[s]) byState[s] = { projects:0, beneficiaries:0, spend:0, districts:new Set() };
+      byState[s].projects++;
+      byState[s].beneficiaries += p.beneficiaries_actual || 0;
+      byState[s].spend += p.spent || 0;
+      if (p.district) byState[s].districts.add(p.district);
+    });
     return <>
       <Bc parts={['Reports','Geographic Report']} />
       <SectionHead title="Geographic Report 🗺️" />
       <Card>
-        <Table head={['State','Projects','Beneficiaries','Spend','Focus Districts']} rows={[
-          ['Maharashtra','3','2,100','₹6.5 Cr','Mumbai, Navi Mumbai, Pune'],
-          ['Uttar Pradesh','2','2,400','₹5.2 Cr','Lucknow, Varanasi, Agra'],
-          ['Rajasthan','2','840','₹2.2 Cr','Jaipur, Jodhpur'],
-          ['Bihar','1','620','₹1.6 Cr','Patna, Muzaffarpur'],
-          ['Gujarat','2','480','₹2.4 Cr','Ahmedabad, Surat'],
-          ['Punjab','1','390','₹0.9 Cr','Ludhiana, Amritsar'],
-        ]} />
+        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : Object.keys(byState).length === 0 ? <div style={{ color:'#888', padding:12 }}>No project data yet.</div>
+         : <Table head={['State','Projects','Beneficiaries','Spend','Districts']} rows={Object.entries(byState).map(([state, data]) => [
+             state, data.projects, data.beneficiaries.toLocaleString('en-IN'), crore(data.spend),
+             [...data.districts].join(', ') || '—'
+           ])} />}
         <div style={{ marginTop:14 }}><Btn outline>📥 Download State Report</Btn></div>
       </Card>
     </>;
   }
 
   function PanelCompSchedule7() {
+    const clauseMap = {
+      'Eradicating Poverty': 'i', 'Promoting Education': 'ii', 'Healthcare & Sanitation': 'iii',
+      'Gender Equality': 'iii', 'Environment': 'vi', 'National Heritage': 'v',
+      'Sports': 'vii', 'Skill Development': 'vii', 'PM National Relief Fund': 'viii',
+    };
+    const actSpend = {};
+    const activeActs = new Set(projects.map(p => p.activity));
+    projects.forEach(p => {
+      const a = p.activity || 'Skill Development';
+      actSpend[a] = (actSpend[a] || 0) + (p.spent || 0);
+    });
+    const clauses = [
+      ['i', 'Eradicating extreme poverty, hunger, malnutrition'],
+      ['ii', 'Promoting education and vocational skills'],
+      ['iii', 'Promoting gender equality / Healthcare & Sanitation'],
+      ['iv', 'Reducing infant mortality, maternal health'],
+      ['v', 'National Heritage / Arts / Culture'],
+      ['vi', 'Environmental sustainability'],
+      ['vii', 'Employment enhancing vocational skills (Skill Development)'],
+      ['viii', 'PM National Relief Fund / PM CARES'],
+    ];
     return <>
       <Bc parts={['Compliance','Schedule VII']} />
       <SectionHead title="Schedule VII Compliance 📜" />
       <Card>
-        <p style={{ fontSize:13, color:'#374151', marginBottom:14 }}>CSR activities must fall under one or more Schedule VII categories under Section 135 of the Companies Act, 2013.</p>
-        {[
-          ['i','Eradicating extreme poverty, hunger, malnutrition','Not in current scope',false,true],
-          ['ii','Promoting education, vocational skills','✅ Active — ₹2.2 Cr',true,false],
-          ['iii','Promoting gender equality, empowering women','✅ Active — ₹2.2 Cr',true,false],
-          ['iv','Reducing infant mortality, maternal health','Not in current scope',false,true],
-          ['vii','Employment enhancing vocational skills','✅ Active — ₹12.4 Cr',true,false],
-          ['vi','Environmental sustainability','✅ Active — ₹0.6 Cr',true,false],
-        ].map(([n,title,sub,done,pending])=>(
-          <Step key={n} num={n} title={title} sub={sub} done={done} pending={pending} />
-        ))}
+        <p style={{ fontSize:13, color:'#374151', marginBottom:14 }}>CSR activities must fall under Schedule VII of the Companies Act, 2013. Your active project activities are mapped below.</p>
+        {clauses.map(([n, title]) => {
+          const matchingActs = Object.entries(clauseMap).filter(([,c]) => c === n).map(([a]) => a);
+          const spend = matchingActs.reduce((s, a) => s + (actSpend[a] || 0), 0);
+          const active = matchingActs.some(a => activeActs.has(a));
+          const sub = spend > 0 ? `Active — ${crore(spend)} spent` : 'Not in current project scope';
+          return <Step key={n} num={n} title={title} sub={sub} done={active} pending={!active} />;
+        })}
+        {!loaded.projects && <div style={{ color:'#888', fontSize:12, marginTop:8 }}>Loading project data…</div>}
       </Card>
     </>;
   }
@@ -1530,56 +1660,97 @@ export default function CsrOrganizationPortal() {
       <Bc parts={['Compliance','Audit Trail']} />
       <SectionHead title="Audit Trail 🔍" />
       <Card>
-        <Table head={['Timestamp','User','Action','Details','IP Address']} rows={[
-          ['Jul 4, 2026 · 11:02','Amrita Patel','Document Uploaded','CSR Board Resolution Q1','122.xx.xx.12'],
-          ['Jul 4, 2026 · 10:45','Finance Team','Disbursement Initiated','₹1.2 Cr to SkillBridge','122.xx.xx.14'],
-          ['Jul 3, 2026 · 4:30 PM','Amrita Patel','Report Generated','Q1 Impact Report — FY26','122.xx.xx.12'],
-          ['Jul 2, 2026 · 3:15 PM','Admin','Project Updated','Skill Dev NM — target revised','122.xx.xx.10'],
-          ['Jul 1, 2026 · 9:00 AM','Amrita Patel','Login','Successful login','122.xx.xx.12'],
-        ]} />
+        {!loaded.audit ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : auditLogs.length === 0
+           ? <div style={{ color:'#888', padding:12 }}>No audit records found for your account.</div>
+           : <Table head={['Timestamp','Action','Resource','Details']} rows={auditLogs.slice(0,20).map(a => [
+               a.created_at ? new Date(a.created_at).toLocaleString('en-IN') : '—',
+               a.action || a.event || '—',
+               a.resource || a.entity || '—',
+               a.details || a.description || '—',
+             ])} />}
       </Card>
     </>;
   }
 
   function PanelHelpdesk() {
+    const tf = ticketForm;
+    const set = k => e => setTicketForm(f => ({ ...f, [k]: e.target.value }));
+    async function submitTicket() {
+      if (!tf.subject.trim()) { setTicketMsg('Subject is required.'); return; }
+      setTicketSaving(true); setTicketMsg('');
+      try {
+        await api.csrCreateTicket({ category: tf.category, priority: tf.priority, subject: tf.subject, description: tf.description });
+        setTicketMsg('✅ Ticket submitted successfully!');
+        setTicketForm({ category:'Technical Issue', priority:'Medium', subject:'', description:'' });
+        setLoaded(l => ({ ...l, tickets: false }));
+        api.csrTickets().then(setTickets).catch(() => {});
+      } catch(e) { setTicketMsg('❌ ' + (e.message || 'Submit failed.')); }
+      setTicketSaving(false);
+    }
     return <>
       <Bc parts={['Support','Helpdesk']} />
       <SectionHead title="Helpdesk 🎧" />
+      {ticketMsg && <Alert icon={ticketMsg.startsWith('✅') ? '✅' : '❌'} type={ticketMsg.startsWith('✅') ? 'success' : 'red'}>{ticketMsg}</Alert>}
       <Card>
         <CardTitle>🆕 Raise a Ticket</CardTitle>
-        <Grid><Field label="Category"><Sel options={['CSR Registration','Fund Transfer','Project Approval','Compliance Query','Technical Issue','Other']} /></Field><Field label="Priority"><Sel options={['Low','Medium','High','Critical']} defaultValue="Medium" /></Field></Grid>
-        <Field label="Subject"><Inp placeholder="e.g. Unable to upload CSR-1 document" /></Field>
-        <Field label="Description"><textarea className="inp" rows={4} placeholder="Describe your issue…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn green>📩 Submit Ticket</Btn></div>
+        <Grid>
+          <Field label="Category"><Sel value={tf.category} onChange={set('category')} options={['CSR Registration','Fund Transfer','Project Approval','Compliance Query','Technical Issue','Other']} /></Field>
+          <Field label="Priority"><Sel value={tf.priority} onChange={set('priority')} options={['Low','Medium','High','Critical']} /></Field>
+        </Grid>
+        <Field label="Subject"><Inp value={tf.subject} onChange={set('subject')} placeholder="e.g. Unable to upload CSR-1 document" /></Field>
+        <Field label="Description"><textarea value={tf.description} onChange={set('description')} rows={4} placeholder="Describe your issue…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <div style={{ textAlign:'right' }}><Btn green onClick={submitTicket} disabled={ticketSaving}>{ticketSaving ? '⏳ Submitting…' : '📩 Submit Ticket'}</Btn></div>
       </Card>
       <Card>
         <CardTitle>📋 My Tickets</CardTitle>
-        <Table head={['Ticket ID','Category','Subject','Status','Updated']} rows={[
-          ['TKT-20260001','Fund Transfer','NEFT to SkillBridge failed',<Badge color="green">Resolved</Badge>,'Jul 3, 2026'],
-          ['TKT-20260002','Compliance','CSR-2 filing date extension?',<Badge color="gold">In Progress</Badge>,'Jul 2, 2026'],
-          ['TKT-20260003','Technical','Login OTP not received',<Badge color="green">Resolved</Badge>,'Jun 28, 2026'],
-        ]} />
+        {!loaded.tickets ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : tickets.length === 0 ? <div style={{ color:'#888', padding:12 }}>No tickets raised yet.</div>
+         : <Table head={['Ticket ID','Category','Subject','Priority','Status','Raised']} rows={tickets.map(t => [
+             `TKT-${String(t.id).padStart(8,'0')}`, t.category||'—', t.subject||'—',
+             <Badge color={t.priority==='Critical'?'red':t.priority==='High'?'orange':t.priority==='Medium'?'gold':'teal'}>{t.priority||'Medium'}</Badge>,
+             <Badge color={t.status==='resolved'?'green':t.status==='in_progress'?'blue':'gold'}>{t.status||'open'}</Badge>,
+             t.created_at ? new Date(t.created_at).toLocaleDateString('en-IN') : '—'
+           ])} />}
       </Card>
     </>;
   }
 
   function PanelGrievance() {
+    const gf = grievanceForm;
+    const set = k => e => setGrievanceForm(f => ({ ...f, [k]: e.target.value }));
+    async function submitGrievance() {
+      if (!gf.description.trim()) { setGrievanceMsg('Description is required.'); return; }
+      setGrievanceSaving(true); setGrievanceMsg('');
+      try {
+        await api.csrCreateGrievance({ type: gf.type, against: gf.against, description: gf.description });
+        setGrievanceMsg('✅ Grievance submitted!');
+        setGrievanceForm({ type:'Project Approval Delay', against:'', description:'' });
+        setLoaded(l => ({ ...l, grievances: false }));
+        api.csrGrievances().then(setGrievances).catch(() => {});
+      } catch(e) { setGrievanceMsg('❌ ' + (e.message || 'Submit failed.')); }
+      setGrievanceSaving(false);
+    }
     return <>
       <Bc parts={['Support','Grievance']} />
       <SectionHead title="Grievance Redressal 📣" />
       <Alert icon="ℹ️" type="info">Grievances related to CSR project disbursement delays, beneficiary issues, or scheme approvals. Expected resolution: 15 working days.</Alert>
+      {grievanceMsg && <Alert icon={grievanceMsg.startsWith('✅') ? '✅' : '❌'} type={grievanceMsg.startsWith('✅') ? 'success' : 'red'}>{grievanceMsg}</Alert>}
       <Card>
-        <Field label="Grievance Type"><Sel options={['Project Approval Delay','Fund Disbursement Delay','Training Partner Issue','Beneficiary Welfare','Scheme Non-compliance','Other']} /></Field>
-        <Field label="Against (If Applicable)"><Inp placeholder="e.g. State Nodal Agency / Training Partner" /></Field>
-        <Field label="Description"><textarea className="inp" rows={5} placeholder="Describe your grievance with relevant dates, amounts, and details…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
-        <div style={{ textAlign:'right' }}><Btn danger>📤 Submit Grievance</Btn></div>
+        <Field label="Grievance Type"><Sel value={gf.type} onChange={set('type')} options={['Project Approval Delay','Fund Disbursement Delay','Training Partner Issue','Beneficiary Welfare','Scheme Non-compliance','Other']} /></Field>
+        <Field label="Against (If Applicable)"><Inp value={gf.against} onChange={set('against')} placeholder="e.g. State Nodal Agency / Training Partner" /></Field>
+        <Field label="Description"><textarea value={gf.description} onChange={set('description')} rows={5} placeholder="Describe your grievance with relevant dates, amounts, and details…" style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #dde2eb', borderRadius:8, fontSize:13.5, outline:'none', background:'#fafbfc', fontFamily:'inherit' }} /></Field>
+        <div style={{ textAlign:'right' }}><Btn danger onClick={submitGrievance} disabled={grievanceSaving}>{grievanceSaving ? '⏳ Submitting…' : '📤 Submit Grievance'}</Btn></div>
       </Card>
       <Card>
         <CardTitle>📋 Past Grievances</CardTitle>
-        <Table head={['GRV ID','Type','Filed On','Status','Resolution']} rows={[
-          ['GRV-2026-001','Fund Disbursement Delay','Jun 15, 2026',<Badge color="green">Resolved</Badge>,'Credited within 5 days after escalation'],
-          ['GRV-2026-002','Project Approval Delay','Jun 28, 2026',<Badge color="gold">Under Review</Badge>,'Escalated to NSDC HQ'],
-        ]} />
+        {!loaded.grievances ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+         : grievances.length === 0 ? <div style={{ color:'#888', padding:12 }}>No grievances filed yet.</div>
+         : <Table head={['GRV ID','Type','Against','Filed On','Status']} rows={grievances.map(g => [
+             `GRV-${String(g.id).padStart(7,'0')}`, g.type||'—', g.against||'—',
+             g.created_at ? new Date(g.created_at).toLocaleDateString('en-IN') : '—',
+             <Badge color={g.status==='resolved'?'green':g.status==='under_review'?'gold':'blue'}>{g.status||'submitted'}</Badge>
+           ])} />}
       </Card>
     </>;
   }
