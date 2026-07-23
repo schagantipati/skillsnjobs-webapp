@@ -332,6 +332,7 @@ export default function CandidatePortal() {
   const [matchExplainJob, setMatchExplainJob] = useState(null);
   const [matchExplainText,setMatchExplainText]= useState('');
   const [matchExplainLoading, setMatchExplainLoading] = useState(false);
+  const [appSearch, setAppSearch] = useState('');
 
   useEffect(() => {
     const pin = profileDraft.pincode?.trim();
@@ -2798,7 +2799,6 @@ export default function CandidatePortal() {
   }
 
   function PanelApprenticeBrowse() {
-    const [appSearch, setAppSearch] = React.useState('');
     // Filter real jobs tagged as apprenticeship/internship from the jobs state
     const apprenticeJobs = jobs.filter(j =>
       j.job_type === 'apprenticeship' || j.job_type === 'internship' ||

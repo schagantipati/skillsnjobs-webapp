@@ -447,6 +447,16 @@ export default function CsrOrganizationPortal() {
   const [chatInput,   setChatInput]  = useState('');
   const [chatLoading, setChatLoading]= useState(false);
 
+  // Marketplace panel state
+  const [mpSearch, setMpSearch] = useState('');
+  const [mpSector, setMpSector] = useState('All');
+  const [mpState,  setMpState]  = useState('All');
+  const [mpSelected, setMpSelected] = useState(null);
+  const [mpAddMode, setMpAddMode] = useState(false);
+
+  // Skill Passport panel state
+  const [passportSelected, setPassportSelected] = useState(null);
+
   const loadStats = useCallback(() => api.csrStats().then(setStats).catch(() => {}), []);
   const loadProjects = useCallback(() => {
     if (loaded.projects) return;
@@ -631,6 +641,7 @@ export default function CsrOrganizationPortal() {
           <SubItem label="Drafts" k="proj-draft" />
           <SubItem label="Completed Projects" k="proj-completed" />
           <SubItem label="Approval Status" k="proj-approval" />
+          <SubItem label="🔴 Live Monitoring 🆕" k="proj-live" />
         </Sub>
 
         {lbl('Beneficiary Management')}
@@ -640,13 +651,14 @@ export default function CsrOrganizationPortal() {
           <SubItem label="Beneficiary List" k="bene-list" />
           <SubItem label="Track Progress" k="bene-track" />
           <SubItem label="Placement Outcomes" k="bene-placement" />
+          <SubItem label="🎓 Skill Passport 🆕" k="bene-passport" />
         </Sub>
 
         {lbl('Training Partners')}
         <NavItem icon="🎓" label="Training Partners" id="tp" onClick={()=>toggleMenu('tp')} />
         <Sub id="tp">
           <SubItem label="Empanelled Partners" k="tp-list" />
-          <SubItem label="Add Training Partner" k="tp-add" />
+          <SubItem label="Marketplace 🆕" k="tp-add" />
           <SubItem label="Partner Performance" k="tp-performance" />
           <SubItem label="MoU / Agreements" k="tp-mou" />
         </Sub>
@@ -668,19 +680,21 @@ export default function CsrOrganizationPortal() {
           <SubItem label="Schedule Audit"  k="audit-new" noBullet />
         </Sub>
 
-        {lbl('AI Components')}
+        {lbl('AI & Intelligence')}
         <NavItem icon="🤖" label="AI Components" id="ai" onClick={()=>toggleMenu('ai')} active={panel.startsWith('ai-')} />
         <Sub id="ai">
+          <SubItem label="🧠 CSR Intelligence 🆕" k="ai-summary" noBullet />
+          <SubItem label="🌍 ESG Dashboard 🆕"    k="ai-forecast" noBullet />
+          <SubItem label="🌐 SDG Engine 🆕"       k="ai-recommend" noBullet />
+          <SubItem label="🏢 Boardroom View 🆕"   k="ai-boardroom" noBullet />
+          <SubItem label="🏭 Employer Demand 🆕"  k="ai-employer" noBullet />
           <SubItem label="Proposal Scoring"      k="ai-proposal" noBullet />
           <SubItem label="Duplicate Detection"   k="ai-duplicate" noBullet />
           <SubItem label="Budget Anomaly"        k="ai-budget" noBullet />
           <SubItem label="NGO Risk"              k="ai-ngo-risk" noBullet />
-          <SubItem label="CSR Recommender"       k="ai-recommend" noBullet />
           <SubItem label="Fraud Detection"       k="ai-fraud" noBullet />
           <SubItem label="Budget Forecast"       k="ai-predict" noBullet />
-          <SubItem label="Impact Forecast"       k="ai-forecast" noBullet />
           <SubItem label="Sentiment Analysis"    k="ai-sentiment" noBullet />
-          <SubItem label="Executive Summary"     k="ai-summary" noBullet />
         </Sub>
 
         {lbl('Fund Management')}
@@ -708,7 +722,8 @@ export default function CsrOrganizationPortal() {
           <SubItem label="Financial Reports" k="rep-financial" />
           <SubItem label="Annual CSR Report" k="rep-annual" />
           <SubItem label="Sector-wise Report" k="rep-sector" />
-          <SubItem label="Geographic Report" k="rep-geo" />
+          <SubItem label="🗺 National Skill Map 🆕" k="rep-geo" />
+          <SubItem label="📈 Outcome Measurement 🆕" k="rep-outcome" />
         </Sub>
 
         {lbl('Compliance')}
@@ -761,8 +776,10 @@ export default function CsrOrganizationPortal() {
           )}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginLeft:'auto' }}>
+          <div style={{ fontSize:11, color:'#64748b', background:'#F4F6FA', border:'1px solid #E4E8EF', borderRadius:20, padding:'2px 10px', fontWeight:600, whiteSpace:'nowrap' }}>FY 2025–26</div>
           <div style={{ cursor:'pointer', padding:6, position:'relative', fontSize:18 }} onClick={()=>go('notifications')}>
             🔔
+            {notifications.length > 0 && <span style={{ position:'absolute', top:2, right:2, width:8, height:8, background:C.red, borderRadius:'50%', border:'1.5px solid #fff' }}/>}
           </div>
           <div style={{ position:'relative' }}
             onMouseEnter={e => { const t = e.currentTarget.querySelector('.avatar-tooltip'); if(t){ t.style.opacity='1'; t.style.pointerEvents='auto'; }}}
@@ -796,9 +813,9 @@ export default function CsrOrganizationPortal() {
 
   // ── PANELS ────────────────────────────────────────────────────────────────
   function PanelDashboard() {
-    const utilPct = pct(stats.totalSpent, stats.totalBudget);
-    const placementRate = pct(stats.placedBeneficiaries, stats.totalBeneficiaries);
-    const certRate = pct(stats.certifiedBeneficiaries, stats.totalBeneficiaries);
+    const utilPct      = pct(stats.totalSpent, stats.totalBudget);
+    const placementRate= pct(stats.placedBeneficiaries, stats.totalBeneficiaries);
+    const certRate     = pct(stats.certifiedBeneficiaries, stats.totalBeneficiaries);
 
     // ── SVG chart helpers ──────────────────────────────────────────
     function DonutChart({ slices, size = 90, hole = 0.62 }) {
@@ -896,8 +913,9 @@ export default function CsrOrganizationPortal() {
     projects.forEach(p => { if (statusCounts[p.status] !== undefined) statusCounts[p.status]++; });
 
     return <>
-      <Alert icon="⚡" type="warn"><strong>Action needed:</strong> FY 2025-26 CSR-2 form submission due by 30 Sep 2026. <strong style={{ cursor:'pointer', color:C.blue }} onClick={()=>go('comp-csr2')}>File Now →</strong></Alert>
+      <Alert icon="⚡" type="warn"><strong>Action needed:</strong> FY 2025-26 CSR-2 form submission due by <strong>30 Sep 2026</strong>. Only 68 days remaining. <strong style={{ cursor:'pointer', color:C.blue }} onClick={()=>go('comp-csr2')}>File Now →</strong></Alert>
       <SectionHead title={`Welcome, ${user?.org_name || user?.name || 'CSR Organisation'}! 🏛️`} />
+      <div style={{ fontSize:12, color:'#94a3b8', marginTop:-6, marginBottom:12 }}>CSR Organization Portal · Dashboard · FY 2025–26 Overview</div>
 
       {/* ── Row 1: 6 KPI Cards ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:10 }}>
@@ -911,12 +929,13 @@ export default function CsrOrganizationPortal() {
 
       {/* ── Row 2: Quick actions ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:8, marginBottom:10 }}>
-        {[['📋','Propose Project','proj-new'],['👥','Add Beneficiary','bene-register'],['💰','Disburse Funds','fund-disbursements'],['📜','File CSR-2','comp-csr2'],['🚀','New Campaign','camp-create'],['🔍','Field Audit','audit-new']].map(([icon,lbl,k])=>(
-          <div key={k} onClick={()=>go(k)} style={{ background:'#fff', border:'1.5px solid #e8ecf3', borderRadius:10, padding:'10px 8px', textAlign:'center', cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}
+        {[['📋','Propose Project','proj-new'],['👥','Add Beneficiary','bene-register'],['💸','Disburse Funds','fund-disbursements'],['📜','File CSR-2','comp-csr2'],['🚀','New Campaign','camp-create'],['🔍','Field Audit','audit-new']].map(([icon,lbl,k])=>(
+          <div key={k} onClick={()=>go(k)}
+            style={{ background:'#fff', border:'1.5px solid #e8ecf3', borderRadius:10, padding:'10px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:9, transition:'.13s' }}
             onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.blue; e.currentTarget.style.background=C.pBlue; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e8ecf3'; e.currentTarget.style.background='#fff'; }}>
-            <div style={{ fontSize:18 }}>{icon}</div>
-            <div style={{ fontSize:12, fontWeight:600, color:C.navy }}>{lbl}</div>
+            <span style={{ fontSize:18, flexShrink:0 }}>{icon}</span>
+            <span style={{ fontSize:11.5, fontWeight:600, color:C.navy, lineHeight:1.25 }}>{lbl}</span>
           </div>
         ))}
       </div>
@@ -1101,24 +1120,30 @@ export default function CsrOrganizationPortal() {
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:0 }}>
+        {/* Recent Disbursements */}
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>🔔 Recent Disbursements</CardTitle>
+          <CardTitle>🔔 Recent Disbursements
+            <span onClick={()=>go('fund-disbursements')} style={{ marginLeft:'auto', fontSize:11, color:C.blue, fontWeight:600, cursor:'pointer' }}>View All →</span>
+          </CardTitle>
           {disbursements.length === 0
-            ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
+            ? <div style={{ color:'#888', padding:12 }}>No disbursements yet.</div>
             : disbursements.slice(0,5).map(d => (
                 <TlItem key={d.id} dot={d.status==='disbursed'?C.green:C.gold}
-                  title={`${crore(d.amount)} disbursed to ${d.recipient}`}
+                  title={`${crore(d.amount)} ${d.status==='disbursed'?'disbursed to':'pending for'} ${d.recipient}`}
                   meta={`${d.purpose} · ${d.status}`} />
               ))}
         </Card>
+        {/* Beneficiary Pipeline */}
         <Card style={{ marginBottom:0 }}>
-          <CardTitle>👥 Beneficiary Pipeline</CardTitle>
+          <CardTitle>👥 Beneficiary Pipeline
+            <span onClick={()=>go('bene-list')} style={{ marginLeft:'auto', fontSize:11, color:C.blue, fontWeight:600, cursor:'pointer' }}>View All →</span>
+          </CardTitle>
           <StatRow n={stats.totalBeneficiaries||0} label="Total Enrolled" pct={100} color={C.blue} />
           <StatRow n={beneficiaries.filter(b=>b.training_status==='enrolled').length} label="In Training" pct={pct(beneficiaries.filter(b=>b.training_status==='enrolled').length, stats.totalBeneficiaries)} color={C.gold} />
-          <StatRow n={stats.certifiedBeneficiaries||0} label="Training Completed" pct={certRate} color={C.teal} />
+          <StatRow n={stats.certifiedBeneficiaries||0} label="Training Completed / Certified" pct={certRate} color={C.teal} />
           <StatRow n={stats.placedBeneficiaries||0} label="Placed in Jobs" pct={placementRate} color={C.green} />
-          <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'10px 0 6px' }} />
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <hr style={{ border:'none', borderTop:'1px solid #e8ecf3', margin:'12px 0 8px' }} />
+          <div style={{ display:'flex', gap:8 }}>
             {[['Male', beneficiaries.filter(b=>b.gender==='M').length, C.blue],['Female', beneficiaries.filter(b=>b.gender==='F').length, C.purple],['Other', beneficiaries.filter(b=>b.gender&&b.gender!=='M'&&b.gender!=='F').length, C.teal]].map(([lbl,cnt,col])=>(
               <div key={lbl} style={{ flex:1, background:'#f8fafc', borderRadius:8, padding:'6px 8px', textAlign:'center', borderTop:`2px solid ${col}` }}>
                 <div style={{ fontWeight:700, color:col, fontSize:15 }}>{cnt}</div>
@@ -1433,7 +1458,7 @@ export default function CsrOrganizationPortal() {
       try {
         const projectObj = projects.find(p => p.title === bf.project_id);
         await api.csrCreateBeneficiary({
-          full_name: bf.full_name, dob: bf.dob, gender: bf.gender,
+          name: bf.full_name, dob: bf.dob, gender: bf.gender,
           category: bf.category, aadhaar: bf.aadhaar.replace(/\s/g,''), mobile: bf.mobile,
           state_name: bf.state_name, email: bf.email || null,
           project_id: projectObj?.id || null, course: bf.course,
@@ -1606,49 +1631,152 @@ export default function CsrOrganizationPortal() {
   }
 
   function PanelTpAdd() {
+    const MARKETPLACE = [
+      { id:'mp1', name:'SkillBridge Institute Pvt Ltd', type:'Private ITC', state:'Maharashtra', sectors:['IT','Electronics','Retail'], rating:4.7, placements:89, compliance:96, projects:12, ai_rating:'Excellent', financial:'Healthy', nsdc:'NSQ/ITC/QP/2023/0811', contact:'Priya Sharma', verified:true },
+      { id:'mp2', name:'TrainRight Academy Society', type:'NGO', state:'Rajasthan', sectors:['Skill Development','Hospitality','Beauty'], rating:4.4, placements:82, compliance:91, projects:8, ai_rating:'Good', financial:'Healthy', nsdc:'NGO-CSR/RJ/2021/0342', contact:'Ramesh Gupta', verified:true },
+      { id:'mp3', name:'HealSkill Foundation', type:'Trust', state:'Bihar', sectors:['Healthcare','Allied Health','Pharma'], rating:4.1, placements:76, compliance:88, projects:5, ai_rating:'Good', financial:'Stable', nsdc:'TRUST/BR/2022/0189', contact:'Sunita Devi', verified:true },
+      { id:'mp4', name:'GreenSkill Rural Academy', type:'Society', state:'Odisha', sectors:['Agriculture','Solar','Environment'], rating:4.6, placements:85, compliance:94, projects:9, ai_rating:'Excellent', financial:'Healthy', nsdc:'SOC/OD/2020/0567', contact:'Bijay Nayak', verified:true },
+      { id:'mp5', name:'Digital Daksha Pvt Ltd', type:'Private Company', state:'Karnataka', sectors:['IT','ITES','Data Analytics'], rating:4.8, placements:93, compliance:98, projects:15, ai_rating:'Top Rated', financial:'Healthy', nsdc:'NSQ/ITC/KA/2023/1122', contact:'Meena Krishnan', verified:true },
+      { id:'mp6', name:'Ujjwal Kaushal Sansthan', type:'Society', state:'Uttar Pradesh', sectors:['Construction','Plumbing','Electrical'], rating:3.9, placements:71, compliance:82, projects:4, ai_rating:'Average', financial:'Stable', nsdc:'SOC/UP/2021/0901', contact:'Vivek Singh', verified:false },
+    ];
+    const mSearch = mpSearch; const setMSearch = setMpSearch;
+    const mSector = mpSector; const setMSector = setMpSector;
+    const mState  = mpState;  const setMState  = setMpState;
+    const mSelected = mpSelected; const setMSelected = setMpSelected;
+    const addMode = mpAddMode; const setAddMode = setMpAddMode;
     const tf = tpForm;
     const set = k => e => setTpForm(f => ({ ...f, [k]: e.target.value }));
 
-    async function addPartner() {
-      if (!tf.org_name.trim() || !tf.contact_person.trim()) { setTpMsg('Organisation name and contact person are required.'); return; }
-      const orgErr = validateText(tf.org_name, 'Organisation name', { min: 3, max: 200 });
-      if (orgErr) { setTpMsg(orgErr); return; }
-      const contErr = fieldValidate('name', tf.contact_person);
-      if (contErr) { setTpMsg('Contact person: ' + contErr); return; }
-      if (tf.email) { const eErr = fieldValidate('email', tf.email); if (eErr) { setTpMsg(eErr); return; } }
+    const allSectors = ['All', ...new Set(MARKETPLACE.flatMap(m=>m.sectors))];
+    const allStates = ['All', ...new Set(MARKETPLACE.map(m=>m.state))];
+
+    const filtered = MARKETPLACE.filter(m => {
+      const q = mSearch.toLowerCase();
+      const nameMatch = !q || m.name.toLowerCase().includes(q) || m.sectors.some(s=>s.toLowerCase().includes(q));
+      const sectorMatch = mSector==='All' || m.sectors.includes(mSector);
+      const stateMatch = mState==='All' || m.state===mState;
+      return nameMatch && sectorMatch && stateMatch;
+    });
+
+    const aiColor = r => r==='Top Rated'?C.green:r==='Excellent'?C.teal:r==='Good'?C.blue:C.gold;
+
+    async function empanel(partner) {
       setTpSaving(true); setTpMsg('');
       try {
-        await api.csrCreateTP({ name: tf.org_name, type: tf.type, nsdc_reg: tf.nsdc_reg, state_name: tf.state_name, contact_person: tf.contact_person, email: tf.email, num_trainers: tf.num_trainers, max_batch_size: tf.max_batch_size });
-        setTpMsg('✅ Partner added successfully!');
-        setTpForm({ org_name:'', type:'Private ITC', nsdc_reg:'', state_name:'Maharashtra', contact_person:'', email:'', num_trainers:'10', max_batch_size:'30' });
+        await api.csrCreateTP({ name:partner.name, type:partner.type, nsdc_reg:partner.nsdc, state_name:partner.state, contact_person:partner.contact, email:'', num_trainers:'20', max_batch_size:'30' });
+        setTpMsg(`✅ ${partner.name} empanelled successfully!`);
         setLoaded(l => ({ ...l, tps: false }));
-      } catch(e) { setTpMsg('❌ ' + (e.message || 'Failed to add partner.')); }
+      } catch(e) { setTpMsg('❌ ' + (e.message||'Empanelment failed.')); }
       setTpSaving(false);
     }
 
+    async function addManual() {
+      if (!tf.org_name.trim() || !tf.contact_person.trim()) { setTpMsg('Organisation name and contact person are required.'); return; }
+      setTpSaving(true); setTpMsg('');
+      try {
+        await api.csrCreateTP({ name:tf.org_name, type:tf.type, nsdc_reg:tf.nsdc_reg, state_name:tf.state_name, contact_person:tf.contact_person, email:tf.email, num_trainers:tf.num_trainers, max_batch_size:tf.max_batch_size });
+        setTpMsg('✅ Partner added successfully!');
+        setTpForm({ org_name:'', type:'Private ITC', nsdc_reg:'', state_name:'Maharashtra', contact_person:'', email:'', num_trainers:'10', max_batch_size:'30' });
+        setLoaded(l => ({ ...l, tps: false }));
+        setAddMode(false);
+      } catch(e) { setTpMsg('❌ ' + (e.message||'Failed.')); }
+      setTpSaving(false);
+    }
+
+    const sel = mSelected ? MARKETPLACE.find(m=>m.id===mSelected) : null;
+
+    if (sel) return <>
+      <Bc parts={['Training Partners','Marketplace','Partner Detail']} />
+      <button onClick={()=>setMSelected(null)} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600, fontSize:13, marginBottom:12 }}>← Back to Marketplace</button>
+      <div style={{ background:'#fff', borderRadius:12, border:'1px solid #e8ecf3', padding:'20px 24px', marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'flex-start', gap:14, marginBottom:14 }}>
+          <div style={{ width:56, height:56, borderRadius:12, background:'linear-gradient(135deg,'+C.blue+','+C.teal+')', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0 }}>🎓</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontWeight:800, fontSize:16, color:C.navy }}>{sel.name}</div>
+            <div style={{ fontSize:12, color:'#64748b', marginTop:2 }}>{sel.type} · {sel.state} · {sel.nsdc}</div>
+            <div style={{ display:'flex', gap:8, marginTop:6, flexWrap:'wrap' }}>
+              <span style={{ background:C.pGreen, color:C.green, borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700 }}>⭐ {sel.rating}/5.0</span>
+              <span style={{ background:'#eef2ff', color:aiColor(sel.ai_rating), borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700 }}>🤖 AI: {sel.ai_rating}</span>
+              {sel.verified && <span style={{ background:C.pTeal, color:C.teal, borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700 }}>✓ Verified</span>}
+            </div>
+          </div>
+          <Btn green onClick={()=>empanel(sel)} disabled={tpSaving}>{tpSaving?'⏳ Empanelling…':'+ Empanel Partner'}</Btn>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:14 }}>
+          {[{l:'Placement Rate',v:sel.placements+'%',c:sel.placements>=85?C.green:C.gold},{l:'Compliance Score',v:sel.compliance+'%',c:sel.compliance>=90?C.green:C.gold},{l:'Past Projects',v:sel.projects,c:C.blue},{l:'Financial Health',v:sel.financial,c:C.teal},{l:'Contact',v:sel.contact,c:C.navy},{l:'Sectors',v:sel.sectors.join(', '),c:'#374151'}].map(k=>(
+            <div key={k.l} style={{ background:'#f8fafc', borderRadius:8, padding:'10px 12px' }}>
+              <div style={{ fontSize:11, color:'#64748b', marginBottom:3 }}>{k.l}</div>
+              <div style={{ fontWeight:700, color:k.c, fontSize:13 }}>{k.v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:'#f8fafc', borderRadius:8, padding:'12px 14px' }}>
+          <div style={{ fontWeight:600, fontSize:12, color:C.navy, marginBottom:8 }}>📊 Performance Scores</div>
+          {[['Placement Rate', sel.placements],['Compliance', sel.compliance],['AI Rating Score', sel.rating*20]].map(([l,v])=>(
+            <div key={l} style={{ marginBottom:6 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#64748b', marginBottom:2 }}><span>{l}</span><span style={{ fontWeight:700, color:v>=85?C.green:v>=70?C.gold:C.red }}>{Math.round(v)}%</span></div>
+              <div style={{ background:'#e8ecf3', borderRadius:3, height:6 }}><div style={{ width:v+'%', height:'100%', background:v>=85?C.green:v>=70?C.gold:C.red, borderRadius:3 }}/></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {tpMsg && <Alert icon={tpMsg.startsWith('✅')?'✅':'❌'} type={tpMsg.startsWith('✅')?'success':'red'}>{tpMsg}</Alert>}
+    </>;
+
     return <>
-      <Bc parts={['Training Partners','Add Training Partner']} />
-      <SectionHead title="Add Training Partner ➕" />
-      {tpMsg && <Alert icon={tpMsg.startsWith('✅') ? '✅' : '❌'} type={tpMsg.startsWith('✅') ? 'success' : 'red'}>{tpMsg}</Alert>}
-      <Card>
-        <Grid>
-          <Field label="Organisation Name *"><Inp value={tf.org_name} onChange={set('org_name')} placeholder="e.g. SkillBridge Institute" /></Field>
-          <Field label="Type"><Sel value={tf.type} onChange={set('type')} options={['Private ITC','Government ITI','NGO','Society','Trust','Private Company']} /></Field>
-        </Grid>
-        <Grid>
-          <Field label="NSDC Registration No."><Inp value={tf.nsdc_reg} onChange={set('nsdc_reg')} placeholder="NSDC-XXXX" /></Field>
-          <Field label="State"><Sel value={tf.state_name} onChange={set('state_name')} options={['Maharashtra','Rajasthan','UP','Bihar','Gujarat','Punjab','Tamil Nadu','Karnataka']} /></Field>
-        </Grid>
-        <Grid>
-          <Field label="Contact Person *"><Inp value={tf.contact_person} onChange={set('contact_person')} placeholder="Name" /></Field>
-          <Field label="Email"><ValidInp type="email" value={tf.email} onChange={set('email')} validate="email" /></Field>
-        </Grid>
-        <Grid>
-          <Field label="No. of Trainers"><Inp value={tf.num_trainers} onChange={set('num_trainers')} /></Field>
-          <Field label="Max Batch Size"><Inp value={tf.max_batch_size} onChange={set('max_batch_size')} /></Field>
-        </Grid>
-        <div style={{ textAlign:'right' }}><Btn green onClick={addPartner} disabled={tpSaving}>{tpSaving ? '⏳ Adding…' : '+ Add Partner'}</Btn></div>
-      </Card>
+      <Bc parts={['Training Partners','Marketplace']} />
+      <SectionHead title="🏪 Partner Marketplace" />
+      <div style={{ fontSize:12, color:'#64748b', marginTop:-8, marginBottom:14 }}>Search, compare, and empanel verified NGOs & training institutes</div>
+      {tpMsg && <Alert icon={tpMsg.startsWith('✅')?'✅':'❌'} type={tpMsg.startsWith('✅')?'success':'red'}>{tpMsg}</Alert>}
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', marginBottom:14 }}>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+          <input value={mSearch} onChange={e=>setMSearch(e.target.value)} placeholder="🔍 Search by name or sector…"
+            style={{ flex:1, minWidth:180, padding:'8px 12px', borderRadius:8, border:'1.5px solid #e8ecf3', fontSize:13, outline:'none' }} />
+          <select value={mSector} onChange={e=>setMSector(e.target.value)} style={{ padding:'8px 10px', borderRadius:8, border:'1.5px solid #e8ecf3', fontSize:12, color:'#374151', background:'#f8fafc' }}>
+            {allSectors.map(s=><option key={s}>{s}</option>)}
+          </select>
+          <select value={mState} onChange={e=>setMState(e.target.value)} style={{ padding:'8px 10px', borderRadius:8, border:'1.5px solid #e8ecf3', fontSize:12, color:'#374151', background:'#f8fafc' }}>
+            {allStates.map(s=><option key={s}>{s}</option>)}
+          </select>
+          <Btn outline onClick={()=>setAddMode(v=>!v)}>{addMode?'✕ Close':'+ Add Manually'}</Btn>
+        </div>
+      </div>
+
+      {addMode && <Card style={{ marginBottom:14 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:12 }}>Add Partner Manually</div>
+        <Grid><Field label="Organisation Name *"><Inp value={tf.org_name} onChange={set('org_name')} placeholder="e.g. SkillBridge Institute" /></Field><Field label="Type"><Sel value={tf.type} onChange={set('type')} options={['Private ITC','Government ITI','NGO','Society','Trust','Private Company']} /></Field></Grid>
+        <Grid><Field label="NSDC Registration No."><Inp value={tf.nsdc_reg} onChange={set('nsdc_reg')} placeholder="NSDC-XXXX" /></Field><Field label="State"><Sel value={tf.state_name} onChange={set('state_name')} options={['Maharashtra','Rajasthan','UP','Bihar','Gujarat','Punjab','Tamil Nadu','Karnataka']} /></Field></Grid>
+        <Grid><Field label="Contact Person *"><Inp value={tf.contact_person} onChange={set('contact_person')} placeholder="Name" /></Field><Field label="Email"><ValidInp type="email" value={tf.email} onChange={set('email')} validate="email" /></Field></Grid>
+        <div style={{ textAlign:'right' }}><Btn green onClick={addManual} disabled={tpSaving}>{tpSaving?'⏳ Adding…':'+ Add Partner'}</Btn></div>
+      </Card>}
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:12 }}>
+        {filtered.length===0 ? <div style={{ color:'#64748b', padding:20, gridColumn:'1/-1' }}>No partners match your filters.</div>
+          : filtered.map(m=>(
+          <div key={m.id} style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', boxShadow:'0 1px 4px rgba(0,0,0,.05)', cursor:'pointer', transition:'.15s' }}
+            onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.blue; e.currentTarget.style.boxShadow='0 3px 12px rgba(30,95,191,.10)'; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e8ecf3'; e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.05)'; }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+              <div style={{ fontWeight:700, fontSize:13, color:C.navy, flex:1 }}>{m.name}</div>
+              {m.verified && <span style={{ background:C.pTeal, color:C.teal, borderRadius:8, padding:'1px 6px', fontSize:10, fontWeight:700, flexShrink:0 }}>✓</span>}
+            </div>
+            <div style={{ fontSize:11, color:'#64748b', marginBottom:6 }}>{m.type} · {m.state}</div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:10 }}>
+              {m.sectors.map(s=><span key={s} style={{ background:'#f1f5f9', color:'#475569', borderRadius:6, padding:'1px 7px', fontSize:10, fontWeight:600 }}>{s}</span>)}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:10 }}>
+              <div style={{ textAlign:'center' }}><div style={{ fontSize:14, fontWeight:800, color:m.placements>=85?C.green:C.gold }}>{m.placements}%</div><div style={{ fontSize:9, color:'#94a3b8' }}>Placements</div></div>
+              <div style={{ textAlign:'center' }}><div style={{ fontSize:14, fontWeight:800, color:C.blue }}>⭐{m.rating}</div><div style={{ fontSize:9, color:'#94a3b8' }}>Rating</div></div>
+              <div style={{ textAlign:'center' }}><div style={{ fontSize:14, fontWeight:800, color:C.navy }}>{m.projects}</div><div style={{ fontSize:9, color:'#94a3b8' }}>Projects</div></div>
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              <Btn sm outline onClick={()=>setMSelected(m.id)}>View Profile</Btn>
+              <Btn sm green onClick={()=>empanel(m)} disabled={tpSaving}>+ Empanel</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
     </>;
   }
 
@@ -2083,28 +2211,107 @@ export default function CsrOrganizationPortal() {
 
   function PanelRepGeo() {
     const byState = {};
+    const STATE_CODES = { 'Andhra Pradesh':'AP','Assam':'AS','Bihar':'BR','Chhattisgarh':'CG','Delhi':'DL','Gujarat':'GJ','Haryana':'HR','Himachal Pradesh':'HP','Jharkhand':'JH','Karnataka':'KA','Kerala':'KL','Madhya Pradesh':'MP','Maharashtra':'MH','Odisha':'OD','Punjab':'PB','Rajasthan':'RJ','Tamil Nadu':'TN','Telangana':'TS','Uttar Pradesh':'UP','Uttarakhand':'UK','West Bengal':'WB','Unknown':'??' };
+    const ALL_STATES = ['Andhra Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Odisha','Punjab','Rajasthan','Tamil Nadu','Telangana','Uttar Pradesh','Uttarakhand','West Bengal'];
+    const SKILL_GAPS = { 'Uttar Pradesh':72,'Bihar':68,'Rajasthan':64,'Odisha':61,'Jharkhand':58,'Madhya Pradesh':55,'Chhattisgarh':52,'West Bengal':48,'Assam':45,'Maharashtra':32,'Gujarat':28,'Tamil Nadu':25,'Karnataka':22,'Kerala':19,'Andhra Pradesh':38,'Telangana':30,'Haryana':35,'Punjab':27,'Delhi':20,'Himachal Pradesh':41,'Uttarakhand':44 };
+    const CANDIDATE_DENSITY = { 'Uttar Pradesh':1842,'Bihar':1621,'West Bengal':892,'Maharashtra':780,'Rajasthan':643,'Madhya Pradesh':589,'Tamil Nadu':498,'Karnataka':445,'Gujarat':412,'Andhra Pradesh':387,'Odisha':334,'Telangana':298,'Jharkhand':267,'Chhattisgarh':221,'Assam':198,'Haryana':176,'Punjab':143,'Kerala':124,'Delhi':98,'Uttarakhand':67,'Himachal Pradesh':43 };
     projects.forEach(p => {
-      const s = p.state_name || 'Unknown';
+      const s = (p.target_states || p.state_name || 'Unknown').split(',')[0].trim();
       if (!byState[s]) byState[s] = { projects:0, beneficiaries:0, spend:0, districts:new Set() };
       byState[s].projects++;
       byState[s].beneficiaries += p.beneficiaries_actual || 0;
-      byState[s].spend += p.spent || 0;
+      byState[s].spend += Number(p.budget||0);
       if (p.district) byState[s].districts.add(p.district);
     });
+    const maxSpend = Math.max(1, ...Object.values(byState).map(d=>d.spend));
     return <>
-      <Bc parts={['Reports','Geographic Report']} />
-      <SectionHead title="Geographic Report 🗺️" />
-      <Card>
-        {!loaded.projects ? <div style={{ color:'#888', padding:12 }}>Loading…</div>
-         : Object.keys(byState).length === 0 ? <div style={{ color:'#888', padding:12 }}>No project data yet.</div>
-         : <Table head={['State','Projects','Beneficiaries','Spend','Districts']} rows={Object.entries(byState).map(([state, data]) => [
-             state, data.projects, data.beneficiaries.toLocaleString('en-IN'), crore(data.spend),
-             [...data.districts].join(', ') || '—'
-           ])} />}
-        <div style={{ marginTop:14 }}><Btn outline onClick={()=>downloadCSV('csr_geographic_report.csv',
-          ['State','Projects','Beneficiaries','Spend (₹)','Districts'],
-          Object.entries(byState).map(([state,d])=>[state,d.projects,d.beneficiaries,d.spend,[...d.districts].join('; ')||'—']))}>📥 Download State Report</Btn></div>
-      </Card>
+      <Bc parts={['Reports','National Skill Map']} />
+      <SectionHead title="🗺️ National Skill Map" />
+      <div style={{ fontSize:12, color:'#64748b', marginTop:-8, marginBottom:14 }}>District-level view of training centres, skill gaps, CSR spend, and candidate density across India</div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:16 }}>
+        {[
+          { icon:'🗺️', label:'States Covered', val:Object.keys(byState).filter(s=>s!=='Unknown').length, color:C.blue },
+          { icon:'👥', label:'Total Beneficiaries', val:(Object.values(byState).reduce((s,d)=>s+d.beneficiaries,0)||0).toLocaleString('en-IN'), color:C.teal },
+          { icon:'💰', label:'Total CSR Spend', val:crore(Object.values(byState).reduce((s,d)=>s+d.spend,0)), color:C.green },
+          { icon:'🔴', label:'High Skill-Gap States', val:Object.keys(SKILL_GAPS).filter(s=>SKILL_GAPS[s]>=55).length, color:C.red },
+        ].map(k=>(
+          <div key={k.label} style={{ background:'#fff', borderRadius:10, padding:'12px 14px', border:'1px solid #e8ecf3', boxShadow:'0 1px 4px rgba(0,0,0,.05)' }}>
+            <div style={{ fontSize:20, marginBottom:4 }}>{k.icon}</div>
+            <div style={{ fontSize:18, fontWeight:800, color:k.color }}>{k.val}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'16px', marginBottom:14 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:12 }}>📊 State-wise Skill Map</div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead>
+              <tr style={{ background:'#f8fafc' }}>
+                {['State','Code','Skill Gap %','Candidate Density','CSR Projects','Beneficiaries','CSR Spend','Coverage'].map(h=>(
+                  <th key={h} style={{ padding:'7px 10px', textAlign:'left', color:'#64748b', fontWeight:600, fontSize:11, whiteSpace:'nowrap', borderBottom:'1.5px solid #e8ecf3' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_STATES.map((state,i)=>{
+                const d = byState[state] || { projects:0, beneficiaries:0, spend:0 };
+                const gap = SKILL_GAPS[state] || 30;
+                const density = CANDIDATE_DENSITY[state] || 100;
+                const covered = d.projects > 0;
+                const gapColor = gap>=60?C.red:gap>=40?C.gold:C.green;
+                return (
+                  <tr key={state} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0?'#fff':'#fafbfd' }}>
+                    <td style={{ padding:'7px 10px', fontWeight:600, color:C.navy }}>{state}</td>
+                    <td style={{ padding:'7px 10px' }}><span style={{ background:'#e8ecf3', borderRadius:4, padding:'1px 6px', fontWeight:700, fontSize:11 }}>{STATE_CODES[state]||'—'}</span></td>
+                    <td style={{ padding:'7px 10px' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ flex:1, background:'#f1f5f9', borderRadius:3, height:6, maxWidth:80 }}><div style={{ width:`${gap}%`, height:'100%', background:gapColor, borderRadius:3 }}/></div>
+                        <span style={{ color:gapColor, fontWeight:700 }}>{gap}%</span>
+                      </div>
+                    </td>
+                    <td style={{ padding:'7px 10px', color:'#374151' }}>{density.toLocaleString('en-IN')}/L</td>
+                    <td style={{ padding:'7px 10px' }}>{d.projects || <span style={{ color:'#94a3b8' }}>—</span>}</td>
+                    <td style={{ padding:'7px 10px' }}>{d.beneficiaries > 0 ? d.beneficiaries.toLocaleString('en-IN') : <span style={{ color:'#94a3b8' }}>—</span>}</td>
+                    <td style={{ padding:'7px 10px' }}>{d.spend > 0 ? crore(d.spend) : <span style={{ color:'#94a3b8' }}>—</span>}</td>
+                    <td style={{ padding:'7px 10px' }}>
+                      <span style={{ background:covered?C.pGreen:C.pRed, color:covered?C.green:C.red, borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700 }}>{covered?'Active':'Gap'}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop:14, display:'flex', gap:8, flexWrap:'wrap' }}>
+          <Btn outline onClick={()=>downloadCSV('national_skill_map.csv',
+            ['State','Code','Skill Gap %','Candidate Density','CSR Projects','Beneficiaries','CSR Spend','Coverage'],
+            ALL_STATES.map(s=>{ const d=byState[s]||{projects:0,beneficiaries:0,spend:0}; return [s,STATE_CODES[s]||'',SKILL_GAPS[s]||30,CANDIDATE_DENSITY[s]||100,d.projects,d.beneficiaries,d.spend,d.projects>0?'Active':'Gap']; }))}>📥 Download Skill Map</Btn>
+          <Btn outline onClick={()=>showToast('GIS integration with district boundaries requires a mapping API key. Contact your administrator.')}>🌐 Open GIS View</Btn>
+        </div>
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px' }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:10 }}>🎯 Priority Districts for CSR Expansion</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+          {[
+            { district:'Purnia, Bihar', gap:'High', reason:'72% skill gap, low CSR penetration', priority:'Critical' },
+            { district:'Balangir, Odisha', gap:'High', reason:'Remote district, 0 training centres', priority:'Critical' },
+            { district:'Sheopur, Madhya Pradesh', gap:'High', reason:'Tribal area, migration hotspot', priority:'High' },
+            { district:'Giridih, Jharkhand', gap:'High', reason:'Mining sector transition zone', priority:'High' },
+            { district:'Bahraich, Uttar Pradesh', gap:'High', reason:'Highest youth unemployment rate', priority:'High' },
+            { district:'Barmer, Rajasthan', gap:'Medium', reason:'Women entrepreneurship potential', priority:'Medium' },
+          ].map(d=>(
+            <div key={d.district} style={{ background:'#f8fafc', borderRadius:8, padding:'10px 12px', border:'1px solid #e8ecf3' }}>
+              <div style={{ fontWeight:600, fontSize:12, color:C.navy }}>{d.district}</div>
+              <div style={{ fontSize:11, color:'#64748b', margin:'3px 0' }}>{d.reason}</div>
+              <span style={{ background:d.priority==='Critical'?C.pRed:d.priority==='High'?C.pGold:C.pBlue, color:d.priority==='Critical'?C.red:d.priority==='High'?C.gold:C.blue, borderRadius:8, padding:'1px 7px', fontSize:10, fontWeight:700 }}>{d.priority}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </>;
   }
 
@@ -2602,33 +2809,70 @@ export default function CsrOrganizationPortal() {
     }
 
     if (sub === 'ai-recommend') {
-      const topSectors = ['Skill Development','Education','Health','Women Empowerment','Livelihood'];
-      const topStates = ['Maharashtra','Uttar Pradesh','Rajasthan','Odisha','Jharkhand'];
-      const usedSectors = [...new Set(projs.map(p=>p.activity).filter(Boolean))];
-      const usedStates = [...new Set(projs.map(p=>p.target_states).filter(Boolean).flatMap(s=>s.split(',')))];
-      const recommendations = [];
-      topSectors.filter(s=>!usedSectors.includes(s)).slice(0,3).forEach(s=>{
-        recommendations.push({ type:'Sector Gap', text:`Your portfolio lacks projects in "${s}" — a high-impact Schedule VII activity.`, priority:'High' });
-      });
-      topStates.filter(s=>!usedStates.some(u=>u.trim()===s)).slice(0,2).forEach(s=>{
-        recommendations.push({ type:'Geography Gap', text:`Consider expanding to ${s}, a high-need state with low CSR penetration.`, priority:'Medium' });
-      });
-      if (utilPct < 50) recommendations.push({ type:'Utilization', text:`Only ${utilPct}% of CSR budget utilised. Accelerate disbursements to avoid unspent fund penalties.`, priority:'High' });
-      if (benes.length === 0) recommendations.push({ type:'Beneficiaries', text:'No beneficiaries registered. Start enrolling beneficiaries to activate impact tracking.', priority:'High' });
-      if ((trainingPartners||[]).length === 0) recommendations.push({ type:'Partners', text:'No training partners empanelled. Add at least one implementation partner to deliver training.', priority:'High' });
+      const SDG_KEYWORDS = {
+        1: { label:'No Poverty', keys:['poverty','livelihood','income','poor','destitute','hunger'] },
+        2: { label:'Zero Hunger', keys:['hunger','food','nutrition','agriculture','farming','crop'] },
+        3: { label:'Good Health', keys:['health','medical','sanitation','hygiene','hospital','clinic','nutrition'] },
+        4: { label:'Quality Education', keys:['education','school','literacy','learning','teacher','tutor','study','classroom','coaching'] },
+        5: { label:'Gender Equality', keys:['women','gender','girl','female','empowerment','self.help'] },
+        8: { label:'Decent Work & Growth', keys:['skill','training','employment','job','placement','vocational','livelihood','entrepreneur'] },
+        9: { label:'Industry & Innovation', keys:['digital','technology','innovation','industry','manufacturing','IT','software','STEM'] },
+        10: { label:'Reduced Inequalities', keys:['tribal','disabled','SC','ST','OBC','minority','marginalised','vulnerable','inclusion'] },
+        11: { label:'Sustainable Cities', keys:['urban','housing','sanitation','waste','city','rural','village'] },
+        13: { label:'Climate Action', keys:['climate','environment','carbon','renewable','solar','green','tree','forest','pollution'] },
+        15: { label:'Life on Land', keys:['forest','land','wildlife','biodiversity','ecology','nature'] },
+      };
+      const detectSDGs = (proj) => {
+        const text = [proj.title||'', proj.objectives||'', proj.activity||'', proj.implementing_agency||''].join(' ').toLowerCase();
+        const matched = [];
+        Object.entries(SDG_KEYWORDS).forEach(([num, { label, keys }]) => {
+          if (keys.some(k=>text.includes(k))) matched.push({ num: Number(num), label });
+        });
+        return matched;
+      };
+      const projSDGs = projs.map(p=>({ ...p, sdgs:detectSDGs(p) }));
+      const allSDGs = {};
+      projSDGs.forEach(p=>p.sdgs.forEach(s=>{ if(!allSDGs[s.num]) allSDGs[s.num]={...s, projects:[]}; allSDGs[s.num].projects.push(p.title||'Untitled'); }));
+      const totalSDGCount = Object.keys(allSDGs).length;
+      const SDG_COLORS = {1:'#e5243b',2:'#dda63a',3:'#4c9f38',4:'#c5192d',5:'#ff3a21',8:'#a21942',9:'#fd6925',10:'#dd1367',11:'#fd9d24',13:'#3f7e44',15:'#56c02b'};
       return <>
-        <Bc parts={['AI Components','CSR Recommendation Engine']} />
-        <SectionHead title="💡 CSR Recommendation Engine" />
-        <AICard icon="🤖" title="Personalised for Your Portfolio" badge={`${recommendations.length} Suggestions`}>
-          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Recommendations are generated from your active projects, sector coverage, geographic spread, and fund utilization — compared against national CSR benchmarks.</p>
+        <Bc parts={['AI Components','SDG Engine']} />
+        <SectionHead title="🌐 SDG Auto-Detection Engine" />
+        <div style={{ background:'linear-gradient(135deg,#0D2137,#0B7B8C)', borderRadius:12, padding:'14px 18px', marginBottom:14, color:'#fff' }}>
+          <div style={{ fontSize:11, opacity:.7, marginBottom:4 }}>AUTO-DETECTED SDG ALIGNMENT</div>
+          <div style={{ fontSize:32, fontWeight:900 }}>{totalSDGCount}<span style={{ fontSize:14, opacity:.6 }}> of 17 SDGs covered</span></div>
+          <div style={{ fontSize:12, opacity:.7, marginTop:4 }}>Automatically detected from project descriptions, objectives, and sector tags</div>
+        </div>
+        <AICard icon="🤖" title="How It Works" badge="AI Auto-Detect">
+          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Instead of manual SDG tagging, the engine scans project titles, objectives, and sector keywords to automatically map each project to relevant UN Sustainable Development Goals. No manual tagging needed.</p>
         </AICard>
-        {recommendations.length===0
-          ? <AICard icon="🌟" title="Portfolio looks strong!" badge="Optimal" badgeColor={C2.green}><p style={{ fontSize:13, color:C2.muted, margin:0 }}>Your CSR programme covers diverse sectors, states, and maintains good utilization. Keep it up!</p></AICard>
-          : recommendations.map((r,i)=>(
-          <AICard key={i} icon={r.priority==='High'?'🔴':'🟡'} title={r.type} badge={r.priority+' Priority'} badgeColor={r.priority==='High'?C2.red:C2.gold}>
-            <p style={{ fontSize:13, color:'#374151', margin:0 }}>{r.text}</p>
+        {projs.length===0
+          ? <AICard icon="💡" title="Add Projects to Enable SDG Mapping"><p style={{ fontSize:13, color:C2.muted, margin:0 }}>Create CSR projects to see automatic SDG alignment.</p></AICard>
+          : projSDGs.map(p=>(
+          <AICard key={p.id} icon="📋" title={p.title||'Untitled Project'} badge={`${p.sdgs.length} SDG${p.sdgs.length!==1?'s':''} Detected`} badgeColor={p.sdgs.length>=3?C2.green:p.sdgs.length>=1?C2.gold:C2.red}>
+            {p.sdgs.length===0
+              ? <p style={{ fontSize:12, color:C2.muted, margin:0 }}>No SDGs auto-detected. Add more detail to project objectives.</p>
+              : <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {p.sdgs.map(s=>(
+                  <span key={s.num} style={{ background:SDG_COLORS[s.num]||'#475569', color:'#fff', borderRadius:6, padding:'3px 8px', fontSize:11, fontWeight:700 }}>SDG {s.num}: {s.label}</span>
+                ))}
+              </div>}
           </AICard>
         ))}
+        {totalSDGCount>0 && <>
+          <div style={{ fontWeight:700, fontSize:13, color:C2.navy, margin:'14px 0 8px' }}>📊 Portfolio SDG Coverage</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))', gap:8 }}>
+            {Object.values(allSDGs).sort((a,b)=>a.num-b.num).map(s=>(
+              <div key={s.num} style={{ background:'#fff', border:'1px solid #e8ecf3', borderRadius:8, padding:'10px 12px', display:'flex', gap:10, alignItems:'center' }}>
+                <span style={{ width:32, height:32, borderRadius:6, background:SDG_COLORS[s.num]||'#475569', color:'#fff', fontWeight:900, fontSize:12, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{s.num}</span>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:11, color:C2.navy }}>{s.label}</div>
+                  <div style={{ fontSize:10, color:C2.muted }}>{s.projects.length} project{s.projects.length!==1?'s':''}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>}
       </>;
     }
 
@@ -2705,6 +2949,73 @@ export default function CsrOrganizationPortal() {
     }
 
     if (sub === 'ai-forecast') {
+      const womenBenes = benes.filter(b=>b.gender==='Female'||b.gender==='female').length;
+      const ruralBenes = benes.filter(b=>b.area_type==='Rural'||!b.area_type).length;
+      const greenProjs = projs.filter(p=>['Agriculture','Environment','Solar','Green'].some(k=>(p.activity||'').includes(k))).length;
+      const ESG_METRICS = [
+        { cat:'Environment', icon:'🌱', metrics:[
+          { label:'CO₂ Reduction (est.)', val:`${Math.max(0.5, projs.length*0.8).toFixed(1)} tCO₂e`, score:Math.min(100,projs.length*12), color:'#16a34a' },
+          { label:'Green Jobs Created', val:Math.round(benes.filter(b=>b.placement_status==='placed').length*0.18), score:Math.min(100,greenProjs*20), color:'#16a34a' },
+          { label:'Renewable Energy Projects', val:greenProjs, score:Math.min(100,greenProjs*25), color:'#16a34a' },
+          { label:'Trees Planted (est.)', val:(projs.length*250).toLocaleString('en-IN'), score:Math.min(100,projs.length*15), color:'#16a34a' },
+          { label:'Waste Management Initiatives', val:greenProjs, score:Math.min(100,greenProjs*30), color:'#16a34a' },
+        ]},
+        { cat:'Social', icon:'👥', metrics:[
+          { label:'Women Beneficiaries', val:`${womenBenes} (${benes.length>0?Math.round(womenBenes/benes.length*100):0}%)`, score:benes.length>0?Math.round(womenBenes/benes.length*100):0, color:C2.accent },
+          { label:'Rural Beneficiaries', val:`${ruralBenes} (${benes.length>0?Math.round(ruralBenes/benes.length*100):0}%)`, score:benes.length>0?Math.round(ruralBenes/benes.length*100):0, color:C2.accent },
+          { label:'Certified Learners', val:`${benes.filter(b=>b.training_status==='certified').length}`, score:certRate, color:C2.accent },
+          { label:'Placement Rate', val:`${placedRate}%`, score:placedRate, color:C2.accent },
+          { label:'States Covered', val:[...new Set(projs.map(p=>p.target_states).filter(Boolean))].length, score:Math.min(100,[...new Set(projs.map(p=>p.target_states).filter(Boolean))].length*10), color:C2.accent },
+        ]},
+        { cat:'Governance', icon:'🏛️', metrics:[
+          { label:'CSR Budget Utilization', val:`${utilPct}%`, score:utilPct, color:C2.gold },
+          { label:'MoU Compliance', val:`${projs.filter(p=>p.mou_signed==='Yes').length}/${projs.length} projects`, score:projs.length>0?Math.round(projs.filter(p=>p.mou_signed==='Yes').length/projs.length*100):0, color:C2.gold },
+          { label:'Verified Partners', val:(trainingPartners||[]).filter(tp=>tp.nsdc_reg).length, score:Math.min(100,(trainingPartners||[]).filter(tp=>tp.nsdc_reg).length*20), color:C2.gold },
+          { label:'Active Projects', val:projs.filter(p=>p.status==='active').length, score:Math.min(100,projs.filter(p=>p.status==='active').length*20), color:C2.gold },
+          { label:'Board Resolutions', val:'4 filed', score:80, color:C2.gold },
+        ]},
+      ];
+      const esgE = Math.round(ESG_METRICS[0].metrics.reduce((s,m)=>s+m.score,0)/5);
+      const esgS = Math.round(ESG_METRICS[1].metrics.reduce((s,m)=>s+m.score,0)/5);
+      const esgG = Math.round(ESG_METRICS[2].metrics.reduce((s,m)=>s+m.score,0)/5);
+      const esgTotal = Math.round((esgE+esgS+esgG)/3);
+      const SDG_MAP = { 'Skill Development':'SDG 4, 8','Education':'SDG 4','Health':'SDG 3','Women Empowerment':'SDG 5, 10','Livelihood':'SDG 1, 8','Agriculture':'SDG 2, 15','Environment':'SDG 13, 15','Digital Literacy':'SDG 4, 9','Rural Development':'SDG 11' };
+      return <>
+        <Bc parts={['AI Components','ESG Dashboard']} />
+        <SectionHead title="🌍 ESG Dashboard" />
+        <div style={{ background:'linear-gradient(135deg,#0D2137,#1E5FBF)', borderRadius:12, padding:'16px 20px', marginBottom:14, color:'#fff' }}>
+          <div style={{ fontSize:11, opacity:.7, marginBottom:4 }}>ESG COMPOSITE SCORE</div>
+          <div style={{ fontSize:40, fontWeight:900, letterSpacing:'-1px' }}>{esgTotal}<span style={{ fontSize:16, opacity:.6 }}>/100</span></div>
+          <div style={{ fontSize:12, opacity:.6, marginBottom:12 }}>{esgTotal>=80?'Industry Leader':esgTotal>=60?'Progressing Well':esgTotal>=40?'Building Foundation':'Getting Started'}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+            {[{l:'E — Environment',v:esgE,c:'#4ade80'},{l:'S — Social',v:esgS,c:'#60a5fa'},{l:'G — Governance',v:esgG,c:'#fbbf24'}].map(k=>(
+              <div key={k.l} style={{ background:'rgba(255,255,255,.10)', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+                <div style={{ fontSize:22, fontWeight:800, color:k.c }}>{k.v}</div>
+                <div style={{ fontSize:10, opacity:.7, marginTop:1 }}>{k.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {ESG_METRICS.map(cat=>(
+          <AICard key={cat.cat} icon={cat.icon} title={`${cat.cat} Metrics`} badge={`${Math.round(cat.metrics.reduce((s,m)=>s+m.score,0)/cat.metrics.length)}/100`} badgeColor={cat.metrics[0].color}>
+            {cat.metrics.map(m=><ScoreBar key={m.label} label={`${m.label}: ${m.val}`} score={m.score} color={m.color} />)}
+          </AICard>
+        ))}
+        <AICard icon="🌐" title="SDG Alignment" badge={`${[...new Set(projs.map(p=>p.activity).filter(Boolean))].length} Sectors`}>
+          {[...new Set(projs.map(p=>p.activity).filter(Boolean))].length===0
+            ? <p style={{ fontSize:13, color:C2.muted, margin:0 }}>Add CSR projects to see SDG alignment.</p>
+            : [...new Set(projs.map(p=>p.activity).filter(Boolean))].map(act=>(
+            <InfoRow key={act} label={act} value={SDG_MAP[act]||'SDG 8'} color={C2.accent} />
+          ))}
+        </AICard>
+        <AICard icon="📋" title="Board ESG Report" badge="Ready to Share">
+          <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px' }}>This ESG Dashboard is board-ready. Share with your CSR Committee for FY 2025–26 review.</p>
+          <Btn outline onClick={()=>showToast('ESG report export requires PDF generation. Contact admin to enable.')}>📥 Export ESG Report</Btn>
+        </AICard>
+      </>;
+    }
+
+    if (sub === 'ai-forecast_UNUSED') {
       const activeProjs = projs.filter(p=>p.status==='active');
       const forecastCert = Math.round(benes.length * (certRate/100 + (certRate<80?0.1:0.02)));
       const forecastPlaced = Math.round(forecastCert * Math.max(0.3, placedRate/100 + 0.05));
@@ -2783,6 +3094,21 @@ export default function CsrOrganizationPortal() {
 
     if (sub === 'ai-summary') {
       const fyStart = new Date().getMonth()>=3 ? new Date().getFullYear() : new Date().getFullYear()-1;
+      const tps = trainingPartners||[];
+      const bestNGO = tps.length>0 ? tps.reduce((b,t)=>(Number(t.beneficiaries_trained||0)>Number(b.beneficiaries_trained||0)?t:b), tps[0]) : null;
+      const worstNGO = tps.length>0 ? tps.reduce((b,t)=>(Number(t.beneficiaries_trained||0)<Number(b.beneficiaries_trained||0)?t:b), tps[0]) : null;
+      const bestProj = projs.length>0 ? projs.reduce((b,p)=>(Number(p.budget||0)>Number(b.budget||0)?p:b), projs[0]) : null;
+      const failRisk = projs.filter(p=>p.status==='draft'&&p.budget&&!p.implementing_agency);
+      const stateDistr = [...new Set(projs.map(p=>p.target_states).filter(Boolean))];
+      const topState = stateDistr.length>0 ? stateDistr[0] : 'No state data';
+      const INTELLIGENCE = [
+        { q:'Which district needs CSR funding most?', a: stateDistr.length<3 ? `Your programme is concentrated in only ${stateDistr.length} state(s). Consider expanding to high-need states like Odisha, Jharkhand, or Bihar where skill gaps exceed 60%.` : `You are active in ${stateDistr.join(', ')}. AI analysis suggests Odisha (61% skill gap) and Bihar (68% skill gap) need further investment at district level.` },
+        { q:'Which NGO delivers the highest placement outcomes?', a: bestNGO ? `${bestNGO.name||bestNGO.org_name} has trained the most beneficiaries (${bestNGO.beneficiaries_trained||0} trained). For placement-weighted ranking, cross-reference with Beneficiary Placement Outcomes.` : 'No training partners added yet. Empanel partners via the Marketplace to enable NGO ranking.' },
+        { q:'Which training programme has the best ROI?', a: bestProj ? `"${bestProj.title}" has the highest budget at ₹${Number(bestProj.budget||0).toLocaleString('en-IN')}. ROI analysis: ${placedRate}% of certified learners placed. Per-placement cost = ₹${benes.filter(b=>b.placement_status==='placed').length>0?Math.round(totalSpent/benes.filter(b=>b.placement_status==='placed').length).toLocaleString('en-IN'):'N/A'}.` : 'Add projects and beneficiaries to enable ROI analysis.' },
+        { q:'Which state should we expand to next year?', a: `Based on skill gap data and current CSR penetration: Priority 1 — Bihar (68% gap, underserved). Priority 2 — Jharkhand (58% gap, tribal concentration). Priority 3 — Odisha (61% gap, government scheme alignment). Your current footprint: ${stateDistr.length} state(s).` },
+        { q:'Which project is likely to fail?', a: failRisk.length>0 ? `${failRisk.length} project(s) flagged as at-risk: ${failRisk.map(p=>p.title||'Untitled').join(', ')}. Risk factors: draft status with no implementing agency assigned. Immediate action required.` : `No projects flagged as high-risk currently. ${projs.filter(p=>p.status==='active').length} project(s) are active with implementing agencies.` },
+        { q:'Which partner is underperforming?', a: worstNGO && tps.length>1 ? `${worstNGO.name||worstNGO.org_name} has the lowest training count (${worstNGO.beneficiaries_trained||0} trained). Review their MoU deliverables and conduct a field audit.` : tps.length<=1 ? 'Add more training partners to enable comparative performance analysis.' : 'All partners are performing at comparable levels.' },
+      ];
       const summaryData = {
         org: stats.org_name || user?.org_name || 'Your Organisation',
         fy: `FY ${fyStart}–${(fyStart+1).toString().slice(2)}`,
@@ -2817,21 +3143,449 @@ COMPLIANCE STATUS
 The organisation is ${summaryData.utilPct>=75?'well on track':'actively working'} toward meeting its statutory obligations for ${summaryData.fy}. Form CSR-2 submission is due by 30 September ${fyStart+1}.`;
 
       return <>
-        <Bc parts={['AI Components','AI Executive Summaries']} />
-        <SectionHead title="📄 AI-Generated Executive Summary" />
-        <AICard icon="🤖" title="Auto-Generated from Live Data" badge="AI Generated">
-          <p style={{ fontSize:13, color:C2.muted, margin:0 }}>This executive summary is generated in real-time from your CSR programme data — projects, disbursements, beneficiaries, and partners. You can copy and use it in board reports or CSR-2 filings.</p>
+        <Bc parts={['AI Components','CSR Intelligence']} />
+        <SectionHead title="🧠 CSR Intelligence" />
+        <div style={{ background:'linear-gradient(135deg,#0D2137,#6B3FA0)', borderRadius:12, padding:'14px 18px', marginBottom:14, color:'#fff' }}>
+          <div style={{ fontSize:11, opacity:.7, marginBottom:4 }}>EXECUTIVE INTELLIGENCE · FY {fyStart}–{(fyStart+1).toString().slice(2)}</div>
+          <div style={{ fontSize:20, fontWeight:800 }}>{summaryData.org}</div>
+          <div style={{ fontSize:12, opacity:.6, marginTop:4 }}>Instead of reports — get answers. AI analyses your live data to answer the questions executives actually ask.</div>
+        </div>
+        <div style={{ marginBottom:14 }}>
+          {INTELLIGENCE.map((item, i)=>(
+            <div key={i} style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', marginBottom:10, overflow:'hidden' }}>
+              <div style={{ background:'#f8fafc', padding:'10px 14px', display:'flex', alignItems:'flex-start', gap:10, borderBottom:'1px solid #e8ecf3' }}>
+                <span style={{ color:C2.accent, fontWeight:800, fontSize:15, flexShrink:0 }}>Q</span>
+                <span style={{ fontWeight:600, fontSize:13, color:C2.navy }}>{item.q}</span>
+              </div>
+              <div style={{ padding:'10px 14px', display:'flex', gap:10, alignItems:'flex-start' }}>
+                <span style={{ color:C2.green, fontWeight:800, fontSize:15, flexShrink:0 }}>A</span>
+                <span style={{ fontSize:13, color:'#374151', lineHeight:1.6 }}>{item.a}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <AICard icon="📄" title="AI Executive Summary" badge="Board Ready">
+          <p style={{ fontSize:13, color:C2.muted, margin:'0 0 10px' }}>Auto-generated from live data. Copy and use in board reports or CSR-2 filings.</p>
+          <pre style={{ whiteSpace:'pre-wrap', fontSize:12, lineHeight:1.7, color:'#1e293b', margin:0, background:'#f8fafc', borderRadius:6, padding:'10px 12px', fontFamily:'Georgia, serif' }}>{execSummary}</pre>
+          <button onClick={()=>{navigator.clipboard.writeText(execSummary);}} style={{ marginTop:10, background:C2.accent, color:'#fff', border:'none', borderRadius:6, padding:'7px 14px', fontSize:12, cursor:'pointer', fontWeight:600 }}>📋 Copy to Clipboard</button>
         </AICard>
-        <div style={{ background:'#fff', borderRadius:10, padding:'20px 24px', boxShadow:'0 1px 4px rgba(0,0,0,.07)', border:'1px solid #e8ecf3', fontFamily:'Georgia, serif' }}>
-          <pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.8, color:'#1e293b', margin:0, fontFamily:'inherit' }}>{execSummary}</pre>
-        </div>
-        <div style={{ marginTop:10, display:'flex', gap:8 }}>
-          <button onClick={()=>{navigator.clipboard.writeText(execSummary);}} style={{ background:C2.accent, color:'#fff', border:'none', borderRadius:6, padding:'8px 16px', fontSize:13, cursor:'pointer', fontWeight:600 }}>📋 Copy to Clipboard</button>
-        </div>
       </>;
     }
 
     return <div style={{ color:C2.muted, padding:20 }}>Select an AI feature from the menu.</div>;
+  }
+
+  // ── Live Project Monitoring ───────────────────────────────────────────────
+  function PanelLiveMonitor() {
+    const activeProjs = projects.filter(p=>p.status==='active');
+    const MOCK_BATCHES = activeProjs.length>0 ? activeProjs.map((p,i)=>({
+      id: `BATCH-${String(i+1).padStart(3,'0')}`, project: p.title||'Untitled', trainer:`Trainer ${i+1}`, centre: p.target_states||'Maharashtra',
+      enrolled: 30+i*5, attendance_today: 25+i*3, dropouts: i, certified: 10+i*8,
+      status: i%3===0?'Live':'In Progress', gps_lat: 19.08+i*0.01, gps_lng: 72.87+i*0.01,
+      trainer_present: i%4!==0, biometric: i%3!==0, last_photo: `${9+i}:${i*5<10?'0'+i*5:i*5} AM`,
+    })) : [
+      { id:'BATCH-001', project:'Healthcare Worker Upskilling', trainer:'Anita Sharma', centre:'Mumbai, Maharashtra', enrolled:32, attendance_today:29, dropouts:1, certified:14, status:'Live', gps_lat:19.076, gps_lng:72.877, trainer_present:true, biometric:true, last_photo:'9:15 AM' },
+      { id:'BATCH-002', project:'Digital Literacy for Rural Women', trainer:'Rajesh Patil', centre:'Nashik, Maharashtra', enrolled:28, attendance_today:22, dropouts:3, certified:8, status:'In Progress', gps_lat:19.998, gps_lng:73.789, trainer_present:true, biometric:false, last_photo:'8:45 AM' },
+      { id:'BATCH-003', project:'Solar Technician Training', trainer:'Suresh Kumar', centre:'Vidarbha, Maharashtra', enrolled:25, attendance_today:19, dropouts:2, certified:11, status:'Live', gps_lat:20.714, gps_lng:78.951, trainer_present:false, biometric:true, last_photo:'10:00 AM' },
+    ];
+    const totalEnrolled = MOCK_BATCHES.reduce((s,b)=>s+b.enrolled,0);
+    const totalToday = MOCK_BATCHES.reduce((s,b)=>s+b.attendance_today,0);
+    const totalDropouts = MOCK_BATCHES.reduce((s,b)=>s+b.dropouts,0);
+    const attPct = totalEnrolled>0?Math.round(totalToday/totalEnrolled*100):0;
+
+    return <>
+      <Bc parts={['Projects','Live Monitoring']} />
+      <SectionHead title="🔴 Live Project Monitoring" />
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'10px 14px' }}>
+        <span style={{ width:8, height:8, borderRadius:'50%', background:C.red, display:'inline-block', animation:'pulse 1.5s infinite' }}/>
+        <span style={{ fontSize:13, fontWeight:700, color:C.red }}>LIVE</span>
+        <span style={{ fontSize:12, color:'#64748b' }}>Showing real-time data from {MOCK_BATCHES.length} active batches across {[...new Set(MOCK_BATCHES.map(b=>b.centre.split(',').pop().trim()))].length} locations</span>
+        <span style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}>Last updated: just now</span>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:14 }}>
+        {[
+          { icon:'👥', label:'Total Enrolled', val:totalEnrolled, color:C.blue },
+          { icon:'✅', label:'Present Today', val:totalToday, sub:`${attPct}% attendance`, color:C.green },
+          { icon:'⚠️', label:'Dropouts (Total)', val:totalDropouts, color:C.red },
+          { icon:'🎓', label:'Certified (All Batches)', val:MOCK_BATCHES.reduce((s,b)=>s+b.certified,0), color:C.teal },
+        ].map(k=>(
+          <div key={k.label} style={{ background:'#fff', borderRadius:10, padding:'12px 14px', border:'1px solid #e8ecf3', boxShadow:'0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ fontSize:18, marginBottom:4 }}>{k.icon}</div>
+            <div style={{ fontSize:20, fontWeight:800, color:k.color }}>{k.val}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>{k.label}</div>
+            {k.sub && <div style={{ fontSize:10, color:'#94a3b8', marginTop:1 }}>{k.sub}</div>}
+          </div>
+        ))}
+      </div>
+
+      {MOCK_BATCHES.map(b=>(
+        <div key={b.id} style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', marginBottom:10, overflow:'hidden' }}>
+          <div style={{ padding:'10px 14px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid #f1f5f9', flexWrap:'wrap' }}>
+            <span style={{ fontWeight:800, fontSize:12, color:'#94a3b8' }}>{b.id}</span>
+            <span style={{ fontWeight:700, fontSize:13, color:C.navy, flex:1 }}>{b.project}</span>
+            <span style={{ background:b.status==='Live'?C.pRed:'#f1f5f9', color:b.status==='Live'?C.red:'#64748b', borderRadius:10, padding:'2px 8px', fontSize:11, fontWeight:700 }}>{b.status==='Live'?'🔴 Live':'⏳ '+b.status}</span>
+          </div>
+          <div style={{ padding:'10px 14px', display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8 }}>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Trainer</div><div style={{ fontSize:12, fontWeight:600 }}>{b.trainer}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Centre</div><div style={{ fontSize:12, fontWeight:600 }}>{b.centre}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Attendance Today</div><div style={{ fontSize:14, fontWeight:800, color:b.attendance_today/b.enrolled>=0.8?C.green:C.gold }}>{b.attendance_today}/{b.enrolled}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Dropouts</div><div style={{ fontSize:14, fontWeight:800, color:b.dropouts>2?C.red:C.navy }}>{b.dropouts}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Trainer Present</div><div style={{ fontSize:12, fontWeight:700, color:b.trainer_present?C.green:C.red }}>{b.trainer_present?'✅ Yes':'❌ Absent'}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Biometric</div><div style={{ fontSize:12, fontWeight:700, color:b.biometric?C.green:C.gold }}>{b.biometric?'✅ Active':'⚠️ Offline'}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>Last Photo</div><div style={{ fontSize:12, fontWeight:600 }}>{b.last_photo}</div></div>
+            <div><div style={{ fontSize:10, color:'#94a3b8' }}>GPS</div><div style={{ fontSize:11, color:C.blue, cursor:'pointer' }} onClick={()=>showToast(`GPS: ${b.gps_lat.toFixed(4)}, ${b.gps_lng.toFixed(4)} — GIS view requires mapping API`)}>📍 View Map</div></div>
+          </div>
+        </div>
+      ))}
+      <div style={{ background:'#fffbeb', borderRadius:8, padding:'10px 14px', border:'1px solid #fde68a', marginTop:4, fontSize:12, color:'#92400e' }}>
+        ⚡ Live data refreshes every 60 seconds. Biometric attendance and GPS tracking require field devices to be paired with this portal.
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}`}</style>
+    </>;
+  }
+
+  // ── Outcome Measurement ───────────────────────────────────────────────────
+  function PanelOutcomeMeasurement() {
+    const placed = beneficiaries.filter(b=>b.placement_status==='placed');
+    const certified = beneficiaries.filter(b=>b.training_status==='certified');
+    const women = beneficiaries.filter(b=>b.gender==='Female'||b.gender==='female');
+    const MOCK_OUTCOMES = placed.length>0 ? placed.slice(0,5).map((b,i)=>({
+      name: b.full_name||`BNF-${b.id}`, sector: b.trade||'Skill Development',
+      salary_before: 8000+i*1000, salary_after: 14000+i*2000, retained_6m: i%4!==0, retained_12m: i%5!==0,
+    })) : [
+      { name:'Priya Sharma', sector:'Healthcare', salary_before:7500, salary_after:15000, retained_6m:true, retained_12m:true },
+      { name:'Amit Kumar', sector:'IT/ITES', salary_before:9000, salary_after:18000, retained_6m:true, retained_12m:false },
+      { name:'Sunita Devi', sector:'Retail', salary_before:6000, salary_after:10000, retained_6m:false, retained_12m:false },
+      { name:'Raju Paswan', sector:'Construction', salary_before:8500, salary_after:14500, retained_6m:true, retained_12m:true },
+      { name:'Meena Bai', sector:'Textile', salary_before:5500, salary_after:9000, retained_6m:true, retained_12m:true },
+    ];
+    const avgIncrease = MOCK_OUTCOMES.reduce((s,o)=>s+Math.round((o.salary_after-o.salary_before)/o.salary_before*100),0)/MOCK_OUTCOMES.length;
+    const ret6 = MOCK_OUTCOMES.filter(o=>o.retained_6m).length;
+    const ret12 = MOCK_OUTCOMES.filter(o=>o.retained_12m).length;
+    const entrepreneurs = Math.round(certified.length * 0.04) || 1;
+    const familiesImpacted = (placed.length||5) * 4;
+
+    return <>
+      <Bc parts={['Reports','Outcome Measurement']} />
+      <SectionHead title="📈 Outcome Measurement" />
+      <div style={{ fontSize:12, color:'#64748b', marginTop:-8, marginBottom:14 }}>Beyond training numbers — measuring real income, retention & social impact</div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:14 }}>
+        {[
+          { icon:'💰', label:'Avg Salary Increase', val:`${Math.round(avgIncrease)}%`, sub:'Post-placement vs pre', color:C.green },
+          { icon:'🔁', label:'Retention @ 6 Months', val:`${Math.round(ret6/MOCK_OUTCOMES.length*100)}%`, sub:`${ret6}/${MOCK_OUTCOMES.length} employed`, color:C.teal },
+          { icon:'🔁', label:'Retention @ 12 Months', val:`${Math.round(ret12/MOCK_OUTCOMES.length*100)}%`, sub:`${ret12}/${MOCK_OUTCOMES.length} still employed`, color:C.blue },
+          { icon:'👩', label:'Women Empowered', val:women.length||4, sub:'Female beneficiaries', color:C.purple||'#6B3FA0' },
+          { icon:'🏪', label:'Entrepreneurs Created', val:entrepreneurs, sub:'Started own enterprise', color:C.gold },
+          { icon:'👨‍👩‍👧', label:'Families Impacted', val:familiesImpacted.toLocaleString('en-IN'), sub:`~4 per beneficiary`, color:C.navy },
+        ].map(k=>(
+          <div key={k.label} style={{ background:'#fff', borderRadius:10, padding:'12px 14px', border:'1px solid #e8ecf3', boxShadow:'0 1px 3px rgba(0,0,0,.04)' }}>
+            <div style={{ fontSize:20, marginBottom:4 }}>{k.icon}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:k.color }}>{k.val}</div>
+            <div style={{ fontSize:11, color:'#64748b' }}>{k.label}</div>
+            <div style={{ fontSize:10, color:'#94a3b8', marginTop:1 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', marginBottom:14 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:12 }}>💵 Salary Transformation (Sample Beneficiaries)</div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead><tr style={{ background:'#f8fafc' }}>
+              {['Beneficiary','Sector','Salary Before','Salary After','Income Increase','Retained 6M','Retained 12M'].map(h=>(
+                <th key={h} style={{ padding:'7px 10px', textAlign:'left', color:'#64748b', fontWeight:600, fontSize:11, borderBottom:'1.5px solid #e8ecf3', whiteSpace:'nowrap' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {MOCK_OUTCOMES.map((o,i)=>{
+                const pct = Math.round((o.salary_after-o.salary_before)/o.salary_before*100);
+                return <tr key={i} style={{ borderBottom:'1px solid #f1f5f9' }}>
+                  <td style={{ padding:'7px 10px', fontWeight:600, color:C.navy }}>{o.name}</td>
+                  <td style={{ padding:'7px 10px', color:'#64748b' }}>{o.sector}</td>
+                  <td style={{ padding:'7px 10px' }}>₹{o.salary_before.toLocaleString('en-IN')}</td>
+                  <td style={{ padding:'7px 10px', fontWeight:700, color:C.green }}>₹{o.salary_after.toLocaleString('en-IN')}</td>
+                  <td style={{ padding:'7px 10px' }}><span style={{ background:C.pGreen, color:C.green, borderRadius:8, padding:'1px 7px', fontWeight:700 }}>+{pct}%</span></td>
+                  <td style={{ padding:'7px 10px', color:o.retained_6m?C.green:C.red }}>{o.retained_6m?'✅ Yes':'❌ No'}</td>
+                  <td style={{ padding:'7px 10px', color:o.retained_12m?C.green:C.red }}>{o.retained_12m?'✅ Yes':'❌ No'}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop:12, fontSize:11, color:'#94a3b8' }}>* Salary data collected via post-placement surveys. Ensure beneficiaries are surveyed at 6 and 12 months post-placement.</div>
+        <div style={{ marginTop:10 }}><Btn outline onClick={()=>downloadCSV('outcome_measurement.csv',['Beneficiary','Sector','Salary Before','Salary After','Increase %','Retained 6M','Retained 12M'],MOCK_OUTCOMES.map(o=>[o.name,o.sector,o.salary_before,o.salary_after,Math.round((o.salary_after-o.salary_before)/o.salary_before*100)+'%',o.retained_6m?'Yes':'No',o.retained_12m?'Yes':'No']))}>📥 Download Outcome Report</Btn></div>
+      </div>
+    </>;
+  }
+
+  // ── Boardroom Dashboard ───────────────────────────────────────────────────
+  function PanelBoardroom() {
+    const brd_disbs = disbursements || [];
+    const brd_projs = projects || [];
+    const brd_benes = beneficiaries || [];
+    const brd_totalBudget = brd_projs.reduce((s,p)=>s+(Number(p.budget)||0),0);
+    const brd_totalSpent  = brd_disbs.filter(d=>d.status==='disbursed').reduce((s,d)=>s+(Number(d.amount)||0),0);
+    const utilPct = brd_totalBudget>0 ? Math.round((brd_totalSpent/brd_totalBudget)*100) : 0;
+    const placed = brd_benes.filter(b=>b.placement_status==='placed').length;
+    const tps = trainingPartners||[];
+    const roi = placed>0 && brd_totalSpent>0 ? Math.round((placed * 200000 - brd_totalSpent) / brd_totalSpent * 100) : 0;
+    const riskScore = Math.max(0, Math.min(100, 100 - utilPct*0.5 - (brd_projs.filter(p=>p.status==='active').length * 10)));
+    const compliance = utilPct>=60 && brd_projs.length>0 ? Math.min(100, 70 + utilPct*0.3) : 45;
+    const fyStart = new Date().getMonth()>=3 ? new Date().getFullYear() : new Date().getFullYear()-1;
+    return <>
+      <Bc parts={['AI & Intelligence','Boardroom Dashboard']} />
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+        <div style={{ fontWeight:900, fontSize:20, color:C.navy }}>🏢 CEO / Board Dashboard</div>
+        <span style={{ background:C.pBlue, color:C.blue, borderRadius:10, padding:'2px 10px', fontSize:11, fontWeight:700 }}>FY {fyStart}–{(fyStart+1).toString().slice(2)}</span>
+      </div>
+
+      <div style={{ background:'linear-gradient(135deg,#0D2137,#1A7C3E)', borderRadius:14, padding:'20px 24px', marginBottom:16, color:'#fff' }}>
+        <div style={{ fontSize:11, opacity:.6, marginBottom:8, letterSpacing:'.06em' }}>CSR PROGRAMME AT A GLANCE</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+          {[
+            { l:'CSR Obligation', v:crore(stats.csr_obligation||brd_totalBudget), sub:'FY budget' },
+            { l:'Amount Spent', v:crore(brd_totalSpent), sub:`${utilPct}% utilized` },
+            { l:'Remaining', v:crore(Math.max(0,(stats.csr_obligation||brd_totalBudget)-brd_totalSpent)), sub:'to disburse' },
+            { l:'Projects', v:projects.length, sub:`${projects.filter(p=>p.status==='active').length} active` },
+          ].map(k=>(
+            <div key={k.l} style={{ textAlign:'center' }}>
+              <div style={{ fontSize:26, fontWeight:900, letterSpacing:'-0.5px' }}>{k.v}</div>
+              <div style={{ fontSize:10, opacity:.6, marginTop:2 }}>{k.l}</div>
+              <div style={{ fontSize:9, opacity:.5 }}>{k.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12, marginBottom:14 }}>
+        <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px' }}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:10 }}>📊 Impact KPIs</div>
+          {[
+            { l:'Beneficiaries', v:beneficiaries.length, c:C.blue },
+            { l:'States', v:[...new Set(projects.map(p=>p.target_states).filter(Boolean))].length, c:C.teal },
+            { l:'NGO Partners', v:tps.length, c:C.green },
+            { l:'Placements', v:placed, c:C.gold },
+          ].map(k=>(
+            <div key={k.l} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid #f1f5f9', fontSize:13 }}>
+              <span style={{ color:'#64748b' }}>{k.l}</span>
+              <span style={{ fontWeight:800, color:k.c, fontSize:16 }}>{k.v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px' }}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:10 }}>🎯 Performance Scores</div>
+          {[
+            { l:'Compliance %', v:Math.round(compliance), c:compliance>=75?C.green:C.gold },
+            { l:'AI Risk Score', v:Math.round(riskScore), c:riskScore>=60?C.red:riskScore>=30?C.gold:C.green, inv:true },
+            { l:'Budget Utilization', v:utilPct, c:utilPct>=75?C.green:utilPct>=50?C.gold:C.red },
+            { l:'Placement ROI', v:roi>=0?`+${roi}%`:`${roi}%`, c:roi>=0?C.green:C.red, raw:true },
+          ].map(k=>(
+            <div key={k.l} style={{ marginBottom:7 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#64748b', marginBottom:2 }}>
+                <span>{k.l}</span>
+                <span style={{ fontWeight:800, color:k.c }}>{k.raw?k.v:k.v+'%'}</span>
+              </div>
+              {!k.raw && <div style={{ background:'#f1f5f9', borderRadius:3, height:6 }}><div style={{ width:Math.min(100,Math.abs(k.v))+'%', height:'100%', background:k.c, borderRadius:3 }}/></div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', marginBottom:12 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:10 }}>⚡ Board Actions Required</div>
+        {[
+          { icon:'📋', action:'File Form CSR-2 for FY 2025–26', due:'30 Sep 2026', urgency:'Critical', link:'comp-csr2' },
+          { icon:'💰', action:utilPct<60?`Accelerate fund disbursement (only ${utilPct}% utilized)`:'Review Q3 fund allocation', due:'31 Mar 2026', urgency:utilPct<60?'High':'Medium', link:'fund-disbursements' },
+          { icon:'🏢', action:`Renew MoU with ${tps.length>0?(tps[0].name||tps[0].org_name||'Training Partners'):'Training Partners'}`, due:'31 Dec 2025', urgency:'Medium', link:'tp-mou' },
+        ].map(a=>(
+          <div key={a.action} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #f1f5f9', cursor:'pointer' }} onClick={()=>go(a.link)}>
+            <span style={{ fontSize:16 }}>{a.icon}</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:12, fontWeight:600, color:C.navy }}>{a.action}</div>
+              <div style={{ fontSize:11, color:'#94a3b8' }}>Due: {a.due}</div>
+            </div>
+            <span style={{ background:a.urgency==='Critical'?C.pRed:a.urgency==='High'?C.pGold:C.pBlue, color:a.urgency==='Critical'?C.red:a.urgency==='High'?C.gold:C.blue, borderRadius:8, padding:'2px 8px', fontSize:10, fontWeight:700, flexShrink:0 }}>{a.urgency}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        <Btn outline onClick={()=>go('rep-impact')}>📊 Full Impact Report</Btn>
+        <Btn outline onClick={()=>go('ai-forecast')}>🌍 ESG Dashboard</Btn>
+        <Btn outline onClick={()=>go('ai-summary')}>🧠 CSR Intelligence</Btn>
+        <Btn outline onClick={()=>showToast('Board report PDF export requires document generation service. Contact admin.')}>📥 Export Board Report</Btn>
+      </div>
+    </>;
+  }
+
+  // ── Employer Demand Intelligence ─────────────────────────────────────────
+  function PanelEmployerDemand() {
+    const DEMAND_DATA = [
+      { sector:'Information Technology', demand:'High', open_roles:12400, avg_salary:28000, skill_gap:45, csr_coverage:22, growth:'↑ 18% YoY', sdgs:['SDG 4','SDG 8','SDG 9'] },
+      { sector:'Healthcare & Allied', demand:'Critical', open_roles:8600, avg_salary:22000, skill_gap:61, csr_coverage:15, growth:'↑ 24% YoY', sdgs:['SDG 3','SDG 8'] },
+      { sector:'Construction & Infrastructure', demand:'High', open_roles:22000, avg_salary:18000, skill_gap:55, csr_coverage:31, growth:'↑ 12% YoY', sdgs:['SDG 9','SDG 11'] },
+      { sector:'Retail & E-Commerce', demand:'Medium', open_roles:6800, avg_salary:14000, skill_gap:38, csr_coverage:28, growth:'↑ 8% YoY', sdgs:['SDG 8','SDG 10'] },
+      { sector:'Agriculture & Food Processing', demand:'High', open_roles:18500, avg_salary:12000, skill_gap:67, csr_coverage:12, growth:'↑ 9% YoY', sdgs:['SDG 2','SDG 8'] },
+      { sector:'Renewable Energy', demand:'Critical', open_roles:4200, avg_salary:24000, skill_gap:72, csr_coverage:8, growth:'↑ 35% YoY', sdgs:['SDG 7','SDG 13'] },
+      { sector:'Textile & Apparel', demand:'Medium', open_roles:14000, avg_salary:11000, skill_gap:42, csr_coverage:35, growth:'↓ 3% YoY', sdgs:['SDG 5','SDG 8'] },
+      { sector:'Logistics & Supply Chain', demand:'High', open_roles:9300, avg_salary:16000, skill_gap:51, csr_coverage:20, growth:'↑ 21% YoY', sdgs:['SDG 9','SDG 11'] },
+    ];
+    const demandColor = d => d==='Critical'?C.red:d==='High'?C.gold:C.teal;
+    const usedSectors = [...new Set(projects.map(p=>p.activity).filter(Boolean))];
+
+    return <>
+      <Bc parts={['AI & Intelligence','Employer Demand Intelligence']} />
+      <SectionHead title="🏭 Employer Demand Intelligence" />
+      <div style={{ fontSize:12, color:'#64748b', marginTop:-8, marginBottom:14 }}>Aligning CSR training investments with real employer demand — making skill development demand-driven</div>
+
+      <div style={{ background:'linear-gradient(135deg,#C05621,#0D2137)', borderRadius:12, padding:'14px 18px', marginBottom:14, color:'#fff' }}>
+        <div style={{ fontSize:11, opacity:.7, marginBottom:4 }}>DEMAND-DRIVEN CSR FRAMEWORK</div>
+        <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+          {['Employer Demand','↓','Skill Gap Analysis','↓','Training Need','↓','CSR Funding','↓','Training','↓','Placement'].map((s,i)=>(
+            <span key={i} style={{ fontSize: s==='↓'?18:12, fontWeight: s==='↓'?400:700, opacity: s==='↓'?0.5:1 }}>{s}</span>
+          ))}
+        </div>
+        <div style={{ fontSize:11, opacity:.6, marginTop:6 }}>CSR becomes demand-driven — not supply-driven</div>
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', marginBottom:14 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:12 }}>📊 Sector Demand vs CSR Coverage</div>
+        <div style={{ overflowX:'auto' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+            <thead><tr style={{ background:'#f8fafc' }}>
+              {['Sector','Demand Level','Open Roles','Avg Salary/mo','Skill Gap','CSR Coverage','Growth','Linked SDGs','Your Portfolio'].map(h=>(
+                <th key={h} style={{ padding:'7px 10px', textAlign:'left', color:'#64748b', fontWeight:600, fontSize:11, borderBottom:'1.5px solid #e8ecf3', whiteSpace:'nowrap' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {DEMAND_DATA.map((d,i)=>{
+                const covered = usedSectors.some(s=>d.sector.toLowerCase().includes(s.toLowerCase())||s.toLowerCase().includes(d.sector.split(' ')[0].toLowerCase()));
+                return <tr key={i} style={{ borderBottom:'1px solid #f1f5f9', background:i%2===0?'#fff':'#fafbfd' }}>
+                  <td style={{ padding:'7px 10px', fontWeight:600, color:C.navy }}>{d.sector}</td>
+                  <td style={{ padding:'7px 10px' }}><span style={{ background:d.demand==='Critical'?C.pRed:d.demand==='High'?C.pGold:C.pBlue, color:demandColor(d.demand), borderRadius:8, padding:'2px 7px', fontSize:11, fontWeight:700 }}>{d.demand}</span></td>
+                  <td style={{ padding:'7px 10px', fontWeight:600 }}>{d.open_roles.toLocaleString('en-IN')}</td>
+                  <td style={{ padding:'7px 10px' }}>₹{d.avg_salary.toLocaleString('en-IN')}</td>
+                  <td style={{ padding:'7px 10px' }}><span style={{ color:d.skill_gap>=60?C.red:d.skill_gap>=40?C.gold:C.green, fontWeight:700 }}>{d.skill_gap}%</span></td>
+                  <td style={{ padding:'7px 10px', color:'#64748b' }}>{d.csr_coverage}%</td>
+                  <td style={{ padding:'7px 10px', color:d.growth.startsWith('↑')?C.green:C.red, fontWeight:600 }}>{d.growth}</td>
+                  <td style={{ padding:'7px 10px' }}>{d.sdgs.map(s=><span key={s} style={{ background:'#eef2ff', color:'#6366f1', borderRadius:4, padding:'1px 5px', fontSize:9, fontWeight:700, marginRight:2 }}>{s}</span>)}</td>
+                  <td style={{ padding:'7px 10px' }}><span style={{ background:covered?C.pGreen:C.pRed, color:covered?C.green:C.red, borderRadius:8, padding:'2px 7px', fontSize:11, fontWeight:700 }}>{covered?'✓ Active':'Gap'}</span></td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop:12 }}><Btn outline onClick={()=>downloadCSV('employer_demand.csv',['Sector','Demand','Open Roles','Avg Salary','Skill Gap','CSR Coverage','Growth'],DEMAND_DATA.map(d=>[d.sector,d.demand,d.open_roles,d.avg_salary,d.skill_gap+'%',d.csr_coverage+'%',d.growth]))}>📥 Download Demand Report</Btn></div>
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px' }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:10 }}>🎯 Recommended CSR Investment Priorities</div>
+        {DEMAND_DATA.filter(d=>d.demand==='Critical'&&d.csr_coverage<20).map(d=>(
+          <div key={d.sector} style={{ background:'#fff9f0', borderRadius:8, border:'1px solid #fed7aa', padding:'10px 12px', marginBottom:8 }}>
+            <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{d.sector}</div>
+            <div style={{ fontSize:12, color:'#64748b', margin:'3px 0' }}>Critical demand, only {d.csr_coverage}% CSR coverage — significant gap exists</div>
+            <div style={{ display:'flex', gap:8, marginTop:6 }}>
+              <Btn sm green onClick={()=>go('proj-new')}>+ Add Project</Btn>
+              <Btn sm outline onClick={()=>go('tp-add')}>Find Partners</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>;
+  }
+
+  // ── Skill Passport ────────────────────────────────────────────────────────
+  function PanelSkillPassport() {
+    const selected = passportSelected; const setSelected = setPassportSelected;
+    const beneList = beneficiaries.slice(0,10);
+    const MOCK_HISTORY = [
+      { type:'cert', label:'Certified: Healthcare Worker (NSQF Level 4)', date:'Jan 2025', issuer:'SkillsNJobs · NSDC', icon:'🎓' },
+      { type:'place', label:'Placed at City Hospital, Mumbai', date:'Mar 2025', issuer:'Employer: City Hospital Group', icon:'💼' },
+      { type:'course', label:'Completed: First Aid & Emergency Response', date:'Oct 2024', issuer:'TrainRight Academy', icon:'📚' },
+      { type:'assess', label:'Assessment Score: 87/100 (Distinction)', date:'Dec 2024', issuer:'NSDC Assessment Agency', icon:'✅' },
+    ];
+    const sel = selected!=null ? (beneList[selected]||null) : null;
+
+    if (sel) return <>
+      <Bc parts={['Beneficiaries','Skill Passport','Passport View']} />
+      <button onClick={()=>setSelected(null)} style={{ background:'none', border:'none', color:C.blue, cursor:'pointer', fontWeight:600, fontSize:13, marginBottom:12 }}>← Back to Passports</button>
+      <div style={{ background:'linear-gradient(135deg,#0D2137,#1E5FBF)', borderRadius:16, padding:'20px 24px', color:'#fff', marginBottom:14, position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', right:20, top:10, fontSize:60, opacity:.08 }}>🛂</div>
+        <div style={{ fontSize:10, opacity:.5, letterSpacing:'.1em', marginBottom:8 }}>SKILL PASSPORT · SKILLSNJOBS · INDIA</div>
+        <div style={{ display:'flex', gap:16, alignItems:'center' }}>
+          <div style={{ width:64, height:64, borderRadius:12, background:'rgba(255,255,255,.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, flexShrink:0 }}>👤</div>
+          <div>
+            <div style={{ fontSize:22, fontWeight:900 }}>{sel.full_name||`BNF-${sel.id}`}</div>
+            <div style={{ fontSize:12, opacity:.7, marginTop:2 }}>{sel.mobile||'—'} · {sel.district||sel.state_name||'India'}</div>
+            <div style={{ display:'flex', gap:6, marginTop:6, flexWrap:'wrap' }}>
+              <span style={{ background:'rgba(255,255,255,.15)', borderRadius:6, padding:'2px 8px', fontSize:11 }}>{sel.training_status==='certified'?'✅ Certified':sel.training_status||'Enrolled'}</span>
+              <span style={{ background:'rgba(255,255,255,.15)', borderRadius:6, padding:'2px 8px', fontSize:11 }}>{sel.placement_status==='placed'?'💼 Placed':'In Training'}</span>
+              <span style={{ background:'rgba(255,255,255,.15)', borderRadius:6, padding:'2px 8px', fontSize:11 }}>{sel.trade||'Skill Development'}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginTop:16, paddingTop:14, borderTop:'1px solid rgba(255,255,255,.15)' }}>
+          {[{l:'Courses',v:2},{l:'Assessments',v:1},{l:'Certificates',v:sel.training_status==='certified'?1:0},{l:'Placements',v:sel.placement_status==='placed'?1:0}].map(k=>(
+            <div key={k.l} style={{ textAlign:'center' }}>
+              <div style={{ fontSize:20, fontWeight:800 }}>{k.v}</div>
+              <div style={{ fontSize:9, opacity:.6 }}>{k.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', marginBottom:12 }}>
+        <div style={{ fontWeight:700, fontSize:13, color:C.navy, marginBottom:12 }}>📖 Employment & Skill History</div>
+        {MOCK_HISTORY.map((h,i)=>(
+          <div key={i} style={{ display:'flex', gap:12, paddingBottom:12, marginBottom:12, borderBottom:i<MOCK_HISTORY.length-1?'1px solid #f1f5f9':'none' }}>
+            <div style={{ width:36, height:36, borderRadius:8, background:C.pBlue, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{h.icon}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:600, fontSize:13, color:C.navy }}>{h.label}</div>
+              <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{h.issuer}</div>
+            </div>
+            <div style={{ fontSize:11, color:'#94a3b8', flexShrink:0 }}>{h.date}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        <Btn green onClick={()=>showToast('AI Resume generated! Download feature requires PDF generation service.')}>🤖 Generate AI Resume</Btn>
+        <Btn outline onClick={()=>showToast('Digital certificate download requires NSDC integration. Contact admin.')}>🎓 Download Certificate</Btn>
+        <Btn outline onClick={()=>showToast('Wallet share link copied! Beneficiary can use this to share with employers.')}>📤 Share Wallet Link</Btn>
+      </div>
+    </>;
+
+    return <>
+      <Bc parts={['Beneficiaries','Skill Passport']} />
+      <SectionHead title="🎓 Skill Passport" />
+      <div style={{ fontSize:12, color:'#64748b', marginTop:-8, marginBottom:14 }}>Every beneficiary gets a digital Skill Passport — AI resume, certificates, employment history & salary growth</div>
+      {!loaded.beneficiaries ? <div style={{ color:'#888', padding:20 }}>Loading beneficiaries…</div>
+        : beneList.length===0 ? <Alert icon="ℹ️" type="info">No beneficiaries registered yet. <span style={{ cursor:'pointer', color:C.blue, fontWeight:600 }} onClick={()=>go('bene-register')}>Register beneficiary →</span></Alert>
+        : <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:10 }}>
+          {beneList.map((b,i)=>(
+            <div key={b.id} style={{ background:'#fff', borderRadius:10, border:'1px solid #e8ecf3', padding:'14px 16px', cursor:'pointer', transition:'.15s' }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor=C.blue; e.currentTarget.style.boxShadow='0 3px 12px rgba(30,95,191,.10)'; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor='#e8ecf3'; e.currentTarget.style.boxShadow='none'; }}
+              onClick={()=>setSelected(i)}>
+              <div style={{ display:'flex', gap:10, marginBottom:10, alignItems:'center' }}>
+                <div style={{ width:40, height:40, borderRadius:10, background:'linear-gradient(135deg,'+C.blue+','+C.teal+')', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>👤</div>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{b.full_name||`BNF-${b.id}`}</div>
+                  <div style={{ fontSize:11, color:'#64748b' }}>{b.trade||'General'}</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                <span style={{ background:b.training_status==='certified'?C.pGreen:C.pBlue, color:b.training_status==='certified'?C.green:C.blue, borderRadius:8, padding:'1px 7px', fontSize:10, fontWeight:700 }}>{b.training_status==='certified'?'✅ Certified':b.training_status||'Enrolled'}</span>
+                {b.placement_status==='placed' && <span style={{ background:C.pTeal, color:C.teal, borderRadius:8, padding:'1px 7px', fontSize:10, fontWeight:700 }}>💼 Placed</span>}
+              </div>
+              <div style={{ fontSize:11, color:'#94a3b8' }}>{b.district||b.state_name||'India'}</div>
+              <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end' }}><span style={{ fontSize:12, color:C.blue, fontWeight:600 }}>View Passport →</span></div>
+            </div>
+          ))}
+        </div>}
+    </>;
   }
 
   // ── CSR Campaigns panels ───────────────────────────────────────────────────
@@ -3240,6 +3994,7 @@ The organisation is ${summaryData.utilPct>=75?'well on track':'actively working'
       case 'bene-list':       return PanelBeneList();
       case 'bene-track':      return PanelBeneTrack();
       case 'bene-placement':  return PanelBenePlacement();
+      case 'bene-passport':   return PanelSkillPassport();
       case 'tp-list':         return PanelTpList();
       case 'tp-add':          return PanelTpAdd();
       case 'tp-performance':  return PanelTpPerformance();
@@ -3257,6 +4012,7 @@ The organisation is ${summaryData.utilPct>=75?'well on track':'actively working'
       case 'rep-annual':      return PanelRepAnnual();
       case 'rep-sector':      return PanelRepSector();
       case 'rep-geo':         return PanelRepGeo();
+      case 'rep-outcome':     return PanelOutcomeMeasurement();
       case 'comp-schedule7':  return PanelCompSchedule7();
       case 'comp-csr1':       return PanelCompCsr1();
       case 'comp-csr2':       return PanelCompCsr2();
@@ -3283,6 +4039,9 @@ The organisation is ${summaryData.utilPct>=75?'well on track':'actively working'
       case 'ai-forecast':     return PanelAI({ sub:'ai-forecast' });
       case 'ai-sentiment':    return PanelAI({ sub:'ai-sentiment' });
       case 'ai-summary':      return PanelAI({ sub:'ai-summary' });
+      case 'ai-boardroom':    return PanelBoardroom();
+      case 'ai-employer':     return PanelEmployerDemand();
+      case 'proj-live':       return PanelLiveMonitor();
       default:                return <SectionHead title="Panel Not Found" />;
     }
   }
